@@ -1,0 +1,153 @@
+/*
+ * WiFi: scan for access points.
+ *
+ * A scan is the least invasive way to prove the radio works: it needs no
+ * credentials, no DHCP and no association, and it exercises the RF front
+ * end, the PHY and the supplicant in one go. If a scan returns networks,
+ * the radio is functional.
+ *
+ * The radio is left in station mode but NOT connected, and the interface
+ * is stopped again after the scan so it does not sit there drawing
+ * current. That matters on this board: there is no bulk capacitance on the
+ * 5 V rail, so an idle-but-associated radio is a real load.
+ */
+#include "app.h"
+#include "board.h"
+
+#include "esp_check.h"
+#include "esp_event.h"
+#include "esp_log.h"
+#include "esp_netif.h"
+#include "esp_wifi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include <string.h>
+
+static const char *TAG = "wifi";
+
+static bool s_netif_ready;
+static bool s_wifi_ready;
+
+static esp_err_t ensure_init(void)
+{
+    if (!s_netif_ready) {
+        ESP_RETURN_ON_ERROR(esp_netif_init(), TAG, "netif init");
+        esp_err_t err = esp_event_loop_create_default();
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            ESP_LOGE(TAG, "event loop: %s", esp_err_to_name(err));
+            return err;
+        }
+        esp_netif_create_default_wifi_sta();
+        s_netif_ready = true;
+    }
+
+    if (!s_wifi_ready) {
+        wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+        ESP_RETURN_ON_ERROR(esp_wifi_init(&cfg), TAG, "wifi init");
+        ESP_RETURN_ON_ERROR(esp_wifi_set_storage(WIFI_STORAGE_RAM), TAG, "storage");
+        ESP_RETURN_ON_ERROR(esp_wifi_set_mode(WIFI_MODE_STA), TAG, "mode");
+        s_wifi_ready = true;
+    }
+    return ESP_OK;
+}
+
+esp_err_t hw_wifi_init(void)
+{
+    esp_err_t err = ensure_init();
+    if (err != ESP_OK) {
+        g_app.wifi.ready = false;
+        g_app.results.wifi = TEST_FAIL;
+        return err;
+    }
+    g_app.wifi.ready = true;
+    g_app.results.wifi = TEST_PASS;
+    ESP_LOGI(TAG, "WiFi initialised (station mode, not connected)");
+    return ESP_OK;
+}
+
+/* Run a blocking scan and record the results.
+ *
+ * Called from the UI task, so it is kept short: an active scan on 13
+ * channels takes a couple of seconds. */
+esp_err_t hw_wifi_scan(void)
+{
+    if (!s_wifi_ready) {
+        esp_err_t err = hw_wifi_init();
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+
+    ESP_LOGI(TAG, "starting scan");
+    g_app.wifi.scanning = true;
+
+    esp_err_t err = esp_wifi_start();
+    if (err != ESP_OK && err != ESP_ERR_WIFI_INIT_STATE) {
+        ESP_LOGE(TAG, "wifi start: %s", esp_err_to_name(err));
+        g_app.wifi.scanning = false;
+        g_app.results.wifi = TEST_FAIL;
+        return err;
+    }
+
+    wifi_scan_config_t scan_cfg = {
+        .ssid = NULL,
+        .bssid = NULL,
+        .channel = 0,
+        .show_hidden = false,
+        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+    };
+
+    err = esp_wifi_scan_start(&scan_cfg, true /* block */);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "scan failed: %s", esp_err_to_name(err));
+        g_app.wifi.scanning = false;
+        g_app.results.wifi = TEST_FAIL;
+        esp_wifi_stop();
+        return err;
+    }
+
+    uint16_t count = 0;
+    esp_wifi_scan_get_ap_num(&count);
+    if (count > HW_WIFI_MAX_APS) {
+        count = HW_WIFI_MAX_APS;
+    }
+
+    wifi_ap_record_t records[HW_WIFI_MAX_APS];
+    memset(records, 0, sizeof(records));
+    if (count > 0) {
+        esp_wifi_scan_get_ap_records(&count, records);
+    }
+
+    g_app.wifi.ap_count = count;
+    for (int i = 0; i < count; i++) {
+        snprintf(g_app.wifi.aps[i].ssid, sizeof(g_app.wifi.aps[i].ssid),
+                 "%s", (const char *)records[i].ssid);
+        g_app.wifi.aps[i].rssi = records[i].rssi;
+        g_app.wifi.aps[i].channel = records[i].primary;
+        g_app.wifi.aps[i].auth = (int)records[i].authmode;
+    }
+
+    g_app.wifi.scanning = false;
+    g_app.wifi.scan_count++;
+    g_app.results.wifi = TEST_PASS;
+
+    ESP_LOGI(TAG, "scan found %d network(s)", count);
+    for (int i = 0; i < count; i++) {
+        ESP_LOGI(TAG, "  %-24s %4d dBm  ch%2d  auth %d",
+                 g_app.wifi.aps[i].ssid, g_app.wifi.aps[i].rssi,
+                 g_app.wifi.aps[i].channel, g_app.wifi.aps[i].auth);
+    }
+
+    /* Stop the interface again: an idle radio still draws current, and
+     * this board has no headroom to spare. */
+    esp_wifi_stop();
+    return ESP_OK;
+}
+
+void hw_wifi_stop(void)
+{
+    if (s_wifi_ready) {
+        esp_wifi_stop();
+        ESP_LOGI(TAG, "WiFi stopped");
+    }
+}

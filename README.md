@@ -1,5 +1,9 @@
 # ESP32-S3-4848S040 hardware test firmware
 
+[![Release](https://img.shields.io/github/v/release/jeromedontdev/esp32-s3-4848s040-test-suite)](https://github.com/jeromedontdev/esp32-s3-4848s040-test-suite/releases/latest)
+[![Licence](https://img.shields.io/github/license/jeromedontdev/esp32-s3-4848s040-test-suite)](LICENSE)
+[![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v6.1-blue)](https://github.com/espressif/esp-idf)
+
 Interactive self-test firmware for the Guition / CYD **ESP32-S3-4848S040**
 4" 480×480 wall panel. It brings up every peripheral on the board and
 presents an LVGL UI so each one can be exercised and judged by eye.
@@ -8,8 +12,20 @@ Built with **ESP-IDF v6.1** (no Arduino layer).
 
 ## Quick start
 
+### Flash a prebuilt image
+
+Download the merged binary from the
+[latest release](https://github.com/jeromedontdev/esp32-s3-4848s040-test-suite/releases/latest)
+and write it to offset `0x0`:
+
 ```powershell
-git clone https://github.com/<your-username>/esp32-s3-4848s040-test-suite.git
+esptool --chip esp32s3 -p COM4 -b 460800 write-flash 0x0 esp32s3_4848s040_hwtest-1.0.0.bin
+```
+
+### Build from source
+
+```powershell
+git clone https://github.com/jeromedontdev/esp32-s3-4848s040-test-suite.git
 cd esp32-s3-4848s040-test-suite
 
 # One-time: point at your ESP-IDF install
@@ -23,6 +39,18 @@ idf.py -p COM4 flash monitor
 `sdkconfig.defaults` carries every non-default setting, so no manual
 `sdkconfig` editing is required. The first build downloads LVGL 9,
 `esp_lvgl_port` and `esp_lcd_touch_gt911` from the ESP component registry.
+
+### Making a release image
+
+```powershell
+.\tools\make_release.ps1              # build + merge into dist/
+.\tools\make_release.ps1 -Port COM4   # ...and flash it
+```
+
+The script reads the flash mode, frequency and size from `sdkconfig`
+rather than hardcoding them — hardcoding `qio` produced an image that
+boot-looped, because `CONFIG_ESPTOOLPY_FLASHMODE` is `dio` on this board
+even though `FLASHMODE_QIO` is also set.
 
 ## Hardware
 

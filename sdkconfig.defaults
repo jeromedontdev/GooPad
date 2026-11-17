@@ -1,0 +1,103 @@
+# ESP32-S3-4848S040 hardware test firmware
+#
+# Target: Guition / CYD ESP32-S3-4848S040 (4" 480x480 ST7701S RGB panel,
+# GT911 touch, IP5306 PMIC, NS4168 I2S amp, microSD on SPI2).
+#
+# Flash: 16 MB, PSRAM: 8 MB octal @ 80 MHz.
+#
+# NOTE: sdkconfig.defaults is only read when sdkconfig does not exist. If
+# you already have a build tree, delete sdkconfig (or edit it directly) for
+# changes here to take effect.
+
+set(IDF_TARGET "esp32s3")
+
+# --- Target ---------------------------------------------------------------
+CONFIG_IDF_TARGET="esp32s3"
+
+# --- Flash / PSRAM --------------------------------------------------------
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+
+# --- CPU ------------------------------------------------------------------
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240
+
+# --- Partition table ------------------------------------------------------
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+
+# --- FreeRTOS -------------------------------------------------------------
+CONFIG_FREERTOS_HZ=1000
+
+# --- Main task stack ------------------------------------------------------
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# --- Logging --------------------------------------------------------------
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y
+
+# --- Console --------------------------------------------------------------
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_UART_NUM=0
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
+
+# --- LVGL -----------------------------------------------------------------
+CONFIG_LV_CONF_SKIP=y
+CONFIG_LV_COLOR_DEPTH_16=y
+CONFIG_LV_USE_OS=y
+CONFIG_LV_OS_FREERTOS=y
+CONFIG_LV_FONT_MONTSERRAT_14=y
+CONFIG_LV_FONT_MONTSERRAT_16=y
+CONFIG_LV_FONT_MONTSERRAT_20=y
+CONFIG_LV_FONT_MONTSERRAT_28=y
+
+# LVGL must NOT use its built-in allocator on this board. With WiFi and BLE
+# linked in, the internal DRAM is too tight: the default 64 KB static pool
+# plus the radio stacks overflow dram0_0_seg, and raising the pool to 256 KB
+# fails to link outright. Using the C library allocator means LVGL draws
+# from the normal heap, which CONFIG_SPIRAM_USE_MALLOC backs with PSRAM.
+# Without this the UI panics in lv_draw_add_task as soon as a scan runs.
+CONFIG_LV_USE_BUILTIN_MALLOC=n
+CONFIG_LV_USE_CLIB_MALLOC=y
+CONFIG_LV_USE_STDLIB_MALLOC=1
+
+# --- FatFS / SD -----------------------------------------------------------
+CONFIG_FATFS_LFN_HEAP=y
+CONFIG_FATFS_MAX_LFN=255
+CONFIG_FATFS_API_ENCODING_UTF_8=y
+CONFIG_FATFS_VOLUME_COUNT=2
+CONFIG_FATFS_SECTOR_512=y
+
+# --- I2S ------------------------------------------------------------------
+CONFIG_I2S_ISR_IRAM_SAFE=n
+
+# --- Radios ---------------------------------------------------------------
+CONFIG_ESP_WIFI_ENABLED=y
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=y
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=y
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+
+# --- Brownout -------------------------------------------------------------
+# Enabled at level 7 (2.44 V), the lowest threshold the ESP32-S3 offers.
+# A sag then produces a clean reset with a recorded reason instead of
+# undefined behaviour, and the tally is persisted in NVS so it survives the
+# reset it counts. This is what distinguishes a rail collapse from a crash.
+CONFIG_ESP_BROWNOUT_DET=y
+CONFIG_ESP_BROWNOUT_DET_LVL_SEL_7=y
+
+# --- Compiler -------------------------------------------------------------
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_COMPILER_WARN_WRITE_STRINGS=n

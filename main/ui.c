@@ -132,7 +132,11 @@ static void tab_page_init(lv_obj_t *tab)
     lv_obj_set_style_pad_all(tab, 10, 0);
     lv_obj_set_style_pad_row(tab, 8, 0);
     lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_width(tab, lv_pct(100));
+    /* Exact width, not a percentage: the page sits inside the tabview's
+     * content container, and a percentage there resolves against a padded
+     * parent, which is what made content overhang the right edge. */
+    lv_obj_set_width(tab, BSP_LCD_H_RES);
+    lv_obj_set_style_border_width(tab, 0, 0);
     lv_obj_set_scroll_dir(tab, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(tab, LV_SCROLLBAR_MODE_AUTO);
 }
@@ -1085,14 +1089,20 @@ void ui_init(lv_display_t *disp)
     lv_obj_t *scr = lv_display_get_screen_active(disp);
     lv_obj_set_style_bg_color(scr, COL_BG, 0);
     lv_obj_set_style_text_color(scr, COL_TEXT, 0);
+    /* The screen must not scroll or pad: any padding here shrinks the
+     * usable area and makes percentage-sized children overflow. */
+    lv_obj_set_style_pad_all(scr, 0, 0);
+    lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *tv = lv_tabview_create(scr);
-    /* Pin the tabview to the screen. Without an explicit size it can grow
-     * to fit its tab bar, and with eight tabs that bar is wider than the
-     * 480 px panel - which pushed the content area sideways so part of the
-     * neighbouring tab stayed visible. */
-    lv_obj_set_size(tv, lv_pct(100), lv_pct(100));
+    /* Pin the tabview to the exact panel size. Percentages are relative to
+     * the parent's content area, so with any padding they resolve to more
+     * than the panel and the content overhangs. */
+    lv_obj_set_size(tv, BSP_LCD_H_RES, BSP_LCD_V_RES);
     lv_obj_set_pos(tv, 0, 0);
+    lv_obj_set_style_pad_all(tv, 0, 0);
+    lv_obj_set_style_border_width(tv, 0, 0);
+    lv_obj_remove_flag(tv, LV_OBJ_FLAG_SCROLLABLE);
     lv_tabview_set_tab_bar_size(tv, 46);
     lv_obj_set_style_bg_color(tv, COL_BG, 0);
     lv_obj_set_style_bg_color(tv, COL_CARD, LV_PART_MAIN);
@@ -1100,11 +1110,24 @@ void ui_init(lv_display_t *disp)
     /* The tab bar itself must scroll rather than stretch the tabview. */
     lv_obj_t *tab_bar = lv_tabview_get_tab_bar(tv);
     if (tab_bar) {
-        lv_obj_set_width(tab_bar, lv_pct(100));
-        lv_obj_set_scroll_dir(tab_bar, LV_DIR_HOR);
-        lv_obj_set_scrollbar_mode(tab_bar, LV_SCROLLBAR_MODE_OFF);
+        lv_obj_set_width(tab_bar, BSP_LCD_H_RES);
         lv_obj_set_style_pad_all(tab_bar, 0, 0);
         lv_obj_set_style_pad_column(tab_bar, 0, 0);
+        lv_obj_set_scroll_dir(tab_bar, LV_DIR_HOR);
+        lv_obj_set_scrollbar_mode(tab_bar, LV_SCROLLBAR_MODE_OFF);
+    }
+
+    /* The content container is what actually holds the pages. It has
+     * default padding in LVGL 9, which is what pushed page content past
+     * the right edge. */
+    lv_obj_t *content = lv_tabview_get_content(tv);
+    if (content) {
+        lv_obj_set_size(content, BSP_LCD_H_RES, BSP_LCD_V_RES - 46);
+        lv_obj_set_pos(content, 0, 46);
+        lv_obj_set_style_pad_all(content, 0, 0);
+        lv_obj_set_style_border_width(content, 0, 0);
+        lv_obj_set_scroll_dir(content, LV_DIR_HOR);
+        lv_obj_set_scrollbar_mode(content, LV_SCROLLBAR_MODE_OFF);
     }
 
     build_status_tab(lv_tabview_add_tab(tv, "Status"));

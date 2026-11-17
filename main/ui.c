@@ -120,6 +120,23 @@ static lv_obj_t *make_body_label(lv_obj_t *parent, const char *text,
     return lbl;
 }
 
+/* Common setup for a tab page.
+ *
+ * Every page is pinned to the content area and allowed to scroll only
+ * vertically. Without this a page whose content is wider than the panel
+ * (a long label, a wide button row) makes the whole tabview scroll
+ * sideways, which is what let part of the neighbouring tab show through. */
+static void tab_page_init(lv_obj_t *tab)
+{
+    lv_obj_set_style_bg_color(tab, COL_BG, 0);
+    lv_obj_set_style_pad_all(tab, 10, 0);
+    lv_obj_set_style_pad_row(tab, 8, 0);
+    lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_width(tab, lv_pct(100));
+    lv_obj_set_scroll_dir(tab, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(tab, LV_SCROLLBAR_MODE_AUTO);
+}
+
 /* A "name ......... STATUS" row. */
 static lv_obj_t *make_status_row(lv_obj_t *parent, const char *name)
 {
@@ -160,10 +177,7 @@ static lv_obj_t *make_button(lv_obj_t *parent, const char *text, lv_event_cb_t c
 
 static void build_status_tab(lv_obj_t *tab)
 {
-    lv_obj_set_style_bg_color(tab, COL_BG, 0);
-    lv_obj_set_style_pad_all(tab, 10, 0);
-    lv_obj_set_style_pad_row(tab, 8, 0);
-    lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
+    tab_page_init(tab);
 
     lv_obj_t *card = make_card(tab);
     make_label(card, "ESP32-S3-4848S040", &lv_font_montserrat_20, COL_ACCENT);
@@ -199,10 +213,7 @@ static void brightness_slider_cb(lv_event_t *e)
 
 static void build_display_tab(lv_obj_t *tab)
 {
-    lv_obj_set_style_bg_color(tab, COL_BG, 0);
-    lv_obj_set_style_pad_all(tab, 10, 0);
-    lv_obj_set_style_pad_row(tab, 8, 0);
-    lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
+    tab_page_init(tab);
 
     /* Brightness first: the backlight is the largest load on the 3.3 V
      * rail, so being able to turn it down is the quickest way to stop a
@@ -334,10 +345,7 @@ static void clear_btn_cb(lv_event_t *e)
 
 static void build_touch_tab(lv_obj_t *tab)
 {
-    lv_obj_set_style_bg_color(tab, COL_BG, 0);
-    lv_obj_set_style_pad_all(tab, 10, 0);
-    lv_obj_set_style_pad_row(tab, 8, 0);
-    lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
+    tab_page_init(tab);
 
     lv_obj_t *card = make_card(tab);
     make_label(card, "Draw on the panel to test touch", &lv_font_montserrat_14, COL_DIM);
@@ -386,10 +394,7 @@ static void power_rescan_cb(lv_event_t *e)
 
 static void build_power_tab(lv_obj_t *tab)
 {
-    lv_obj_set_style_bg_color(tab, COL_BG, 0);
-    lv_obj_set_style_pad_all(tab, 10, 0);
-    lv_obj_set_style_pad_row(tab, 8, 0);
-    lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
+    tab_page_init(tab);
 
     lv_obj_t *card = make_card(tab);
     make_label(card, "IP5306 PMIC", &lv_font_montserrat_20, COL_ACCENT);
@@ -454,10 +459,7 @@ static void sd_remount_cb(lv_event_t *e)
 
 static void build_sd_tab(lv_obj_t *tab)
 {
-    lv_obj_set_style_bg_color(tab, COL_BG, 0);
-    lv_obj_set_style_pad_all(tab, 10, 0);
-    lv_obj_set_style_pad_row(tab, 8, 0);
-    lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
+    tab_page_init(tab);
 
     lv_obj_t *card = make_card(tab);
     make_label(card, "microSD (SPI2)", &lv_font_montserrat_20, COL_ACCENT);
@@ -590,14 +592,7 @@ static void relay_click_cb(lv_event_t *e)
 }
 static void build_audio_tab(lv_obj_t *tab)
 {
-    lv_obj_set_style_bg_color(tab, COL_BG, 0);
-    lv_obj_set_style_pad_all(tab, 10, 0);
-    lv_obj_set_style_pad_row(tab, 8, 0);
-    lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
-    /* The tab holds more controls than fit on a 480 px screen, so it has
-     * to scroll or the slot-width buttons are unreachable. */
-    lv_obj_set_scrollable(tab, true);
-    lv_obj_set_scroll_dir(tab, LV_DIR_VER);
+    tab_page_init(tab);
 
     lv_obj_t *card = make_card(tab);
     make_label(card, "NS4168 I2S amplifier", &lv_font_montserrat_20, COL_ACCENT);
@@ -726,10 +721,7 @@ static void build_audio_tab(lv_obj_t *tab)
 
 static void build_info_tab(lv_obj_t *tab)
 {
-    lv_obj_set_style_bg_color(tab, COL_BG, 0);
-    lv_obj_set_style_pad_all(tab, 10, 0);
-    lv_obj_set_style_pad_row(tab, 8, 0);
-    lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
+    tab_page_init(tab);
 
     lv_obj_t *card = make_card(tab);
     make_label(card, "Pin map", &lv_font_montserrat_20, COL_ACCENT);
@@ -1031,12 +1023,7 @@ static void ble_scan_cb(lv_event_t *e)
 
 static void build_radio_tab(lv_obj_t *tab)
 {
-    lv_obj_set_style_bg_color(tab, COL_BG, 0);
-    lv_obj_set_style_pad_all(tab, 10, 0);
-    lv_obj_set_style_pad_row(tab, 8, 0);
-    lv_obj_set_flex_flow(tab, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_scrollable(tab, true);
-    lv_obj_set_scroll_dir(tab, LV_DIR_VER);
+    tab_page_init(tab);
 
     lv_obj_t *wifi_card = make_card(tab);
     make_label(wifi_card, "WiFi", &lv_font_montserrat_20, COL_ACCENT);
@@ -1100,9 +1087,25 @@ void ui_init(lv_display_t *disp)
     lv_obj_set_style_text_color(scr, COL_TEXT, 0);
 
     lv_obj_t *tv = lv_tabview_create(scr);
+    /* Pin the tabview to the screen. Without an explicit size it can grow
+     * to fit its tab bar, and with eight tabs that bar is wider than the
+     * 480 px panel - which pushed the content area sideways so part of the
+     * neighbouring tab stayed visible. */
+    lv_obj_set_size(tv, lv_pct(100), lv_pct(100));
+    lv_obj_set_pos(tv, 0, 0);
     lv_tabview_set_tab_bar_size(tv, 46);
     lv_obj_set_style_bg_color(tv, COL_BG, 0);
     lv_obj_set_style_bg_color(tv, COL_CARD, LV_PART_MAIN);
+
+    /* The tab bar itself must scroll rather than stretch the tabview. */
+    lv_obj_t *tab_bar = lv_tabview_get_tab_bar(tv);
+    if (tab_bar) {
+        lv_obj_set_width(tab_bar, lv_pct(100));
+        lv_obj_set_scroll_dir(tab_bar, LV_DIR_HOR);
+        lv_obj_set_scrollbar_mode(tab_bar, LV_SCROLLBAR_MODE_OFF);
+        lv_obj_set_style_pad_all(tab_bar, 0, 0);
+        lv_obj_set_style_pad_column(tab_bar, 0, 0);
+    }
 
     build_status_tab(lv_tabview_add_tab(tv, "Status"));
     build_display_tab(lv_tabview_add_tab(tv, "Display"));
@@ -1112,6 +1115,24 @@ void ui_init(lv_display_t *disp)
     build_audio_tab(lv_tabview_add_tab(tv, "Audio"));
     build_radio_tab(lv_tabview_add_tab(tv, "Radio"));
     build_info_tab(lv_tabview_add_tab(tv, "Info"));
+
+    /* Eight tabs across 480 px is 60 px each. The default tab button
+     * padding makes them wider than that, so shrink the text and padding
+     * to fit them all without horizontal scrolling. */
+    if (tab_bar) {
+        uint32_t n = lv_obj_get_child_count(tab_bar);
+        for (uint32_t i = 0; i < n; i++) {
+            lv_obj_t *btn = lv_obj_get_child(tab_bar, i);
+            if (!btn) {
+                continue;
+            }
+            lv_obj_set_style_pad_left(btn, 2, 0);
+            lv_obj_set_style_pad_right(btn, 2, 0);
+            lv_obj_set_style_pad_top(btn, 4, 0);
+            lv_obj_set_style_pad_bottom(btn, 4, 0);
+            lv_obj_set_style_text_font(btn, &lv_font_montserrat_14, 0);
+        }
+    }
 
     lv_timer_create(refresh_timer_cb, 200, NULL);
 

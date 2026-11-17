@@ -6,6 +6,24 @@ presents an LVGL UI so each one can be exercised and judged by eye.
 
 Built with **ESP-IDF v6.1** (no Arduino layer).
 
+## Quick start
+
+```powershell
+git clone https://github.com/<your-username>/esp32-s3-4848s040-test-suite.git
+cd esp32-s3-4848s040-test-suite
+
+# One-time: point at your ESP-IDF install
+C:\esp\v6.1\esp-idf\export.bat
+
+idf.py set-target esp32s3
+idf.py build
+idf.py -p COM4 flash monitor
+```
+
+`sdkconfig.defaults` carries every non-default setting, so no manual
+`sdkconfig` editing is required. The first build downloads LVGL 9,
+`esp_lvgl_port` and `esp_lcd_touch_gt911` from the ESP component registry.
+
 ## Hardware
 
 | Part | Detail |
@@ -61,17 +79,10 @@ the amp out of shutdown — so no GPIO is needed for amp enable.
 
 ## Build and flash
 
-```powershell
-# One-time: point at your ESP-IDF install
-C:\esp\v6.1\esp-idf\export.bat
-
-idf.py set-target esp32s3
-idf.py build
-idf.py -p COM9 flash monitor
-```
-
-The first build downloads LVGL 9, `esp_lvgl_port` and
-`esp_lcd_touch_gt911` from the ESP component registry.
+See [Quick start](#quick-start) above. The only board-specific detail is the
+port: use whichever COM port the side USB-C connector enumerates as (COM4
+on the machine this was developed on). `P1` is a UART header, not USB — see
+[Which port to use](#which-port-to-use).
 
 ## Serial console
 
@@ -547,3 +558,11 @@ PSRAM). That leaves very little free:
 
 In practice there are **no free GPIOs** on this board. Any expansion has to
 share an existing pin or use an external I/O expander.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
+This is test firmware for a specific board. It is not a product and comes
+with no warranty; in particular the power budget in
+[board.h](main/board.h) is tuned for the supply this was developed against.

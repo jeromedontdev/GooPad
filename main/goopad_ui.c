@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#define ICON_BYTES (32 * 32 * 2)
+#define MAX_MACROS 32
+
 static const char *TAG = "goopad_ui";
 static lv_obj_t *s_screen;
 static lv_obj_t *s_status;
@@ -19,6 +22,7 @@ static lv_obj_t *s_dots;
 static lv_timer_t *s_timer;
 static char *s_config_buffer;
 static char *s_rendered_config;
+static uint8_t *s_icon_buffers;
 static bool s_grid_shown;
 
 static lv_color_t color(uint32_t value)
@@ -298,11 +302,31 @@ static void build_grid_screen(void)
                 lv_obj_set_style_bg_color(tile, color(accent_value), 0);
                 lv_obj_add_event_cb(tile, tile_cb, LV_EVENT_CLICKED,
                                     (void *)(uintptr_t)index);
-                const char *drawn_icon = symbol_for_icon(glyph);
-                char initial[2] = {caption[0], '\0'};
-                lv_obj_t *symbol = label(tile, drawn_icon ? drawn_icon : initial,
-                                         24, lv_color_white());
-                lv_obj_align(symbol, LV_ALIGN_CENTER, 0, -13);
+                cJSON *custom_image = cJSON_GetObjectItemCaseSensitive(macro, "iconImage");
+                bool image_drawn = false;
+                if (cJSON_IsString(custom_image) && g_app.sd.mounted && s_icon_buffers) {
+                    char path[64];
+                    snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.rgb565",
+                             custom_image->valuestring);
+                    FILE *image = fopen(path, "rb");
+                    if (image) {
+                        uint8_t *pixels = s_icon_buffers + (size_t)index * ICON_BYTES;
+                        image_drawn = fread(pixels, 1, ICON_BYTES, image) == ICON_BYTES;
+                        fclose(image);
+                        if (image_drawn) {
+                            lv_obj_t *canvas = lv_canvas_create(tile);
+                            lv_canvas_set_buffer(canvas, pixels, 32, 32, LV_COLOR_FORMAT_RGB565);
+                            lv_obj_align(canvas, LV_ALIGN_CENTER, 0, -13);
+                        }
+                    }
+                }
+                if (!image_drawn) {
+                    const char *drawn_icon = symbol_for_icon(glyph);
+                    char initial[2] = {caption[0], '\0'};
+                    lv_obj_t *symbol = label(tile, drawn_icon ? drawn_icon : initial,
+                                             24, lv_color_white());
+                    lv_obj_align(symbol, LV_ALIGN_CENTER, 0, -13);
+                }
                 lv_obj_t *text = label(tile, caption, 14, lv_color_white());
                 lv_obj_align(text, LV_ALIGN_CENTER, 0, 23);
             } else {
@@ -347,7 +371,9 @@ void goopad_ui_init(lv_display_t *disp)
     }
     s_config_buffer = heap_caps_malloc(12001, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_rendered_config = heap_caps_malloc(12001, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!s_config_buffer || !s_rendered_config) {
+    s_icon_buffers = heap_caps_calloc(MAX_MACROS, ICON_BYTES,
+                                      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_config_buffer || !s_rendered_config || !s_icon_buffers) {
         ESP_LOGE(TAG, "could not allocate config buffers in PSRAM");
         ui_unlock();
         return;

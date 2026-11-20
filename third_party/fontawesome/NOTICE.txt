@@ -1,0 +1,14 @@
+Font Awesome Free icons
+Copyright 2026 Fonticons, Inc.
+https://fontawesome.com
+
+The icon path data bundled with GooPad was generated from Font Awesome Free
+7.3.1 solid, regular, and brands SVG icon packages.
+
+Icons are licensed under the Creative Commons Attribution 4.0 International
+License (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
+Attribution and the full Font Awesome Free license are available at:
+https://fontawesome.com/license/free
+
+Brand icons are trademarks of their respective owners. Use brand logos only
+to represent the company, product, or service to which they refer.

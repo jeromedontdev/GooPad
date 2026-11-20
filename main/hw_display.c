@@ -23,6 +23,8 @@
 #include "freertos/task.h"
 #include "lvgl.h"
 
+#include <string.h>
+
 static const char *TAG = "display";
 
 #define LVGL_TICK_PERIOD_MS   2
@@ -111,6 +113,7 @@ typedef struct {
 } st7701_cmd_t;
 
 static const st7701_cmd_t s_init_seq[] = {
+    {0x01, 0, 120, {0}},  /* software reset; this panel has no reset pin */
     {0xFF, 5, 0, {0x77, 0x01, 0x00, 0x00, 0x10}},
     {0xC0, 2, 0, {0x3B, 0x00}},
     {0xC1, 2, 0, {0x0D, 0x02}},
@@ -327,6 +330,13 @@ esp_err_t hw_display_init(lv_display_t **out_disp){
     ESP_LOGI(TAG, "creating RGB panel (480x480, 2 frame buffers in PSRAM)");
     ESP_RETURN_ON_ERROR(rgb_panel_create(), TAG, "rgb panel");
 
+    void *fb0 = NULL;
+    void *fb1 = NULL;
+    ESP_RETURN_ON_ERROR(esp_lcd_rgb_panel_get_frame_buffer(s_panel, 2, &fb0, &fb1),
+                        TAG, "get frame buffers");
+    memset(fb0, 0, BSP_LCD_H_RES * BSP_LCD_V_RES * sizeof(uint16_t));
+    memset(fb1, 0, BSP_LCD_H_RES * BSP_LCD_V_RES * sizeof(uint16_t));
+
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(s_panel), TAG, "panel reset");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_init(s_panel), TAG, "panel init");
 
@@ -348,10 +358,6 @@ esp_err_t hw_display_init(lv_display_t **out_disp){
     ESP_RETURN_ON_FALSE(s_disp, ESP_ERR_NO_MEM, TAG, "lvgl display");
     lv_display_set_color_format(s_disp, LV_COLOR_FORMAT_RGB565);
 
-    void *fb0 = NULL;
-    void *fb1 = NULL;
-    ESP_RETURN_ON_ERROR(esp_lcd_rgb_panel_get_frame_buffer(s_panel, 2, &fb0, &fb1),
-                        TAG, "get frame buffers");
     lv_display_set_buffers(s_disp, fb0, fb1,
                            BSP_LCD_H_RES * BSP_LCD_V_RES * sizeof(uint16_t),
                            LV_DISPLAY_RENDER_MODE_DIRECT);

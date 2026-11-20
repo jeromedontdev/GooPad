@@ -9,6 +9,7 @@ import os
 import secrets
 import socket
 import subprocess
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -45,6 +46,26 @@ def lan_address():
         probe.close()
 
 
+def valid_web_target(value):
+    if not isinstance(value, str) or not value or len(value) > 179:
+        return False
+    if any(character.isspace() or ord(character) < 32 or ord(character) == 127
+           for character in value):
+        return False
+    try:
+        parsed = urlparse(value)
+        hostname = parsed.hostname
+        parsed.port
+    except ValueError:
+        return False
+    return (
+        parsed.scheme in ("http", "https")
+        and hostname is not None
+        and not parsed.username
+        and not parsed.password
+    )
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "GooPadCompanion"
     sys_version = ""
@@ -79,7 +100,30 @@ class Handler(BaseHTTPRequestHandler):
         if not hmac.compare_digest(supplied, config["token"]):
             return self.respond(401, "Invalid GooPad token")
 
-        action_id = urlparse(self.path).path.removeprefix("/hook/").strip("/")
+        path = urlparse(self.path).path
+        if path == "/open":
+            try:
+                size = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                return self.respond(400, "Invalid content length")
+            if size <= 0 or size > MAX_BODY:
+                return self.respond(413, "Request body must contain a short website link")
+            try:
+                payload = json.loads(self.rfile.read(size))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return self.respond(400, "Invalid website request")
+            target = payload.get("url") if isinstance(payload, dict) else None
+            if not valid_web_target(target):
+                return self.respond(400, "Only valid http:// or https:// websites can be opened")
+            try:
+                opened = webbrowser.open(target, new=2)
+            except (OSError, webbrowser.Error) as error:
+                return self.respond(500, f"Could not open website: {error}")
+            if not opened:
+                return self.respond(500, "Could not open the default web browser")
+            return self.respond(202, "Opened website on this PC")
+
+        action_id = path.removeprefix("/hook/").strip("/")
         if not action_id or "/" in action_id or len(action_id) > 48:
             return self.respond(404, "Unknown action")
         action = config["actions"].get(action_id)
@@ -122,6 +166,7 @@ def main():
     config = load_config()
     address = lan_address()
     print(f"GooPad companion listening on http://0.0.0.0:{args.port}")
+    print(f"Companion address: http://{address}:{args.port}")
     print(f"Health check: http://{address}:{args.port}/health")
     print(f"Shared token: {config['token']}")
     print(f"Add actions in: {CONFIG_PATH}")

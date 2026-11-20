@@ -9,7 +9,7 @@ idf_component_register(
         "hw_sdcard.c"
         "hw_gpio.c"
         "hw_wifi.c"
-    EMBED_TXTFILES "index.html"
+    EMBED_TXTFILES "index.html" "fa-icons.json"
     INCLUDE_DIRS "."
     REQUIRES
         driver

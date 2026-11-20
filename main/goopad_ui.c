@@ -25,6 +25,9 @@ static lv_obj_t *s_network_list;
 static lv_obj_t *s_scan_button;
 static lv_obj_t *s_pages;
 static lv_obj_t *s_dots;
+static lv_obj_t *s_page_dots[32];
+static lv_obj_t *s_info_overlay;
+static size_t s_page_dot_count;
 static lv_timer_t *s_timer;
 static char *s_config_buffer;
 static char *s_rendered_config;
@@ -236,6 +239,56 @@ static void textarea_pressed_cb(lv_event_t *event)
     show_keyboard(textarea);
 }
 
+static void close_info_cb(lv_event_t *event)
+{
+    (void)event;
+    if (s_info_overlay && lv_obj_is_valid(s_info_overlay)) {
+        lv_obj_del(s_info_overlay);
+    }
+    s_info_overlay = NULL;
+}
+
+static void show_info_cb(lv_event_t *event)
+{
+    (void)event;
+    if (s_info_overlay && lv_obj_is_valid(s_info_overlay)) return;
+
+    s_info_overlay = lv_obj_create(s_screen);
+    lv_obj_set_size(s_info_overlay, 480, 480);
+    lv_obj_set_style_bg_color(s_info_overlay, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(s_info_overlay, LV_OPA_70, 0);
+    lv_obj_set_style_border_width(s_info_overlay, 0, 0);
+    lv_obj_set_style_pad_all(s_info_overlay, 0, 0);
+    lv_obj_set_scrollable(s_info_overlay, false);
+
+    lv_obj_t *panel = lv_obj_create(s_info_overlay);
+    lv_obj_set_size(panel, 400, 250);
+    lv_obj_center(panel);
+    lv_obj_set_style_bg_color(panel, color(0x1E293B), 0);
+    lv_obj_set_style_border_color(panel, color(0x475569), 0);
+    lv_obj_set_style_radius(panel, 18, 0);
+    lv_obj_set_style_pad_all(panel, 18, 0);
+    lv_obj_set_scrollable(panel, false);
+
+    lv_obj_t *title = label(panel, "Device info & settings", 20, color(0xA5B4FC));
+    lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, 0);
+    char details[96];
+    char address[16];
+    goopad_get_address(address, sizeof(address));
+    snprintf(details, sizeof(details), "Web editor: http://%s\nAdmin password: %s",
+             address, goopad_web_password());
+    lv_obj_t *info = label(panel, details, 16, lv_color_white());
+    lv_obj_set_width(info, 360);
+    lv_label_set_long_mode(info, LV_LABEL_LONG_WRAP);
+    lv_obj_align(info, LV_ALIGN_TOP_LEFT, 0, 42);
+    lv_obj_t *hint = label(panel, "Open the web editor on another device to change macros, layout, and settings.",
+                           14, color(0xCBD5E1));
+    lv_obj_set_width(hint, 360);
+    lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
+    lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 0, 104);
+    button(panel, "Close", 250, 178, 112, 42, close_info_cb, NULL, 0x4F46E5);
+}
+
 static void password_visibility_cb(lv_event_t *event)
 {
     s_password_visible = !s_password_visible;
@@ -358,12 +411,15 @@ static void page_scroll_cb(lv_event_t *event)
     (void)event;
     if (!s_pages || !s_dots) return;
     int page = (lv_obj_get_scroll_x(s_pages) + 240) / 480;
-    char dots[96] = "";
     int count = lv_obj_get_child_count(s_pages);
-    for (int i = 0; i < count && i < 32; i++) {
-        strlcat(dots, i == page ? "● " : "○ ", sizeof(dots));
+    if (page < 0) page = 0;
+    if (page >= count) page = count - 1;
+    for (size_t i = 0; i < s_page_dot_count; i++) {
+        bool active = (int)i == page;
+        lv_obj_set_size(s_page_dots[i], active ? 8 : 6, active ? 8 : 6);
+        lv_obj_set_style_bg_color(s_page_dots[i], color(active ? 0xA5B4FC : 0x64748B), 0);
+        lv_obj_set_style_bg_opa(s_page_dots[i], active ? LV_OPA_COVER : LV_OPA_70, 0);
     }
-    lv_label_set_text(s_dots, dots);
 }
 
 static void build_grid_screen(void)
@@ -373,6 +429,10 @@ static void build_grid_screen(void)
     if (s_keyboard && lv_obj_is_valid(s_keyboard)) {
         lv_obj_set_hidden(s_keyboard, true);
     }
+    s_info_overlay = NULL;
+    s_dots = NULL;
+    s_page_dot_count = 0;
+    memset(s_page_dots, 0, sizeof(s_page_dots));
     goopad_get_config(s_config_buffer, 12001);
     strlcpy(s_rendered_config, s_config_buffer, 12001);
     s_grid_shown = true;
@@ -390,7 +450,7 @@ static void build_grid_screen(void)
     int total = cJSON_IsArray(macros) ? cJSON_GetArraySize(macros) : 0;
     int per_page = cols * rows;
     int page_count = (total + per_page - 1) / per_page;
-    if (page_count < 1) page_count = 1;
+    if (page_count < 2) page_count = 2;
     cJSON *bg = root ? cJSON_GetObjectItemCaseSensitive(root, "background") : NULL;
     unsigned background = cJSON_IsString(bg) ? (unsigned)strtoul(bg->valuestring, NULL, 16)
                                                : 0x111827;
@@ -407,12 +467,17 @@ static void build_grid_screen(void)
     lv_obj_set_style_bg_color(s_screen, color(background), 0);
     lv_obj_set_style_text_color(s_screen, light_theme ? color(0x172033) : lv_color_white(), 0);
 
-    lv_obj_t *title = label(s_screen, "GooPad", 24, color(accent_color));
-    lv_obj_set_pos(title, 14, 6);
-    s_status = label(s_screen, "Starting...", 14, color(0xCBD5E1));
-    lv_obj_set_pos(s_status, 142, 12);
-    lv_obj_set_width(s_status, 330);
-    lv_label_set_long_mode(s_status, LV_LABEL_LONG_WRAP);
+    lv_obj_t *info_button = lv_button_create(s_screen);
+    lv_obj_set_pos(info_button, 432, 6);
+    lv_obj_set_size(info_button, 40, 36);
+    lv_obj_set_style_bg_opa(info_button, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(info_button, 1, 0);
+    lv_obj_set_style_border_color(info_button, color(accent_color), 0);
+    lv_obj_set_style_shadow_width(info_button, 0, 0);
+    lv_obj_set_style_radius(info_button, LV_RADIUS_CIRCLE, 0);
+    lv_obj_add_event_cb(info_button, show_info_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *info_icon = label(info_button, "i", 20, color(accent_color));
+    lv_obj_center(info_icon);
 
     s_pages = lv_obj_create(s_screen);
     lv_obj_set_pos(s_pages, 0, 48);
@@ -490,13 +555,36 @@ static void build_grid_screen(void)
                 lv_obj_align(text, LV_ALIGN_CENTER, 0, 23);
             } else {
                 lv_obj_set_style_bg_color(tile, color(0x1F2937), 0);
-                lv_obj_t *empty = label(tile, "+", 24, color(0x64748B));
+                bool swipe_test = page > 0 && slot == 0 && index >= total;
+                lv_obj_t *empty = label(tile, swipe_test ? "Swipe test" : "+",
+                                        swipe_test ? 16 : 24,
+                                        color(swipe_test ? 0xA5B4FC : 0x64748B));
                 lv_obj_center(empty);
+                if (swipe_test) lv_obj_set_clickable(tile, false);
             }
         }
     }
-    s_dots = label(s_screen, "", 14, color(accent_color));
-    lv_obj_align(s_dots, LV_ALIGN_BOTTOM_MID, 0, -4);
+    s_dots = lv_obj_create(s_screen);
+    s_page_dot_count = (size_t)page_count;
+    lv_obj_set_size(s_dots, page_count * 18, 14);
+    lv_obj_align(s_dots, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_set_flex_flow(s_dots, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(s_dots, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_bg_opa(s_dots, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(s_dots, 0, 0);
+    lv_obj_set_style_pad_all(s_dots, 0, 0);
+    lv_obj_set_style_pad_column(s_dots, 7, 0);
+    lv_obj_set_scrollable(s_dots, false);
+    for (size_t i = 0; i < s_page_dot_count && i < 32; i++) {
+        s_page_dots[i] = lv_obj_create(s_dots);
+        lv_obj_set_size(s_page_dots[i], 6, 6);
+        lv_obj_set_style_radius(s_page_dots[i], LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_border_width(s_page_dots[i], 0, 0);
+        lv_obj_set_style_bg_color(s_page_dots[i], color(0x64748B), 0);
+        lv_obj_set_style_bg_opa(s_page_dots[i], LV_OPA_70, 0);
+        lv_obj_set_scrollable(s_page_dots[i], false);
+    }
     page_scroll_cb(NULL);
     cJSON_Delete(root);
 }
@@ -508,14 +596,6 @@ static void refresh_cb(lv_timer_t *timer)
         goopad_get_config(s_config_buffer, 12001);
         if (!s_grid_shown || strcmp(s_config_buffer, s_rendered_config) != 0) {
             build_grid_screen();
-        }
-        if (s_status) {
-            const char *password = goopad_web_password();
-            char address[16];
-            char text[96];
-            goopad_get_address(address, sizeof(address));
-            snprintf(text, sizeof(text), "http://%s  admin / %.24s", address, password);
-            lv_label_set_text(s_status, text);
         }
     } else if (goopad_wifi_connecting()) {
         if (!s_loading_shown) build_loading_screen();

@@ -36,6 +36,8 @@ static const char *NVS_NS = "goopad";
 #define ICON_BYTES (32 * 32 * 2)
 #define ALPHA_ICON_BYTES (32 * 32 * 3)
 #define LARGE_ICON_BYTES (160 * 160 * 3)
+#define BACKGROUND_BYTES (480 * 480 * 2)
+#define MACRO_BODY_BYTES 3072
 #define SOUND_MAX_BYTES (44 + BSP_I2S_SAMPLE_RATE * 2 * 30)
 
 static const char s_default_config[] =
@@ -61,6 +63,8 @@ static httpd_handle_t s_server;
 static volatile bool s_server_starting;
 static char s_ip_address[16];
 static SemaphoreHandle_t s_config_lock;
+static portMUX_TYPE s_action_lock = portMUX_INITIALIZER_UNLOCKED;
+static unsigned s_action_count;
 
 #define WIFI_CONNECT_MAX_ATTEMPTS 5
 
@@ -85,8 +89,8 @@ static esp_err_t icon_upload_handler(httpd_req_t *req)
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Insert and mount an SD card");
     }
     if (req->content_len != ICON_BYTES && req->content_len != ALPHA_ICON_BYTES &&
-        req->content_len != LARGE_ICON_BYTES) {
-        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Expected a 32x32 or 160x160 icon");
+        req->content_len != LARGE_ICON_BYTES && req->content_len != BACKGROUND_BYTES) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Expected a supported icon or 480x480 background");
     }
     char query[32];
     char value[20];
@@ -97,17 +101,8 @@ static esp_err_t icon_upload_handler(httpd_req_t *req)
     }
 
     size_t image_bytes = (size_t)req->content_len;
-    char *image = heap_caps_malloc(image_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    char *image = heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!image) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Image buffer unavailable");
-    size_t received = 0;
-    while (received < image_bytes) {
-        int n = httpd_req_recv(req, image + received, image_bytes - received);
-        if (n <= 0) {
-            free(image);
-            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Icon upload interrupted");
-        }
-        received += (size_t)n;
-    }
 
     const char *directory = BSP_SD_MOUNT_POINT "/goopad";
     if (mkdir(directory, 0775) != 0 && errno != EEXIST) {
@@ -120,17 +115,29 @@ static esp_err_t icon_upload_handler(httpd_req_t *req)
     snprintf(temporary, sizeof(temporary), "%s/icon-%s.tmp", directory, value);
     snprintf(path, sizeof(path), "%s/icon-%s.%s", directory, value,
              image_bytes == ICON_BYTES ? "rgb565" :
+             image_bytes == BACKGROUND_BYTES ? "480.rgb565" :
              image_bytes == LARGE_ICON_BYTES ? "160.rgb565a8" : "rgb565a8");
     FILE *file = fopen(temporary, "wb");
     if (!file) {
         free(image);
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not write icon to SD");
     }
-    bool ok = fwrite(image, 1, image_bytes, file) == image_bytes;
+    size_t received = 0;
+    bool ok = true;
+    while (received < image_bytes) {
+        size_t remaining = image_bytes - received;
+        int n = httpd_req_recv(req, image, remaining < 4096 ? remaining : 4096);
+        if (n <= 0 || fwrite(image, 1, n, file) != (size_t)n) {
+            ok = false;
+            break;
+        }
+        received += n;
+    }
     free(image);
     if (fclose(file) != 0) ok = false;
     if (!ok || rename(temporary, path) != 0) {
         remove(temporary);
+        ESP_LOGE(TAG, "image upload failed after %u bytes", (unsigned)received);
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not save icon to SD");
     }
     httpd_resp_set_type(req, "application/json");
@@ -162,12 +169,14 @@ static esp_err_t icon_get_handler(httpd_req_t *req)
                  !strcmp(format, "rgb565a8");
     bool large = alpha && httpd_query_key_value(query, "size", size, sizeof(size)) == ESP_OK &&
                  !strcmp(size, "160");
+    bool background = !alpha && httpd_query_key_value(query, "size", size, sizeof(size)) == ESP_OK &&
+                      !strcmp(size, "480");
     char path[64];
     snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.%s",
-             key, large ? "160.rgb565a8" : alpha ? "rgb565a8" : "rgb565");
+             key, background ? "480.rgb565" : large ? "160.rgb565a8" : alpha ? "rgb565a8" : "rgb565");
     FILE *file = g_app.sd.mounted ? fopen(path, "rb") : NULL;
     if (!file) return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Icon not found on SD");
-    size_t bytes = large ? LARGE_ICON_BYTES : alpha ? ALPHA_ICON_BYTES : ICON_BYTES;
+    size_t bytes = background ? BACKGROUND_BYTES : large ? LARGE_ICON_BYTES : alpha ? ALPHA_ICON_BYTES : ICON_BYTES;
     char *pixels = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     bool ok = pixels && fread(pixels, 1, bytes, file) == bytes;
     fclose(file);
@@ -179,6 +188,25 @@ static esp_err_t icon_get_handler(httpd_req_t *req)
     esp_err_t err = httpd_resp_send(req, pixels, (ssize_t)bytes);
     free(pixels);
     return err;
+}
+
+static esp_err_t background_delete_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+    char query[32], key[20], path[64];
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "key", key, sizeof(key)) != ESP_OK || !valid_icon_key(key)) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid background key");
+    }
+    xSemaphoreTake(s_config_lock, portMAX_DELAY);
+    bool used = strstr(s_config, key) != NULL;
+    snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.480.rgb565", key);
+    int result = used ? -1 : remove(path);
+    xSemaphoreGive(s_config_lock);
+    if (used) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Background is still in use");
+    if (result != 0) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not delete background");
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
 
 static void ensure_web_key(void)
@@ -525,6 +553,7 @@ static bool validate_config(const char *json)
     cJSON *macros = cJSON_GetObjectItemCaseSensitive(root, "macros");
     cJSON *theme = cJSON_GetObjectItemCaseSensitive(root, "theme");
     cJSON *background = cJSON_GetObjectItemCaseSensitive(root, "background");
+    cJSON *background_image = cJSON_GetObjectItemCaseSensitive(root, "backgroundImage");
     bool valid = cJSON_IsNumber(cols) && cols->valueint >= 2 && cols->valueint <= 4 &&
                  cJSON_IsNumber(rows) && rows->valueint >= 2 && rows->valueint <= 4 &&
                  cJSON_IsArray(macros) && cJSON_GetArraySize(macros) <= MAX_MACROS &&
@@ -534,7 +563,9 @@ static bool validate_config(const char *json)
                               !strcmp(theme->valuestring, "forest") ||
                               !strcmp(theme->valuestring, "light") ||
                               !strcmp(theme->valuestring, "custom")))) &&
-                 (!background || valid_hex_color(background));
+                 (!background || valid_hex_color(background)) &&
+                 (!background_image || (cJSON_IsString(background_image) &&
+                                        valid_icon_key(background_image->valuestring)));
     for (cJSON *item = valid ? macros->child : NULL; item; item = item->next) {
         cJSON *name = cJSON_GetObjectItemCaseSensitive(item, "name");
         cJSON *url = cJSON_GetObjectItemCaseSensitive(item, "url");
@@ -572,7 +603,7 @@ static bool validate_config(const char *json)
                 cJSON_IsString(method) &&
                 (strcmp(method->valuestring, "GET") == 0 ||
                  strcmp(method->valuestring, "POST") == 0) &&
-                cJSON_IsString(body) && strlen(body->valuestring) <= 256 &&
+                cJSON_IsString(body) && strlen(body->valuestring) <= MACRO_BODY_BYTES &&
                 cJSON_IsString(secret) && strlen(secret->valuestring) <= 64 &&
                 (!icon_image || (cJSON_IsString(icon_image) &&
                                  valid_icon_key(icon_image->valuestring))) &&
@@ -580,6 +611,7 @@ static bool validate_config(const char *json)
                 (!action_mode || (cJSON_IsString(action_mode) &&
                                   (!strcmp(action_mode->valuestring, "simple_link") ||
                                    !strcmp(action_mode->valuestring, "pc_open_url") ||
+                                   !strcmp(action_mode->valuestring, "pc_macro") ||
                                    !strcmp(action_mode->valuestring, "sound") ||
                                    !strcmp(action_mode->valuestring, "advanced")))) &&
                 (!pc_address || (cJSON_IsString(pc_address) &&
@@ -746,9 +778,16 @@ static esp_err_t password_post_handler(httpd_req_t *req)
 typedef struct {
     char url[180];
     char method[5];
-    char body[257];
+    char body[MACRO_BODY_BYTES + 1];
     char secret[65];
 } macro_action_t;
+
+static void action_finished(void)
+{
+    portENTER_CRITICAL(&s_action_lock);
+    s_action_count--;
+    portEXIT_CRITICAL(&s_action_lock);
+}
 
 static void macro_task(void *arg)
 {
@@ -762,6 +801,7 @@ static void macro_task(void *arg)
     if (!client) {
         ESP_LOGE(TAG, "HTTP client allocation failed");
         free(macro);
+        action_finished();
         vTaskDelete(NULL);
         return;
     }
@@ -783,6 +823,7 @@ static void macro_task(void *arg)
     }
     esp_http_client_cleanup(client);
     free(macro);
+    action_finished();
     vTaskDelete(NULL);
 }
 
@@ -821,11 +862,21 @@ esp_err_t goopad_trigger(unsigned index)
         ESP_LOGW(TAG, "macro %u is not configured", index);
         return sound_err != ESP_OK ? sound_err : ESP_ERR_INVALID_ARG;
     }
-    macro_action_t *action = calloc(1, sizeof(*action));
+    portENTER_CRITICAL(&s_action_lock);
+    bool busy = s_action_count >= 2;
+    if (!busy) s_action_count++;
+    portEXIT_CRITICAL(&s_action_lock);
+    if (busy) {
+        cJSON_Delete(root);
+        xSemaphoreGive(s_config_lock);
+        return ESP_ERR_INVALID_STATE;
+    }
+    macro_action_t *action = heap_caps_calloc(1, sizeof(*action), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!action) {
         cJSON_Delete(root);
         xSemaphoreGive(s_config_lock);
         ESP_LOGE(TAG, "macro task allocation failed");
+        action_finished();
         return ESP_ERR_NO_MEM;
     }
     strlcpy(action->url, url->valuestring, sizeof(action->url));
@@ -836,6 +887,7 @@ esp_err_t goopad_trigger(unsigned index)
     xSemaphoreGive(s_config_lock);
     if (xTaskCreate(macro_task, "macro_http", 6144, action, 4, NULL) != pdPASS) {
         free(action);
+        action_finished();
         ESP_LOGE(TAG, "could not start macro task");
         return ESP_ERR_NO_MEM;
     }
@@ -865,7 +917,7 @@ static esp_err_t trigger_handler(httpd_req_t *req)
     free(body);
     if (err == ESP_ERR_INVALID_STATE) {
         httpd_resp_set_status(req, "429 Too Many Requests");
-        return httpd_resp_sendstr(req, "Sound is already playing");
+        return httpd_resp_sendstr(req, "An action is already running; try again shortly");
     }
     if (err != ESP_OK) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, esp_err_to_name(err));
     return httpd_resp_sendstr(req, "{\"ok\":true}");
@@ -1084,11 +1136,80 @@ static esp_err_t status_handler(httpd_req_t *req)
     return err;
 }
 
+typedef struct {
+    char *data;
+    size_t length;
+    bool overflow;
+} companion_reply_t;
+
+static esp_err_t companion_response(esp_http_client_event_t *event)
+{
+    companion_reply_t *reply = event->user_data;
+    if (event->event_id == HTTP_EVENT_ON_DATA && event->data_len > 0) {
+        if (reply->length + event->data_len > 2048) reply->overflow = true;
+        else {
+            memcpy(reply->data + reply->length, event->data, event->data_len);
+            reply->length += event->data_len;
+        }
+    }
+    return ESP_OK;
+}
+
+static esp_err_t companion_status_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+    char *body = NULL;
+    if (receive_body(req, &body) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Could not read Companion settings");
+    }
+    cJSON *root = cJSON_Parse(body);
+    cJSON *url = root ? cJSON_GetObjectItemCaseSensitive(root, "url") : NULL;
+    cJSON *token = root ? cJSON_GetObjectItemCaseSensitive(root, "token") : NULL;
+    bool valid = cJSON_IsString(url) && valid_url(url->valuestring) &&
+                 cJSON_IsString(token) && strlen(token->valuestring) >= 32 &&
+                 strlen(token->valuestring) <= 64 && !strchr(token->valuestring, '\r') &&
+                 !strchr(token->valuestring, '\n');
+    companion_reply_t reply = {.data = heap_caps_calloc(1, 2049, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)};
+    esp_http_client_config_t config = {
+        .url = valid ? url->valuestring : NULL, .timeout_ms = 4000,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .event_handler = companion_response, .user_data = &reply,
+    };
+    esp_http_client_handle_t client = valid && reply.data ? esp_http_client_init(&config) : NULL;
+    esp_err_t err = ESP_FAIL;
+    int status = 0;
+    if (client) {
+        esp_http_client_set_header(client, "X-GooPad-Token", token->valuestring);
+        err = esp_http_client_perform(client);
+        status = esp_http_client_get_status_code(client);
+        esp_http_client_cleanup(client);
+    }
+    cJSON *response = err == ESP_OK && !reply.overflow ? cJSON_Parse(reply.data) : NULL;
+    bool ok = status == 200 && cJSON_IsObject(response);
+    cJSON_Delete(response);
+    cJSON_Delete(root);
+    free(body);
+    esp_err_t result;
+    if (!valid) result = httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Check the PC address and pairing token");
+    else if (!ok) {
+        ESP_LOGW(TAG, "Companion check failed: %s, HTTP %d", esp_err_to_name(err), status);
+        result = httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, status == 401 ?
+            "Companion rejected the pairing token" :
+            "Could not reach the new Companion. Check its app, address, version and Private-network firewall rule.");
+    } else {
+        httpd_resp_set_type(req, "application/json");
+        result = httpd_resp_send(req, reply.data, reply.length);
+    }
+    free(reply.data);
+    return result;
+}
+
 static esp_err_t start_server(void)
 {
     if (s_server) return ESP_OK;
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
-    config.httpd.max_uri_handlers = 16;
+    config.httpd.max_uri_handlers = 18;
     config.httpd.core_id = 1;
     esp_err_t err = goopad_tls_configure(&config, s_ip_address);
     if (err == ESP_OK) err = httpd_ssl_start(&s_server, &config);
@@ -1110,6 +1231,8 @@ static esp_err_t start_server(void)
         {.uri = "/api/sound", .method = HTTP_POST, .handler = sound_upload_handler},
         {.uri = "/api/sound", .method = HTTP_DELETE, .handler = sound_delete_handler},
         {.uri = "/api/controls", .method = HTTP_POST, .handler = controls_handler},
+        {.uri = "/api/background", .method = HTTP_DELETE, .handler = background_delete_handler},
+        {.uri = "/api/companion", .method = HTTP_POST, .handler = companion_status_handler},
     };
     for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {
         err = httpd_register_uri_handler(s_server, &routes[i]);

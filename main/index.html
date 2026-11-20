@@ -23,6 +23,7 @@ body.light button{background:#f1f5f9;color:#172033;border-color:#cbd5e1}body.lig
 .fa-dialog{overflow:hidden}.fa-dialog[open]{display:flex}.fa-modal{display:flex;flex-direction:column;width:100%;max-height:85vh;min-height:0;overflow:hidden}.fa-modal-head,.fa-modal>input,.fa-modal>p{flex-shrink:0}.fa-results{min-height:0;flex:1;overscroll-behavior:contain}.fa-results button{display:flex;gap:8px;align-items:center;min-width:0}.fa-results svg{width:28px;height:28px;flex-shrink:0}.fa-results span{overflow:hidden;text-overflow:ellipsis}.icon-code-row{flex-wrap:wrap}.icon-code-row input{flex:1 1 180px}
 .preview{aspect-ratio:480/396}.preview-page{grid-template-rows:repeat(var(--rows),minmax(0,1fr))}.preview-cell{min-width:0;min-height:0;display:grid;place-items:center;container-type:size}.preview button{width:100%;height:100%;min-height:0;position:relative;padding:8px}.preview button[data-shape=circle]{width:min(100cqw,100cqh);height:min(100cqw,100cqh);border-radius:50%}.preview button[data-shape=square]{border-radius:4px}.preview button[data-shape=pill]{height:75%;border-radius:999px}.preview button[data-shape=soft]{border-radius:32%}.preview .ico{font-size:min(55cqw,55cqh);line-height:1}.preview img{width:75%;height:calc(100% - 20px);object-fit:contain}.preview .image-only img{height:85%;width:85%}.preview small{flex-shrink:0}.preview button:hover{filter:none}
 #save{display:block;margin:12px auto 0}#saveStatus{text-align:center;min-height:24px;margin:8px 0 0}.save-status{color:var(--green)}.save-status.error{color:#ef4444}button[aria-busy=true]::before{content:"";display:inline-block;width:13px;height:13px;margin-right:8px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}input[type=checkbox]{width:auto}.preview button{border:2px solid transparent}
+.pc-step{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0}.step-head{display:flex;gap:6px;align-items:center;margin-bottom:8px}.step-head select{flex:1;min-width:0}.step-head button{padding:5px 9px}.key-modifiers{display:flex;gap:12px;flex-wrap:wrap}.key-modifiers label{display:flex;gap:4px;align-items:center}.about{display:grid;gap:18px}.about details{margin:12px 0}.about summary{cursor:pointer;font-weight:650}.about code{overflow-wrap:anywhere}.background-sample{width:120px;height:120px;object-fit:cover;border-radius:10px}.status:empty{display:none}
 footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-size:12px}a{color:#a5b4fc}body.light a{color:#4338ca}
 @media(max-width:780px){.layout{grid-template-columns:1fr}.side{grid-row:1}.fields,.macro-fields{grid-template-columns:1fr}.macro-fields .wide{grid-column:auto}.preview{grid-template-columns:repeat(3,1fr)}}
 </style>
@@ -33,7 +34,7 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <div><div class="brand">GooPad <span style="color:#818cf8">Studio</span></div><div class="tag">Your touch panel. Your shortcuts. Your rules.</div></div>
 </header>
 <main>
-<div class="toolbar"><span class="pill" id="device">Connecting to GooPad…</span><span class="spacer"></span><nav class="tabs" aria-label="Editor sections"><button id="macrosTab" class="active" type="button">Macros</button><button id="settingsTab" type="button">Settings</button></nav></div>
+<div class="toolbar"><span class="pill" id="device">Connecting to GooPad…</span><span class="spacer"></span><nav class="tabs" aria-label="Editor sections"><button id="macrosTab" class="active" type="button">Macros</button><button id="settingsTab" type="button">Settings</button><button id="aboutTab" type="button">About &amp; help</button></nav></div>
 <div id="editorView"><div class="layout">
 <section class="panel"><h2>Button layout</h2><div class="fields">
 <div class="field"><label>Columns</label><select id="cols"><option>2</option><option selected>3</option><option>4</option></select></div>
@@ -47,11 +48,22 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <section class="panel"><h2>Device appearance</h2><div class="fields">
 <div class="field"><label for="deviceTheme">Device theme</label><select id="deviceTheme"><option value="midnight">Midnight</option><option value="ocean">Ocean</option><option value="forest">Forest</option><option value="light">Light</option><option value="custom">Custom</option></select></div>
 <div class="field" id="customBackground"><label for="background">Custom background</label><input id="background" type="color" value="#111827"></div>
-</div><p class="hint">Presets use their own background palette. Choose Custom to edit the background; each macro can also override its font, tile, and outline colors.</p><button id="saveSettings" class="primary" type="button">Save appearance</button></section>
+</div><div id="backgroundUploadField" class="field hidden" style="margin-top:14px"><label for="backgroundUpload">Background image (SD card required, up to 15 MB)</label><input id="backgroundUpload" type="file" accept="image/*"><p class="hint">Images are center-cropped to fill the 480×480 screen. Transparent areas use your background color.</p><img id="backgroundSample" class="background-sample hidden" alt="Custom background"><span id="backgroundStatus" class="hint" role="status"></span><button id="removeBackground" type="button">Remove image</button></div><p class="hint">Presets use their own background palette. Choose Custom to edit the background; each macro can also override its font, tile, and outline colors.</p><button id="saveSettings" class="primary" type="button">Save appearance</button>
+<h2 style="margin-top:24px">Windows companion</h2><p class="hint">Run the Companion app on your PC, then use its two Copy buttons. <a href="#companionHelp" id="pairingHelp">Show setup help</a>.</p><div class="fields"><div class="field"><label for="companionAddress">PC address</label><input id="companionAddress" placeholder="192.168.1.50:8787" autocomplete="off"></div><div class="field"><label for="companionToken">Private pairing token</label><input id="companionToken" type="password" autocomplete="off" maxlength="64" placeholder="Paste Companion token"></div></div><button id="checkCompanion" type="button" style="margin-top:12px">Check connection / last result</button><p id="companionStatus" class="hint" role="status"></p><p class="hint">Save appearance also saves this pairing. New PC macros share it. Only use a trusted private LAN.</p></section>
 <aside class="side"><section class="panel"><h2>Website appearance</h2><p class="hint">Change the editor colors independently of the device.</p><button id="siteTheme" type="button">Use light website theme</button></section>
 <section class="panel"><h2>Backup and firmware</h2><p class="hint">Back up the current configuration to SD, upload an application image, check GitHub for a release, or install /goopad.bin from SD.</p><div class="toolbar"><button id="backup" type="button">Backup to SD</button><button id="otaPick" type="button">Upload firmware</button><button id="otaGithub" type="button">GitHub release</button><button id="otaSd" type="button">Install SD image</button></div><input id="firmware" type="file" accept=".bin" hidden></section>
 <section class="panel"><h2>Admin password</h2><p class="hint">Set a new password for the admin account. Use 8-64 printable characters. After saving, sign in again with the new password.</p><div class="fields"><div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"></div><div class="field"><label for="confirmPassword">Confirm password</label><input id="confirmPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"></div></div><button id="changePassword" class="primary" type="button" style="margin-top:12px">Change admin password</button></section></aside>
 </div></div>
+<div id="aboutView" class="hidden about">
+<section class="panel"><h2>About GooPad</h2><p>Your local Wi-Fi macro pad. Edit here, save to the device, then press a tile to run its action.</p><div class="toolbar"><a href="https://github.com/jeromedontdev/GooPad/releases/latest/download/GooPadCompanion-Windows.zip" target="_blank" rel="noopener noreferrer">Download Windows Companion app (ZIP)</a><a href="https://github.com/jeromedontdev/GooPad" target="_blank" rel="noopener noreferrer">Source on GitHub</a><a href="https://github.com/jeromedontdev/GooPad/releases" target="_blank" rel="noopener noreferrer">Firmware and releases</a></div><p class="hint">Extract the entire ZIP, then run GooPadCompanion.exe. No Python installation is required for the Windows app. Source and the Python launcher are included. Only run downloads from the GooPad repository.</p></section>
+<section class="panel" id="companionHelp"><h2>Connect your Windows PC</h2><ol><li>Download and extract the Companion ZIP. Run <strong>GooPadCompanion.exe</strong> as your normal Windows user, not as Administrator.</li><li>Keep the app running. Use <strong>Copy PC address</strong>, then paste it in GooPad <strong>Settings → Windows companion</strong>.</li><li>Use <strong>Copy private pairing token</strong> and paste it beside the address. This token is different from the GooPad admin password.</li><li>Allow the app through Windows Firewall only on a <strong>Private</strong> network. Port 8787 must be reachable from GooPad.</li><li>Choose <strong>Check connection</strong>, then <strong>Save appearance</strong>. In Macros, choose <strong>Windows PC macro</strong>, pick a starter or add your own steps, then <strong>Save to device</strong>.</li><li>Focus the intended Windows app before pressing a tile. Hotkeys and typed text go to the foreground application; media keys use Windows media controls.</li></ol><p>The browser talks to GooPad over HTTPS. GooPad sends authenticated commands to Companion over your LAN. The PC does the work; it does not need a USB cable to GooPad.</p></section>
+<section class="panel"><h2>Help and examples</h2>
+<details open><summary>Build a PC macro without JSON</summary><p>Choose a starter such as Copy, Paste, Screenshot, Play/Pause, or Mute. Each step can press a hotkey, send a media key, type text, wait, open a website, run PowerShell, or launch an app already approved on the PC. Use the arrow buttons to reorder steps. A sequence can contain up to 12 steps, with at most 10 seconds of waiting in total.</p><p>Example: add <strong>Ctrl+L</strong>, <strong>Type text</strong> with a website address, and <strong>Enter</strong> to use a focused browser. Or simply use <strong>Open website</strong> to open a link in the default browser. Add a short Wait if an app needs time between steps.</p></details>
+<details><summary>PowerShell and approved apps</summary><p>PowerShell is disabled by default. Enable it <strong>locally in Companion</strong> only if you trust your LAN and everyone with the pairing token. Then choose a PowerShell step and enter your command (up to 512 characters). Scripts run as your Windows user, with a 10-second timeout. Errors stop the rest of the sequence and appear in Companion and the connection/last-result check.</p><p>For fixed app launches or SSH, advanced users can add named actions in <code>%LOCALAPPDATA%\GooPad\companion.json</code>. Each action specifies a program and fixed arguments. Enter that name in an Approved PC app step. The device cannot change those arguments. See the source README for examples.</p></details>
+<details><summary>Keep Companion running / start with Windows</summary><p>This is a small desktop app, not a Windows system service: keyboard input needs your logged-in desktop session. Minimize its window; closing it stops the listener. To start it when you sign in, create a shortcut to GooPadCompanion.exe, press Win+R, enter <code>shell:startup</code>, and move the shortcut into that folder. Your PC must be awake and unlocked for keyboard macros.</p></details>
+<details><summary>Connection or action not working</summary><p>Confirm both devices are on the same trusted LAN, Companion is open, and its current address/token match Settings. Guest Wi-Fi can block communication. Check the Private-network firewall rule for TCP 8787. Reserve the PC's IP in your router if it changes. An old Companion supports only basic actions: download the latest app for the builder.</p><p>Only one PC sequence runs at a time; repeated taps while busy are rejected instead of overlapping keys. Check the app's last-result message. Windows blocks input into administrator apps, locked screens, and some games. Media-key handling depends on the media app. Try a normal Notepad window for a text/hotkey macro.</p></details>
+<details><summary>Backgrounds, saving, and security</summary><p>Select Custom in Settings to upload a background image; an SD card is required. Images are cropped to fill the screen. Choose a preset to temporarily use its palette instead. Save appearance returns to Live preview, where saving progress and errors appear only once.</p><p>Keep both passwords/tokens private. Never forward GooPad or Companion ports to the internet. The GooPad editor uses self-signed HTTPS; the Companion LAN link is HTTP, so its token is not encrypted in transit. Use only trusted private Wi-Fi. Backups and the development firmware's NVS are not encrypted.</p></details>
+</section></div>
 <p class="status" id="status" aria-live="polite"></p>
 </main>
 <dialog id="faDialog" class="fa-dialog" aria-labelledby="faTitle"><div class="fa-modal"><div class="fa-modal-head"><h2 id="faTitle">Font Awesome Free icons</h2><button id="faClose" type="button">Close</button></div><p class="hint">Type a name to filter the bundled icons, then select one to save it to GooPad.</p><input id="faSearch" type="search" placeholder="Search icons, e.g. server or github" aria-label="Search Font Awesome icons"><p class="hint" id="faCount">Type to search the bundled icon catalog.</p><div class="fa-results" id="faResults"></div><p class="hint">Font Awesome Free by Fonticons, licensed CC BY 4.0. <a href="https://fontawesome.com/search?m=free" target="_blank" rel="noopener noreferrer">Browse the official icon search</a>.</p></div></dialog>
@@ -62,8 +74,31 @@ let cfg={cols:3,rows:3,theme:"midnight",background:"111827",shape:"rounded",macr
 function msg(t,bad=false){$("#status").textContent=t;$("#status").style.color=bad?"#fca5a5":"#34d399"}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 const themeBackgrounds={midnight:"111827",ocean:"0B1B2A",forest:"10251D",light:"F1F5F9"};
-function updateThemeFields(){const custom=$("#deviceTheme").value==="custom";$("#customBackground").classList.toggle("hidden",!custom);$("#background").disabled=!custom;if(!custom)$("#background").value="#"+themeBackgrounds[$("#deviceTheme").value]}
-function setForm(){ $("#cols").value=cfg.cols;$("#rows").value=cfg.rows;$("#background").value="#"+(cfg.background||"111827").replace("#","");$("#deviceTheme").value=cfg.theme||"midnight";updateThemeFields();render()}
+function updateThemeFields(){const custom=$("#deviceTheme").value==="custom";$("#customBackground").classList.toggle("hidden",!custom);$("#backgroundUploadField").classList.toggle("hidden",!custom);$("#background").disabled=!custom;if(!custom)$("#background").value="#"+themeBackgrounds[$("#deviceTheme").value]}
+function setForm(){ $("#cols").value=cfg.cols;$("#rows").value=cfg.rows;$("#background").value="#"+(cfg.background||"111827").replace("#","");$("#deviceTheme").value=cfg.theme||"midnight";$("#companionAddress").value=cfg.companionAddress||"";$("#companionToken").value=cfg.companionToken||"";updateThemeFields();render()}
+function rawPixelPreview(pixels,side,alpha=false){
+ const count=side*side;if(pixels.length!==count*(alpha?3:2))throw Error("Invalid image size.");
+ const canvas=document.createElement("canvas");canvas.width=canvas.height=side;const context=canvas.getContext("2d"),image=context.createImageData(side,side);
+ for(let i=0;i<count;i++){const value=pixels[i*2]|pixels[i*2+1]<<8;image.data[i*4]=Math.round((value>>11)*255/31);image.data[i*4+1]=Math.round(((value>>5)&63)*255/63);image.data[i*4+2]=Math.round((value&31)*255/31);image.data[i*4+3]=alpha?pixels[count*2+i]:255}
+ context.putImageData(image,0,0);return canvas.toDataURL("image/png")
+}
+async function uploadBackground(input){
+ const file=input.files[0];if(!file)return;
+ if(!file.type.startsWith("image/")||file.size>15*1024*1024){$("#backgroundStatus").textContent="Choose an image up to 15 MB.";return}
+ pendingUploads++;input.disabled=true;$("#backgroundStatus").textContent="Preparing background…";
+ try{
+  const image=new Image(),url=URL.createObjectURL(file);
+  try{await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error("Image could not be decoded."));image.src=url})}finally{URL.revokeObjectURL(url)}
+  const canvas=document.createElement("canvas");canvas.width=canvas.height=480;const context=canvas.getContext("2d");context.fillStyle=$("#background").value;context.fillRect(0,0,480,480);
+  const scale=Math.max(480/image.naturalWidth,480/image.naturalHeight);context.drawImage(image,(480-image.naturalWidth*scale)/2,(480-image.naturalHeight*scale)/2,image.naturalWidth*scale,image.naturalHeight*scale);
+  const rgba=context.getImageData(0,0,480,480).data,pixels=new Uint8Array(480*480*2);for(let i=0;i<480*480;i++){const value=(rgba[i*4]>>3)<<11|(rgba[i*4+1]>>2)<<5|(rgba[i*4+2]>>3);pixels[i*2]=value&255;pixels[i*2+1]=value>>8}
+  const key="i"+Array.from(crypto.getRandomValues(new Uint8Array(8)),v=>v.toString(16).padStart(2,"0")).join("");
+  $("#backgroundStatus").textContent="Uploading background to SD…";
+  const response=await fetch("/api/icon?key="+key,{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:pixels});if(!response.ok)throw Error(await response.text());
+  cfg.backgroundImage=key;cfg.backgroundPreview=rawPixelPreview(pixels,480);$("#backgroundSample").src=cfg.backgroundPreview;$("#backgroundSample").classList.remove("hidden");$("#backgroundStatus").textContent="Uploaded. Save appearance to apply.";preview()
+ }catch(error){$("#backgroundStatus").textContent="Upload failed: "+error.message}
+ finally{pendingUploads--;input.disabled=false}
+}
 async function uploadMacroIcon(input,index,macro){const file=input.files[0];if(file)await uploadIconImage(file,index,macro)}
 async function uploadIconImage(file,index,macro,faIcon=null){
  if(!file.type.startsWith("image/")){msg("Choose an image file.",true);return false}
@@ -144,7 +179,8 @@ function render(){
   <div class="field"><label><input data-k="outline" type="checkbox" ${m.outline!==false?"checked":""}> Show outline</label><input data-k="outlineColor" type="color" value="#${esc(m.outlineColor||"A5B4FC")}"></div>
   <div class="field"><label>Button sound (device speaker)</label><select data-k="sound"><option value="none">None</option><option value="click">Click</option><option value="beep">Beep</option><option value="chime">Chime</option><option value="alert">Alert</option><option value="file">Uploaded WAV / MP3</option></select></div>
   <div class="field wide" data-sound-upload><label>Upload sound (WAV / MP3, at most 30 seconds)</label><input data-k="soundUpload" type="file" accept=".wav,.mp3,audio/wav,audio/mpeg"><span class="hint" data-sound-name>${esc(m.soundName||"Choose a file. Audio is converted in your browser and stored on SD.")}</span></div>
-  <div class="field wide"><label>What should this button do?</label><select data-k="actionMode"><option value="simple_link">Open a link or trigger a service</option><option value="pc_open_url">Open a website on my Windows PC</option><option value="sound">Play a sound only</option><option value="advanced">Custom web request (Advanced)</option></select></div>
+  <div class="field wide"><label>What should this button do?</label><select data-k="actionMode"><option value="simple_link">Open a link or trigger a service</option><option value="pc_macro">Windows PC macro (guided builder)</option><option value="pc_open_url">Open a website on my Windows PC</option><option value="sound">Play a sound only</option><option value="advanced">Custom web request (Advanced)</option></select></div>
+  <div class="field wide mode-field" data-mode-field="pc_macro"><label>Start with a common action</label><select data-pc-preset><option value="">Choose a starter…</option><option value="copy">Copy</option><option value="paste">Paste</option><option value="screenshot">Screenshot</option><option value="play">Media play / pause</option><option value="mute">Mute</option><option value="text">Type a text snippet</option><option value="powershell">PowerShell command</option></select><p class="hint">Uses the PC pairing in Settings. Steps run in order on that PC. Keyboard input goes to its focused app.</p><div data-pc-steps></div><button data-pc-add type="button">Add step</button><p class="hint" data-pc-summary></p></div>
   <div class="field wide mode-field" data-mode-field="simple_link"><label>Website or trigger link</label><input data-k="url" type="url" placeholder="https://example.com/your-trigger" value="${mode==="simple_link"?esc(m.url):""}"><span class="hint">Paste the link supplied by the service. Leave blank for an unconfigured tile.</span></div>
   <div class="field wide mode-field" data-mode-field="sound"><span class="hint">Choose a button sound above. No website or PC is required.</span></div>
   <div class="field wide mode-field" data-mode-field="pc_open_url"><label>Windows PC address</label><input data-k="pcAddress" value="${esc(m.pcAddress||"")}" maxlength="160" placeholder="192.168.1.50:8787"><label>Website to open on the PC</label><input data-k="pcTarget" type="url" value="${esc(m.pcTarget||"")}" maxlength="179" placeholder="https://example.com"><label>Companion shared token</label><input data-k="secret" value="${esc(m.secret||"")}" maxlength="64" autocomplete="off"><span class="hint">Copy the Companion address and token here.</span></div>
@@ -159,6 +195,7 @@ function render(){
   card.querySelector("[data-sound-upload]").classList.toggle("hidden",m.sound!=="file");
   card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==m.iconSource));
   updateModeFields(card,mode);
+  renderPcSteps(card,m);
   card.querySelectorAll("[data-k]").forEach(el=>{
    if(el.type==="file"){el.addEventListener("change",()=>el.dataset.k==="soundUpload"?uploadSound(el,m):uploadMacroIcon(el,i,m));return}
    const update=()=>{const key=el.dataset.k;if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}if(key==="iconSource"){card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==el.value))}if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="simple_link"){m.url="";card.querySelectorAll('[data-k="url"]').forEach(input=>input.value="")}m[key]=el.type==="checkbox"?el.checked:el.type==="color"?el.value.slice(1).toUpperCase():el.value;if(key==="sound")card.querySelector("[data-sound-upload]").classList.toggle("hidden",el.value!=="file");if(key==="actionMode")updateModeFields(card,el.value);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()};
@@ -174,9 +211,81 @@ function render(){
  $("#count").textContent=`(${cfg.macros.length}/32)`;preview()
 }
 function updateModeFields(card,mode){card.querySelectorAll("[data-mode-field]").forEach(field=>field.classList.toggle("hidden",field.dataset.modeField!==mode))}
+const pcKeyNames=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ",..."0123456789",...Array.from({length:24},(_,i)=>"F"+(i+1)),"ENTER","TAB","ESC","SPACE","BACKSPACE","DELETE","INSERT","HOME","END","PAGEUP","PAGEDOWN","LEFT","RIGHT","UP","DOWN","PRINTSCREEN"];
+const pcTypes={hotkey:"Press a hotkey",media:"Send a media key",text:"Type text",wait:"Wait",open:"Open website",powershell:"Run PowerShell (local permission required)",action:"Launch an approved PC app"};
+const mediaNames={play_pause:"Play / pause",next:"Next track",previous:"Previous track",stop:"Stop",mute:"Mute",volume_up:"Volume up",volume_down:"Volume down"};
+function pcStep(kind){return kind==="hotkey"?{type:kind,keys:["CTRL","C"]}:{type:kind,value:kind==="wait"?250:kind==="media"?"play_pause":""}}
+function renderPcSteps(card,m){
+ if(!m.pcSteps){
+  if(m.actionMode==="pc_macro"){try{const saved=JSON.parse(m.body);if(!Array.isArray(saved.steps))throw Error("missing steps");m.pcSteps=saved.steps}catch(error){m.pcSteps=[];msg("The saved PC macro is invalid. Rebuild its steps.",true)}}
+  else m.pcSteps=[pcStep("hotkey")]
+ }
+ const root=card.querySelector("[data-pc-steps]");root.replaceChildren();
+ const summarize=()=>{card.querySelector("[data-pc-summary]").textContent=m.pcSteps.length+"/12 steps · "+m.pcSteps.map(step=>step.type==="hotkey"?(step.keys||[]).join("+"):pcTypes[step.type]).join(" → ")};
+ m.pcSteps.forEach((step,index)=>{
+  const row=document.createElement("div");row.className="pc-step";
+  row.innerHTML=`<div class="step-head"><span>${index+1}.</span><select aria-label="Step ${index+1} action" data-step-type>${Object.entries(pcTypes).map(([key,name])=>`<option value="${key}">${name}</option>`).join("")}</select><button type="button" data-move="-1" aria-label="Move step up" ${index===0?"disabled":""}>↑</button><button type="button" data-move="1" aria-label="Move step down" ${index===m.pcSteps.length-1?"disabled":""}>↓</button><button type="button" data-remove aria-label="Remove step">×</button></div><div data-step-fields></div>`;
+  const fields=row.querySelector("[data-step-fields]");
+  if(step.type==="hotkey")fields.innerHTML=`<div class="key-modifiers">${["CTRL","ALT","SHIFT","WIN"].map(key=>`<label><input type="checkbox" data-modifier="${key}" ${(step.keys||[]).includes(key)?"checked":""}>${key}</label>`).join("")}</div><select data-main-key aria-label="Main key">${pcKeyNames.map(key=>`<option>${key}</option>`).join("")}</select>`;
+  else if(step.type==="media")fields.innerHTML=`<select data-value aria-label="Media key">${Object.entries(mediaNames).map(([key,name])=>`<option value="${key}">${name}</option>`).join("")}</select>`;
+  else if(step.type==="text"||step.type==="powershell")fields.innerHTML=`<textarea data-value rows="3" maxlength="${step.type==="text"?300:512}" aria-label="${step.type==="text"?"Text to type":"PowerShell command"}" placeholder="${step.type==="text"?"Text to type in the focused PC app":"Get-Date"}">${esc(step.value)}</textarea>`;
+  else fields.innerHTML=`<input data-value type="${step.type==="wait"?"number":"text"}" ${step.type==="wait"?'min="0" max="10000" step="50"':''} value="${esc(step.value)}" aria-label="${step.type==="wait"?"Wait in milliseconds":step.type==="open"?"Website address":"Approved action name"}" placeholder="${step.type==="open"?"https://example.com":step.type==="action"?"Action name configured on your PC":"Milliseconds"}">`;
+  row.querySelector("[data-step-type]").value=step.type;
+  row.querySelector("[data-step-type]").onchange=event=>{m.pcSteps[index]=pcStep(event.target.value);renderPcSteps(card,m)};
+  row.querySelectorAll("[data-move]").forEach(button=>button.onclick=()=>{const other=index+Number(button.dataset.move);[m.pcSteps[index],m.pcSteps[other]]=[m.pcSteps[other],m.pcSteps[index]];renderPcSteps(card,m)});
+  row.querySelector("[data-remove]").onclick=()=>{m.pcSteps.splice(index,1);renderPcSteps(card,m)};
+  if(step.type==="hotkey"){
+   const main=fields.querySelector("[data-main-key]");main.value=(step.keys||[]).at(-1)||"C";
+   fields.querySelectorAll("input,select").forEach(input=>input.onchange=()=>{step.keys=[...fields.querySelectorAll("[data-modifier]:checked")].map(input=>input.dataset.modifier).concat(main.value);summarize()})
+  }else{
+   const input=fields.querySelector("[data-value]");input.value=step.value??"";input.oninput=()=>{step.value=step.type==="wait"?input.valueAsNumber:input.value;summarize()}
+  }
+  root.append(row)
+ });
+ card.querySelector("[data-pc-add]").onclick=()=>{if(m.pcSteps.length>=12)return msg("A PC macro can have at most 12 steps.",true);m.pcSteps.push(pcStep("hotkey"));renderPcSteps(card,m)};
+ card.querySelector("[data-pc-preset]").onchange=event=>{
+  const preset=event.target.value;if(!preset)return;
+  const starters={copy:{type:"hotkey",keys:["CTRL","C"]},paste:{type:"hotkey",keys:["CTRL","V"]},screenshot:{type:"hotkey",keys:["WIN","SHIFT","S"]},play:{type:"media",value:"play_pause"},mute:{type:"media",value:"mute"},text:pcStep("text"),powershell:pcStep("powershell")};
+  if(m.pcSteps.length>1&&!confirm("Replace the existing sequence with this starter?"))return;
+  m.pcSteps=[starters[preset]];renderPcSteps(card,m);event.target.value=""
+ };
+ summarize()
+}
+function pcConnection(address,token){
+ const value=String(address||"").trim().replace(/^https?:\/\//i,"").replace(/\/+$/,"");
+ if(!value||/[/?#]/.test(value))throw Error("Paste the Companion PC address, such as 192.168.1.50:8787.");
+ let url;try{url=new URL("http://"+value)}catch{throw Error("The PC address is invalid.")}
+ if(url.username||url.password||url.pathname!=="/")throw Error("Use only the PC address and port.");
+ if(!url.port)url.port="8787";
+ if(!/^[\x20-\x7e]{32,64}$/.test(token||""))throw Error("Paste the full private pairing token from Companion.");
+ return {origin:url.origin,token}
+}
+function preparePcMacro(m,index){
+ const connection=pcConnection(cfg.companionAddress||m.pcAddress,cfg.companionToken||m.secret),steps=m.pcSteps;
+ if(!Array.isArray(steps)||steps.length<1||steps.length>12)throw Error(`Button ${index+1}: add 1–12 PC steps.`);
+ let delay=0;
+ const clean=steps.map(step=>{
+  const type=step.type,value=step.value;
+  if(type==="hotkey"){const keys=step.keys;if(!Array.isArray(keys)||!keys.length||keys.length>4||new Set(keys).size!==keys.length||!pcKeyNames.includes(keys.at(-1))||keys.slice(0,-1).some(key=>!["CTRL","ALT","SHIFT","WIN"].includes(key)))throw Error("Choose modifiers and one supported key.");return {type,keys}}
+  if(type==="wait"){if(!Number.isInteger(value)||value<0||value>10000)throw Error("Wait must be 0–10000 milliseconds.");delay+=value}
+  else if(type==="media"){if(!Object.hasOwn(mediaNames,value))throw Error("Choose a media key.")}
+  else if(type==="open")return {type,value:parseWebUrl(value,"PC website")};
+  else if(type==="text"||type==="powershell"){if(typeof value!=="string"||!value.length||value.length>(type==="text"?300:512)||type==="powershell"&&!value.trim())throw Error("Enter text or a command within the displayed limit.")}
+  else if(type==="action"){if(typeof value!=="string"||!value.trim())throw Error("Enter an action name already configured on your PC.")}
+  else throw Error("Choose a supported PC step.");
+  return {type,value}
+ });
+ if(delay>10000)throw Error("Total waiting time cannot exceed 10 seconds.");
+ m.url=connection.origin+"/run";m.secret=connection.token;m.method="POST";m.action="http";m.body=JSON.stringify({steps:clean});
+ if(new TextEncoder().encode(m.body).length>3072)throw Error(`Button ${index+1}: shorten the PC sequence (maximum 3072 bytes).`);
+}
 function drawEmojiResults(card){const query=card.querySelector("[data-emoji-search]").value.trim().toLowerCase(),matches=presets.filter(([name,icon])=>!query||name.toLowerCase().includes(query)||icon.includes(query)),results=card.querySelector("[data-emoji-results]");results.replaceChildren();matches.slice(0,24).forEach(([name,icon])=>{const button=document.createElement("button");button.type="button";button.textContent=icon;button.title=name;button.onclick=()=>{const input=card.querySelector('[data-k="icon"]');input.value=icon;input.dispatchEvent(new Event("input"))};results.append(button)});card.querySelector("[data-emoji-count]").textContent=`${matches.length} matches${matches.length>24?"; refine your search":""}`}
 function updatePreviewDots(){const p=$("#preview"),page=Math.round(p.scrollLeft/Math.max(1,p.clientWidth));$("#previewDots").querySelectorAll("span").forEach((dot,index)=>dot.setAttribute("aria-current",String(index===page)))}
-function preview(){const p=$("#preview"),dots=$("#previewDots");p.replaceChildren();dots.replaceChildren();p.style.background="#"+(themeBackgrounds[cfg.theme]||cfg.background||"111827");const cols=Number($("#cols").value)||3,rows=Number($("#rows").value)||3,cap=cols*rows,count=Math.max(2,Math.ceil(cfg.macros.length/cap));for(let pageIndex=0;pageIndex<count;pageIndex++){const page=document.createElement("div");page.className="preview-page";page.style.setProperty("--cols",cols);page.style.setProperty("--rows",rows);for(let slot=0;slot<cap;slot++){const m=cfg.macros[pageIndex*cap+slot];if(!m&&!(pageIndex===1&&slot===0&&cfg.macros.length<=cap))continue;const cell=document.createElement("div");cell.className="preview-cell";const b=document.createElement("button");if(!m){b.disabled=true;b.textContent="Swipe test";b.style.background="#1f2937";b.style.color="#a5b4fc";cell.append(b);page.append(cell);continue}b.style.background="#"+(m.color||"4F46E5");b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.style.border=m.outline===false?"0":"2px solid #"+(m.outlineColor||({ocean:"67E8F9",forest:"6EE7B7",light:"334155"}[cfg.theme]||"A5B4FC"));b.dataset.shape=m.shape||"rounded";b.classList.toggle("image-only",!m.name);if(m.imagePreview){const img=document.createElement("img");img.src=m.imagePreview;img.alt="";b.append(img)}else{const icon=document.createElement("span");icon.className="ico";icon.textContent=m.iconSource!=="emoji"&&m.iconSource?m.iconImage?"…":"?":m.icon||"";b.append(icon)}if(m.name){const name=document.createElement("small");name.textContent=m.name;b.append(name)}cell.append(b);page.append(cell)}p.append(page);const dot=document.createElement("span");dot.setAttribute("role","img");dot.setAttribute("aria-label",`Preview page ${pageIndex+1}`);dots.append(dot)}p.scrollLeft=0;updatePreviewDots()}
+function preview(){
+ const p=$("#preview"),dots=$("#previewDots");p.replaceChildren();dots.replaceChildren();p.style.background="#"+(themeBackgrounds[cfg.theme]||cfg.background||"111827");
+ if(cfg.theme==="custom"&&cfg.backgroundPreview){p.style.backgroundImage=`url("${cfg.backgroundPreview}")`;p.style.backgroundSize="100% auto";p.style.backgroundPosition="center 57.1429%"}
+ const cols=
+Number($("#cols").value)||3,rows=Number($("#rows").value)||3,cap=cols*rows,count=Math.max(2,Math.ceil(cfg.macros.length/cap));for(let pageIndex=0;pageIndex<count;pageIndex++){const page=document.createElement("div");page.className="preview-page";page.style.setProperty("--cols",cols);page.style.setProperty("--rows",rows);for(let slot=0;slot<cap;slot++){const m=cfg.macros[pageIndex*cap+slot];if(!m&&!(pageIndex===1&&slot===0&&cfg.macros.length<=cap))continue;const cell=document.createElement("div");cell.className="preview-cell";const b=document.createElement("button");if(!m){b.disabled=true;b.textContent="Swipe test";b.style.background="#1f2937";b.style.color="#a5b4fc";cell.append(b);page.append(cell);continue}b.style.background="#"+(m.color||"4F46E5");b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.style.border=m.outline===false?"0":"2px solid #"+(m.outlineColor||({ocean:"67E8F9",forest:"6EE7B7",light:"334155"}[cfg.theme]||"A5B4FC"));b.dataset.shape=m.shape||"rounded";b.classList.toggle("image-only",!m.name);if(m.imagePreview){const img=document.createElement("img");img.src=m.imagePreview;img.alt="";b.append(img)}else{const icon=document.createElement("span");icon.className="ico";icon.textContent=m.iconSource!=="emoji"&&m.iconSource?m.iconImage?"…":"?":m.icon||"";b.append(icon)}if(m.name){const name=document.createElement("small");name.textContent=m.name;b.append(name)}cell.append(b);page.append(cell)}p.append(page);const dot=document.createElement("span");dot.setAttribute("role","img");dot.setAttribute("aria-label",`Preview page ${pageIndex+1}`);dots.append(dot)}p.scrollLeft=0;updatePreviewDots()}
 async function api(url,options={}){const r=await fetch(url,{cache:"no-store",...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});if(!r.ok)throw Error((await r.text())||r.statusText);return r.status===204?null:r.json()}
 async function loadIconPreviews(){
  for(const macro of cfg.macros){
@@ -186,12 +295,12 @@ async function loadIconPreviews(){
    const response=await fetch("/api/icon?key="+encodeURIComponent(macro.iconImage)+"&format="+(macro.iconFormat||"rgb565")+"&size="+side,{cache:"force-cache"});
    if(!response.ok)throw Error(await response.text());
    const pixels=new Uint8Array(await response.arrayBuffer()),alpha=macro.iconFormat==="rgb565a8";
-   if(pixels.length!==count*(alpha?3:2))throw Error("Invalid icon image size.");
-   const canvas=document.createElement("canvas");canvas.width=canvas.height=side;
-   const context=canvas.getContext("2d"),image=context.createImageData(side,side);
-   for(let i=0;i<count;i++){const value=pixels[i*2]|pixels[i*2+1]<<8;image.data[i*4]=Math.round((value>>11)*255/31);image.data[i*4+1]=Math.round(((value>>5)&63)*255/63);image.data[i*4+2]=Math.round((value&31)*255/31);image.data[i*4+3]=alpha?pixels[count*2+i]:255}
-   context.putImageData(image,0,0);macro.imagePreview=canvas.toDataURL("image/png");
+   macro.imagePreview=rawPixelPreview(pixels,side,alpha);
   }catch(error){msg("Could not load saved icon: "+error.message,true)}
+ }
+ if(cfg.backgroundImage){
+  try{const response=await fetch("/api/icon?key="+encodeURIComponent(cfg.backgroundImage)+"&size=480&format=rgb565",{cache:"force-cache"});if(!response.ok)throw Error(await response.text());cfg.backgroundPreview=rawPixelPreview(new Uint8Array(await response.arrayBuffer()),480);$("#backgroundSample").src=cfg.backgroundPreview;$("#backgroundSample").classList.remove("hidden");$("#backgroundStatus").textContent="Saved background image."}
+  catch(error){msg("Could not load background: "+error.message,true)}
  }
  preview()
 }
@@ -275,6 +384,8 @@ function prepareMacroAction(m,index){
    return;
   }
   m.url=parseWebUrl(m.url,`Button ${index+1} link`);m.method="GET";m.action="webhook";m.body="";m.secret="";
+ }else if(m.actionMode==="pc_macro"){
+  preparePcMacro(m,index);
  }else if(m.actionMode==="pc_open_url"){
   const address=String(m.pcAddress||"").trim().replace(/^https?:\/\//i,"").replace(/\/+$/,"");
   if(!address||/[/?#]/.test(address))throw Error(`Button ${index+1}: enter the PC address shown by GooPad Companion, such as 192.168.1.50:8787.`);
@@ -294,14 +405,26 @@ $("#add").onclick=()=>{if(cfg.macros.length>=32)return msg("Maximum 32 macros.",
 $("#save").onclick=async()=>{
  if(pendingUploads){$("#saveStatus").textContent="Wait for the upload to finish before saving.";return}
  cfg.cols=Number($("#cols").value);cfg.rows=Number($("#rows").value);cfg.background=$("#background").value.slice(1).toUpperCase();cfg.theme=$("#deviceTheme").value;
- const saveButton=$("#save"),settingsButton=$("#saveSettings"),status=$("#saveStatus");saveButton.disabled=settingsButton.disabled=true;saveButton.textContent=settingsButton.textContent="Saving…";saveButton.setAttribute("aria-busy","true");settingsButton.setAttribute("aria-busy","true");status.classList.remove("error");status.textContent="Saving configuration to GooPad…";msg(status.textContent);
- try{await new Promise(resolve=>requestAnimationFrame(resolve));cfg.macros.forEach(prepareMacroAction);await upgradeLegacyFaIcons();const stored={...cfg,macros:cfg.macros.map(({imagePreview,...macro})=>macro)};await api("/api/config",{method:"POST",body:JSON.stringify(stored)});status.textContent="Saved to device.";msg(status.textContent);preview()}
- catch(e){status.textContent="Save failed: "+e.message;status.classList.add("error");msg(status.textContent,true)}
+ cfg.companionAddress=$("#companionAddress").value.trim();cfg.companionToken=$("#companionToken").value.trim();
+ const saveButton=$("#save"),settingsButton=$("#saveSettings"),status=$("#saveStatus");saveButton.disabled=settingsButton.disabled=true;saveButton.textContent=settingsButton.textContent="Saving…";saveButton.setAttribute("aria-busy","true");settingsButton.setAttribute("aria-busy","true");status.classList.remove("error");status.textContent="Saving configuration to GooPad…";$("#status").textContent="";
+ try{await new Promise(resolve=>requestAnimationFrame(resolve));cfg.macros.forEach(prepareMacroAction);await upgradeLegacyFaIcons();const {backgroundPreview,...settings}=cfg,stored={...settings,macros:cfg.macros.map(({imagePreview,pcSteps,...macro})=>macro)},body=JSON.stringify(stored);if(new TextEncoder().encode(body).length>12000)throw Error("Configuration exceeds 12 KB. Shorten PC sequences or reduce the number of macros.");await api("/api/config",{method:"POST",body});status.textContent="Saved to device.";preview()}
+ catch(e){status.textContent="Save failed: "+e.message;status.classList.add("error")}
  finally{saveButton.disabled=settingsButton.disabled=false;saveButton.textContent="Save to device";settingsButton.textContent="Save appearance";saveButton.removeAttribute("aria-busy");settingsButton.removeAttribute("aria-busy")}
 };
-$("#saveSettings").onclick=()=>$("#save").click();
-$("#macrosTab").onclick=()=>{$("#editorView").classList.remove("hidden");$("#settingsView").classList.add("hidden");$("#macrosTab").classList.add("active");$("#settingsTab").classList.remove("active")};
-$("#settingsTab").onclick=()=>{$("#editorView").classList.add("hidden");$("#settingsView").classList.remove("hidden");$("#settingsTab").classList.add("active");$("#macrosTab").classList.remove("active")};
+function showView(view){[["editorView","macrosTab"],["settingsView","settingsTab"],["aboutView","aboutTab"]].forEach(([id,tab])=>{$("#"+id).classList.toggle("hidden",id!==view);$("#"+tab).classList.toggle("active",id===view)})}
+$("#saveSettings").onclick=()=>{showView("editorView");$("#save").click();$("#saveStatus").scrollIntoView({block:"center",behavior:"smooth"})};
+$("#macrosTab").onclick=()=>showView("editorView");
+$("#settingsTab").onclick=()=>showView("settingsView");
+$("#aboutTab").onclick=()=>showView("aboutView");
+$("#pairingHelp").onclick=()=>showView("aboutView");
+$("#backgroundUpload").onchange=event=>uploadBackground(event.target);
+$("#removeBackground").onclick=()=>{delete cfg.backgroundImage;delete cfg.backgroundPreview;$("#backgroundSample").classList.add("hidden");$("#backgroundUpload").value="";$("#backgroundStatus").textContent="Image removed from layout. Save appearance to apply.";preview()};
+$("#checkCompanion").onclick=async()=>{
+ const button=$("#checkCompanion"),status=$("#companionStatus");button.disabled=true;status.textContent="Checking through GooPad…";
+ try{const connection=pcConnection($("#companionAddress").value,$("#companionToken").value),result=await api("/api/companion",{method:"POST",body:JSON.stringify({url:connection.origin+"/status",token:connection.token})});status.textContent=`Connected · ${result.message} · PowerShell ${result.powershell?"enabled":"disabled"}${result.actions?.length?" · Approved apps: "+result.actions.join(", "):""}`}
+ catch(error){status.textContent="Connection failed: "+error.message}
+ finally{button.disabled=false}
+};
 $("#backup").onclick=async()=>{try{await api("/api/backup",{method:"POST",body:"{}"});msg("Backup saved to the SD card.")}catch(e){msg("Backup failed: "+e.message,true)}};
 async function uploadFirmware(blob,name){if(!confirm(`Install ${name} and reboot GooPad?`))return;msg(`Uploading ${name}…`);try{const r=await fetch("/api/ota",{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:blob});if(!r.ok)throw Error((await r.text())||r.statusText);msg("Firmware verified. GooPad is restarting…")}catch(e){msg("Firmware update failed: "+e.message,true)}}
 $("#otaPick").onclick=()=>$("#firmware").click();

@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import sys
 import tempfile
 import threading
 import unittest
@@ -12,7 +13,8 @@ from unittest.mock import patch
 SOURCE = Path(__file__).parents[1] / "companion" / "GooPadCompanion.py"
 SPEC = importlib.util.spec_from_file_location("goopad_companion", SOURCE)
 COMPANION = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(COMPANION)
+with patch.object(sys, "path", [str(SOURCE.parent), *sys.path]):
+    SPEC.loader.exec_module(COMPANION)
 
 
 class CompanionTests(unittest.TestCase):
@@ -180,6 +182,71 @@ class CompanionTests(unittest.TestCase):
             urlopen(request, timeout=3)
         self.assertEqual(error.exception.code, 403)
 
+@unittest.skipUnless(sys.platform == "win32", "Windows startup integration")
+class WindowsStartupTests(unittest.TestCase):
+    def test_registration_persists_and_can_be_disabled_in_isolated_registry_key(self):
+        import winreg
+        runtime = COMPANION.windows_startup
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory)
+            source = app / "download.exe"
+            source.write_bytes(b"packaged app")
+            key_path = rf"Software\GooPadStartupTest-{app.name}"
+            try:
+                with patch.object(runtime, "STARTUP_KEY", key_path), \
+                        patch.object(sys, "frozen", True, create=True), \
+                        patch.object(sys, "executable", str(source)):
+                    self.assertFalse(runtime.startup_enabled())
+                    runtime.set_startup(True, app, SOURCE, 18787)
+                    self.assertTrue(runtime.startup_enabled())
+                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+                        command, kind = winreg.QueryValueEx(key, runtime.STARTUP_NAME)
+                    self.assertEqual(kind, winreg.REG_SZ)
+                    self.assertIn("--gui --minimized --port 18787", command)
+                    runtime.set_startup(False, app, SOURCE, 18787)
+                    self.assertFalse(runtime.startup_enabled())
+            finally:
+                try:
+                    winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key_path)
+                except FileNotFoundError:
+                    pass
+
+    def test_startup_copies_packaged_executable_and_quotes_stable_path(self):
+        import winreg
+        runtime = COMPANION.windows_startup
+        with tempfile.TemporaryDirectory(prefix="GooPad startup ") as directory:
+            source = Path(directory) / "download.exe"
+            source.write_bytes(b"packaged app")
+            app = Path(directory) / "User App Data"
+            with patch.object(sys, "frozen", True, create=True), patch.object(sys, "executable", str(source)), \
+                    patch.object(winreg, "CreateKey") as create, patch.object(winreg, "SetValueEx") as save:
+                runtime.set_startup(True, app, SOURCE, 18787)
+            executable = app / "bin" / "GooPadCompanion.exe"
+            self.assertEqual(executable.read_bytes(), source.read_bytes())
+            self.assertEqual(save.call_args.args[4],
+                             f'"{executable}" --gui --minimized --port 18787')
+            self.assertEqual(create.call_args.args, (winreg.HKEY_CURRENT_USER, runtime.STARTUP_KEY))
+            with patch.object(winreg, "OpenKey"), patch.object(winreg, "DeleteValue") as delete:
+                runtime.set_startup(False, app, SOURCE, 18787)
+            self.assertEqual(delete.call_args.args[1], runtime.STARTUP_NAME)
+            self.assertTrue(executable.exists())
+
+    def test_failed_copy_preserves_existing_startup_executable_and_registration(self):
+        import winreg
+        runtime = COMPANION.windows_startup
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory)
+            old = app / "bin" / "GooPadCompanion.exe"
+            old.parent.mkdir()
+            old.write_bytes(b"old working app")
+            with patch.object(sys, "frozen", True, create=True), \
+                    patch.object(runtime.shutil, "copy2", side_effect=OSError("disk full")), \
+                    patch.object(winreg, "SetValueEx") as save:
+                with self.assertRaises(OSError):
+                    runtime.set_startup(True, app, SOURCE, 8787)
+            self.assertEqual(old.read_bytes(), b"old working app")
+            self.assertEqual(list(old.parent.iterdir()), [old])
+            save.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

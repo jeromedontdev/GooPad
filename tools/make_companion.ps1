@@ -12,6 +12,7 @@ python -m PyInstaller --noconfirm --onefile --windowed --name GooPadCompanion `
     --specpath $WorkDirectory (Join-Path $root 'companion\GooPadCompanion.py')
 if ($LASTEXITCODE -ne 0) { throw 'Companion build failed. Install PyInstaller with python -m pip install pyinstaller.' }
 Copy-Item (Join-Path $root 'companion\GooPadCompanion.py'), `
+    (Join-Path $root 'companion\windows_startup.py'), `
     (Join-Path $root 'companion\Start-GooPadCompanion.cmd'), `
     (Join-Path $root 'README.md') -Destination $package
 $archive = Join-Path $OutputDirectory 'GooPadCompanion-Windows.zip'

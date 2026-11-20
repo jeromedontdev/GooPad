@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory)][uri]$Device,
-    [Parameter(Mandatory)][pscredential]$Credential
+    [Parameter(Mandatory)][pscredential]$Credential,
+    [uri]$Companion,
+    [securestring]$CompanionToken
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,7 +17,11 @@ function Request($Path, $Method = 'GET', $Body = $null, $Headers = $headers, $Co
         SkipCertificateCheck = $true; SkipHttpErrorCheck = $true; TimeoutSec = 30
     }
     if ($null -ne $Body) { $options.Body = $Body; $options.ContentType = $ContentType }
-    Invoke-WebRequest @options
+    if ($Body -is [byte[]]) { $options.TimeoutSec = 180 }
+    try { Invoke-WebRequest @options }
+    catch [System.OperationCanceledException], [System.Net.Http.HttpRequestException] {
+        throw "Request $Method $Path failed: $($_.Exception.Message)"
+    }
 }
 function Expect($Response, $Status) {
     if ([int]$Response.StatusCode -ne $Status) { throw "Expected HTTP $Status, got $($Response.StatusCode)" }
@@ -37,6 +43,8 @@ $test = $original.Content | ConvertFrom-Json -AsHashtable
 $controls = (Request '/api/status').Content | ConvertFrom-Json
 $soundKey = 'i' + ([guid]::NewGuid().ToString('N').Substring(0,16))
 $soundUploaded = $false
+$backgroundKey = 'i' + ([guid]::NewGuid().ToString('N').Substring(0,16))
+$backgroundUploaded = $false
 $test.macros = @(
     foreach ($shape in @('rounded', 'square', 'circle', 'pill', 'soft')) {
         @{
@@ -110,6 +118,35 @@ try {
         $after.audioBusy -or $after.audioPeak -gt 4915 -or $after.audioPeak -lt 4000) {
         throw 'WAV playback, repeat protection, power scaling, or uptime check failed.'
     }
+    $background = [byte[]]::new(480 * 480 * 2)
+    for ($i=1; $i -lt $background.Length; $i+=2) { $background[$i] = 248 }
+    Expect (Request "/api/icon?key=$backgroundKey" 'POST' $background $headers 'application/octet-stream') 200
+    $backgroundUploaded = $true
+    $test.backgroundImage = $backgroundKey
+    Expect (Request '/api/config' 'POST' ($test | ConvertTo-Json -Depth 20 -Compress)) 200
+    Start-Sleep -Seconds 1
+    $image = Request "/api/icon?key=$backgroundKey&size=480&format=rgb565"
+    Expect $image 200
+    if ($image.RawContentLength -ne 460800) { throw 'Background dimensions or payload are incorrect.' }
+    Expect (Request "/api/background?key=$backgroundKey" 'DELETE') 400
+    if ($Companion) {
+        if (!$CompanionToken) { throw 'Provide CompanionToken with Companion.' }
+        $pcToken = [PSCredential]::new('unused',$CompanionToken).GetNetworkCredential().Password
+        $check = @{url=$Companion.GetLeftPart([UriPartial]::Authority)+'/status';token=$pcToken} | ConvertTo-Json -Compress
+        Expect (Request '/api/companion' 'POST' $check) 200
+        $test.macros[0].actionMode = 'pc_macro'; $test.macros[0].sound = 'none'
+        $test.macros[0].method = 'POST'; $test.macros[0].action = 'http'
+        $test.macros[0].url = $Companion.GetLeftPart([UriPartial]::Authority)+'/run'
+        $test.macros[0].secret = $pcToken
+        $test.macros[0].body = @{steps=@(1..12 | ForEach-Object {@{type='wait';value=0}})} | ConvertTo-Json -Depth 5 -Compress
+        if ($test.macros[0].body.Length -le 256) { throw 'PC test must exceed the old body limit.' }
+        Expect (Request '/api/config' 'POST' ($test | ConvertTo-Json -Depth 20 -Compress)) 200
+        Expect (Request '/api/trigger' 'POST' '{"index":0}') 200
+        Start-Sleep -Seconds 2
+        $result = (Request '/api/companion' 'POST' $check).Content | ConvertFrom-Json
+        if ($result.busy -or $result.message -ne 'PC macro completed.') { throw 'Device-to-PC sequence did not finish.' }
+        $pcToken = $null
+    }
 } finally {
     Expect (Request '/api/config' 'POST' $original.Content) 200
     Expect (Request '/api/controls' 'POST' (@{brightness=$controls.brightness;volume=$controls.volume} | ConvertTo-Json -Compress)) 200
@@ -119,6 +156,7 @@ try {
         }
         Expect (Request "/api/sound?key=$soundKey" 'DELETE') 200
     }
+    if ($backgroundUploaded) { Expect (Request "/api/background?key=$backgroundKey" 'DELETE') 200 }
 }
 if ((Request '/api/config').Content -ne $original.Content) { throw 'Original configuration was not restored.' }
-'PASS: HTTPS, icon catalog, nine grids/five shapes, power clamps, streamed WAV, rapid-tap protection, state restoration and sound cleanup.'
+'PASS: HTTPS, grids/shapes, power caps, WAV/tap protection, 480x480 background, optional device-to-PC sequence, state restoration and asset cleanup.'

@@ -36,6 +36,9 @@ Each tile supports an optional label, color, visual, and a plain-language action
 Choose **Icon / emoji**, **Font Awesome**, or **Image** from its visual-type
 dropdown. Blank labels stay blank; the visual is enlarged and centered.
 **Save to device** is below the live preview.
+Save progress, confirmation, and errors appear only there. **Save appearance**
+returns to the preview so its result is visible. **About & help** includes
+downloads, setup instructions, examples, troubleshooting, and source links.
 **Open a link or trigger a service** needs only the complete link supplied by
 that service. **Open a website on my Windows PC** uses the Companion app and
 asks for its displayed address/token and the website; it opens only HTTP(S)
@@ -59,7 +62,13 @@ and Light palettes, custom background colors, and per-macro font colors and
 rounded, square, circle, pill, or soft-corner tile shapes. Up to 32 macros are stored locally;
 grid size controls how many appear on each page. Each macro can choose an
 outline color or remove its outline. Preset themes always use their own
-background; choose **Custom** for your own background.
+background; choose **Custom** for your own background. Custom also accepts an
+uploaded image (up to 15 MB input, SD required). The browser center-crops it to
+480x480 RGB565 and fills transparent pixels with the selected background color.
+The device loads the 460,800-byte image into PSRAM. Preset themes ignore the
+stored image; switching back to Custom restores it. Removing it from the layout
+requires saving. Images are stored separately on SD, so a config-only backup
+does not include the assets.
 
 Each button can play a click, beep, chime, or alert through the board's I2S
 speaker, either alongside its web action or with **Play a sound only**.
@@ -93,6 +102,40 @@ packages into one directory and run
 `python tools/generate_fa_catalog.py <packages-directory> main/fa-icons.json`.
 
 ### Windows companion
+
+Download **GooPadCompanion-Windows.zip** from the site's **About & help** tab or
+[the latest release](https://github.com/jeromedontdev/GooPad/releases/latest).
+Extract it and run `GooPadCompanion.exe` as a normal Windows user. No Python
+installation is needed for that app. Keep its window open or minimized; closing
+it stops the receiver. Its two Copy buttons provide the PC address and a private
+pairing token. Paste these under website **Settings > Windows companion**, check
+the connection, then save. The last-result check also shows errors and whether
+PowerShell is enabled. Allow TCP port 8787 only on a trusted Private network.
+
+Choose **Windows PC macro (guided builder)** on a tile. Starters include Copy,
+Paste, Screenshot, Play/Pause and Mute. Add/reorder/remove up to 12 steps:
+hotkeys, media keys, typed text, waits, HTTP(S) websites, PowerShell commands,
+and locally approved app actions. No webhook or JSON knowledge is required.
+Total waits are limited to 10 seconds; each serialized sequence is limited to
+3072 UTF-8 bytes, and all device configuration must fit 12 KB.
+Sequences do not overlap: repeated taps while a PC sequence runs are rejected.
+Keyboard/text steps target the foreground application, not a chosen window.
+Windows blocks input into elevated apps, locked screens, and some games.
+
+PowerShell is **off by default**. Enable it locally using the Companion checkbox
+only on a trusted network. Anyone holding the token can then execute commands
+as your Windows user. Each command is limited to 512 characters and 10 seconds;
+a failed step stops the sequence and is reported in the app/log and last-result
+check. Do not run Companion as Administrator. Its config and log are in
+`%LOCALAPPDATA%\GooPad`.
+
+Companion is a per-user desktop app, **not a Windows system service**: services
+run in a different session and cannot reliably send keys to your desktop.
+For sign-in startup, create a shortcut to the executable and place it in the
+folder opened by Win+R, `shell:startup`. The PC must be awake and logged in.
+The device talks to Companion over token-authenticated **HTTP on the LAN**;
+unlike the editor link, this link is not encrypted. Never port-forward it or
+use an untrusted Wi-Fi network.
 
 `companion\Start-GooPadCompanion.cmd` starts a standard-library Python
 webhook receiver on the Windows PC. On first run it creates
@@ -189,8 +232,15 @@ flash-encrypted by this development build.
 
 Macros intentionally make requests to the URLs you configure. Treat editor
 access as privileged and avoid targets that you would not trust the device to
-contact. The Windows companion uses a separate random token and does not
-accept arbitrary commands from request bodies.
+contact. The Windows companion uses a separate random token and
+accepts only validated PC steps or locally configured app actions. PowerShell
+from a macro is accepted only after explicit local opt-in; treat that token as
+full access to your Windows account when enabled.
+
+Build the Windows ZIP on Windows with `python -m pip install pyinstaller`,
+then `.\tools\make_companion.ps1`. The ZIP contains the self-contained app,
+Python source, launcher, and this README. No signing certificate is included
+in this development build; Windows may display an unsigned-app warning.
 
 ## Hardware and pins
 

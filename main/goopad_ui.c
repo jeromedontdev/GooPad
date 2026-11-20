@@ -40,6 +40,8 @@ static char *s_config_buffer;
 static char *s_rendered_config;
 static uint8_t *s_icon_buffers;
 static lv_image_dsc_t s_icon_images[MAX_MACROS];
+static uint8_t *s_background_pixels;
+static lv_image_dsc_t s_background_image;
 static bool s_grid_shown;
 static bool s_loading_shown;
 static volatile bool s_scan_in_progress;
@@ -661,6 +663,36 @@ static void build_grid_screen(void)
         ? (unsigned)strtoul(bg->valuestring, NULL, 16) : theme_background;
     lv_obj_set_style_bg_color(s_screen, color(background), 0);
     lv_obj_set_style_text_color(s_screen, light_theme ? color(0x172033) : lv_color_white(), 0);
+    lv_image_cache_drop(&s_background_image);
+    cJSON *background_image = root ? cJSON_GetObjectItemCaseSensitive(root, "backgroundImage") : NULL;
+    if (!strcmp(theme_name, "custom") && cJSON_IsString(background_image)) {
+        if (!s_background_pixels) {
+            s_background_pixels = heap_caps_malloc(480 * 480 * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        }
+        char path[64];
+        snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.480.rgb565",
+                 background_image->valuestring);
+        FILE *file = g_app.sd.mounted ? fopen(path, "rb") : NULL;
+        bool loaded = file && s_background_pixels &&
+                      fread(s_background_pixels, 1, 480 * 480 * 2, file) == 480 * 480 * 2;
+        if (file) fclose(file);
+        if (loaded) {
+            s_background_image = (lv_image_dsc_t) {
+                .header = {.magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RGB565,
+                           .w = 480, .h = 480, .stride = 960},
+                .data_size = 480 * 480 * 2, .data = s_background_pixels,
+            };
+            lv_obj_t *image = lv_image_create(s_screen);
+            lv_image_set_src(image, &s_background_image);
+            lv_obj_set_pos(image, 0, 0);
+            lv_obj_set_clickable(image, false);
+        } else {
+            ESP_LOGE(TAG, "Could not load custom background from SD");
+        }
+    } else {
+        free(s_background_pixels);
+        s_background_pixels = NULL;
+    }
 
     int screen_width = lv_obj_get_width(s_screen);
     int screen_height = lv_obj_get_height(s_screen);

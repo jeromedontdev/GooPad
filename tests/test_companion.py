@@ -86,6 +86,100 @@ class CompanionTests(unittest.TestCase):
         with urlopen(self.base + "/health", timeout=3) as response:
             self.assertEqual(response.status, 200)
 
+    def test_sequence_is_validated_before_any_action(self):
+        steps = [{"type": "hotkey", "keys": ["CTRL", "C"]},
+                 {"type": "media", "value": "invalid"}]
+        with patch.object(COMPANION, "execute_steps") as execute:
+            self.assertEqual(self.request("/run", self.token, json.dumps({"steps": steps}).encode()), 400)
+            execute.assert_not_called()
+        invalid = [
+            [{"type": "hotkey", "keys": ["A", "B"]}],
+            [{"type": "hotkey", "keys": ["CTRL", "CTRL", "C"]}],
+            [{"type": "wait", "value": True}],
+            [{"type": "wait", "value": 6000}] * 2,
+            [{"type": "text", "value": "x" * 301}],
+            [{"type": "open", "value": "file:///C:/Windows/win.ini"}],
+            [{"type": "wait", "value": 0}] * 13,
+        ]
+        for steps in invalid:
+            with self.subTest(steps=steps), self.assertRaises(ValueError):
+                COMPANION.validate_steps({"steps": steps}, {"actions": {}})
+
+    def test_powershell_requires_local_permission(self):
+        body = json.dumps({"steps": [{"type": "powershell", "value": "Get-Date"}]}).encode()
+        with patch.object(COMPANION.subprocess, "run") as execute:
+            self.assertEqual(self.request("/run", self.token, body), 403)
+            execute.assert_not_called()
+        config = {"actions": {}, "allow_powershell": True}
+        steps = COMPANION.validate_steps(json.loads(body), config)
+        with patch.object(COMPANION.subprocess, "run") as execute:
+            execute.return_value.returncode = 0
+            COMPANION.execute_steps(steps, config)
+            self.assertFalse(execute.call_args.kwargs["shell"])
+            self.assertEqual(execute.call_args.kwargs["timeout"], 10)
+            self.assertIn("-EncodedCommand", execute.call_args.args[0])
+
+    def test_busy_sequence_is_not_queued(self):
+        body = b'{"steps":[{"type":"wait","value":0}]}'
+        COMPANION.RUN_LOCK.acquire()
+        try:
+            self.assertEqual(self.request("/run", self.token, body), 429)
+        finally:
+            COMPANION.RUN_LOCK.release()
+
+    def test_sequence_order_and_failure_release(self):
+        config = {"actions": {}}
+        steps = [{"type": "hotkey", "keys": ["CTRL", "C"]},
+                 {"type": "wait", "value": 250}, {"type": "text", "value": "hello"}]
+        with patch.object(COMPANION, "press_keys") as keys, \
+             patch.object(COMPANION.time, "sleep") as wait, \
+             patch.object(COMPANION, "type_text") as text:
+            calls = unittest.mock.Mock()
+            calls.attach_mock(keys, "keys")
+            calls.attach_mock(wait, "wait")
+            calls.attach_mock(text, "text")
+            COMPANION.execute_steps(steps, config)
+            self.assertEqual(calls.mock_calls, [
+                unittest.mock.call.keys(["CTRL", "C"]),
+                unittest.mock.call.wait(0.25), unittest.mock.call.text("hello")])
+        COMPANION.RUN_LOCK.acquire()
+        with patch.object(COMPANION, "execute_steps", side_effect=OSError("Input blocked")):
+            COMPANION.run_steps(steps, config)
+        self.assertFalse(COMPANION.RUN_LOCK.locked())
+        self.assertIn("Input blocked", COMPANION.LAST_RESULT)
+
+    def test_key_modifiers_are_released_after_error(self):
+        with patch.object(COMPANION, "send_input", side_effect=[None, OSError("blocked"), None]) as send:
+            with self.assertRaises(OSError):
+                COMPANION.press_keys(["CTRL", "C"])
+            self.assertEqual(send.call_args.kwargs, {"vk": 0x11, "flags": 2})
+        with patch.object(COMPANION, "send_input",
+                          side_effect=[None, None, None, OSError("blocked"), None, None]) as send:
+            with self.assertRaises(OSError):
+                COMPANION.press_keys(["CTRL", "SHIFT", "C"])
+            self.assertEqual(send.call_count, 6)
+
+    def test_unicode_text_sends_utf16_units(self):
+        with patch.object(COMPANION, "send_input") as send:
+            COMPANION.type_text("A\U0001f600")
+            self.assertEqual([call.kwargs["scan"] for call in send.call_args_list],
+                             [65, 65, 0xD83D, 0xD83D, 0xDE00, 0xDE00])
+
+    def test_status_requires_token_and_browser_origin_is_rejected(self):
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/status", timeout=3)
+        self.assertEqual(error.exception.code, 401)
+        request = Request(self.base + "/status", headers={"X-GooPad-Token": self.token})
+        with urlopen(request, timeout=3) as response:
+            status = json.load(response)
+            self.assertFalse(status["powershell"])
+            self.assertNotIn("token", status)
+        request = Request(self.base + "/run", data=b"{}", headers={
+            "X-GooPad-Token": self.token, "Origin": "https://example.com"})
+        with self.assertRaises(HTTPError) as error:
+            urlopen(request, timeout=3)
+        self.assertEqual(error.exception.code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

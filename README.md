@@ -47,6 +47,25 @@ For SSH, map an action to Windows OpenSSH (`ssh.exe`) with a preconfigured
 host/key and fixed argument list; the macro cannot supply or alter commands.
 Allow port 8787 only on a trusted/private Windows network when prompted.
 
+For example, an action can open a fixed web page:
+
+```json
+{
+  "token": "the-generated-token",
+  "actions": {
+    "dashboard": {
+      "program": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "arguments": ["http://192.168.1.50"]
+    }
+  }
+}
+```
+
+For SSH, use the same structure with `program` set to
+`C:\\Windows\\System32\\OpenSSH\\ssh.exe` and `arguments` set to a fixed key,
+host, and remote command. Prefer key-based authentication and validate host
+keys with the OpenSSH `known_hosts` file.
+
 ### Backup and firmware update
 
 * **Backup to SD** writes `goopad-config.json` to the mounted card.

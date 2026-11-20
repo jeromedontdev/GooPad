@@ -30,6 +30,7 @@ static char *s_config_buffer;
 static char *s_rendered_config;
 static uint8_t *s_icon_buffers;
 static bool s_grid_shown;
+static bool s_loading_shown;
 static volatile bool s_scan_in_progress;
 
 static lv_color_t color(uint32_t value)
@@ -249,6 +250,7 @@ static void password_visibility_cb(lv_event_t *event)
 static void build_setup_screen(void)
 {
     s_grid_shown = false;
+    s_loading_shown = false;
     s_password_visible = false;
     lv_obj_clean(s_screen);
     theme_screen();
@@ -322,6 +324,29 @@ static void build_setup_screen(void)
     s_scan_in_progress = false;
 }
 
+static void build_loading_screen(void)
+{
+    s_grid_shown = false;
+    s_loading_shown = true;
+    if (s_keyboard && lv_obj_is_valid(s_keyboard)) {
+        lv_obj_set_hidden(s_keyboard, true);
+    }
+    lv_obj_clean(s_screen);
+    theme_screen();
+
+    lv_obj_t *title = label(s_screen, "GooPad", 28, color(0xA5B4FC));
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -72);
+    lv_obj_t *spinner = lv_spinner_create(s_screen);
+    lv_obj_set_size(spinner, 56, 56);
+    lv_spinner_set_anim_params(spinner, 1000, 90);
+    lv_obj_align(spinner, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_t *status = label(s_screen, "Connecting to Wi-Fi...", 18,
+                             color(0xCBD5E1));
+    lv_obj_align(status, LV_ALIGN_CENTER, 0, 58);
+    lv_obj_t *hint = label(s_screen, "Please wait", 14, color(0x94A3B8));
+    lv_obj_align(hint, LV_ALIGN_CENTER, 0, 86);
+}
+
 static void tile_cb(lv_event_t *event)
 {
     unsigned index = (unsigned)(uintptr_t)lv_event_get_user_data(event);
@@ -344,6 +369,7 @@ static void page_scroll_cb(lv_event_t *event)
 static void build_grid_screen(void)
 {
     if (!s_config_buffer || !s_rendered_config) return;
+    s_loading_shown = false;
     if (s_keyboard && lv_obj_is_valid(s_keyboard)) {
         lv_obj_set_hidden(s_keyboard, true);
     }
@@ -491,7 +517,9 @@ static void refresh_cb(lv_timer_t *timer)
             snprintf(text, sizeof(text), "http://%s  admin / %.24s", address, password);
             lv_label_set_text(s_status, text);
         }
-    } else if (s_grid_shown) {
+    } else if (goopad_wifi_connecting()) {
+        if (!s_loading_shown) build_loading_screen();
+    } else if (s_grid_shown || s_loading_shown) {
         build_setup_screen();
     }
 }
@@ -512,7 +540,13 @@ void goopad_ui_init(lv_display_t *disp)
         return;
     }
     s_screen = lv_display_get_screen_active(disp);
-    build_setup_screen();
+    if (goopad_wifi_connected()) {
+        build_grid_screen();
+    } else if (goopad_wifi_connecting()) {
+        build_loading_screen();
+    } else {
+        build_setup_screen();
+    }
     s_timer = lv_timer_create(refresh_cb, 500, NULL);
     (void)s_timer;
     ui_unlock();

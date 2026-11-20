@@ -142,6 +142,7 @@ void goopad_ui_init(lv_display_t *disp);
 void goopad_init(void);
 void goopad_wifi_join(const char *ssid, const char *password);
 bool goopad_wifi_connected(void);
+bool goopad_wifi_connecting(void);
 bool goopad_configured(void);
 void goopad_get_config(char *out, size_t capacity);
 void goopad_trigger(unsigned index);

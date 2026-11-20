@@ -48,9 +48,13 @@ static char *s_config;
 static char s_web_key[25];
 static char s_ssid[33];
 static volatile bool s_connected;
+static volatile bool s_wifi_connecting;
+static volatile unsigned s_wifi_connect_attempts;
 static httpd_handle_t s_server;
 static char s_ip_address[16];
 static SemaphoreHandle_t s_config_lock;
+
+#define WIFI_CONNECT_MAX_ATTEMPTS 5
 
 static esp_err_t auth_required(httpd_req_t *req);
 static bool valid_icon_key(const char *key);
@@ -178,6 +182,11 @@ bool goopad_configured(void)
 bool goopad_wifi_connected(void)
 {
     return s_connected;
+}
+
+bool goopad_wifi_connecting(void)
+{
+    return s_wifi_connecting;
 }
 
 void goopad_get_config(char *out, size_t capacity)
@@ -720,11 +729,26 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
             ESP_LOGI(TAG, "deferring reconnect until Wi-Fi scan completes");
             return;
         }
-        ESP_LOGW(TAG, "Wi-Fi disconnected; retrying");
-        esp_wifi_connect();
+        if (s_wifi_connect_attempts >= WIFI_CONNECT_MAX_ATTEMPTS) {
+            s_wifi_connecting = false;
+            ESP_LOGE(TAG, "Wi-Fi connection failed after %u attempts",
+                     s_wifi_connect_attempts);
+            return;
+        }
+        s_wifi_connecting = true;
+        s_wifi_connect_attempts++;
+        ESP_LOGW(TAG, "Wi-Fi disconnected; reconnecting (attempt %u/%u)",
+                 s_wifi_connect_attempts, WIFI_CONNECT_MAX_ATTEMPTS);
+        esp_err_t err = esp_wifi_connect();
+        if (err != ESP_OK) {
+            s_wifi_connecting = false;
+            ESP_LOGE(TAG, "Wi-Fi reconnect failed to start: %s", esp_err_to_name(err));
+        }
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *event = data;
         s_connected = true;
+        s_wifi_connecting = false;
+        s_wifi_connect_attempts = 0;
         snprintf(s_ip_address, sizeof(s_ip_address), IPSTR, IP2STR(&event->ip_info.ip));
         ESP_LOGI(TAG, "GooPad web editor: http://" IPSTR "/", IP2STR(&event->ip_info.ip));
         esp_err_t err = start_server();
@@ -745,8 +769,13 @@ void goopad_wifi_join(const char *ssid, const char *password)
         ESP_LOGE(TAG, "could not save Wi-Fi credentials: %s", esp_err_to_name(err));
         return;
     }
+    s_wifi_connecting = true;
+    s_wifi_connect_attempts = 1;
     err = hw_wifi_connect(ssid, password);
-    if (err != ESP_OK) ESP_LOGE(TAG, "Wi-Fi join failed to start: %s", esp_err_to_name(err));
+    if (err != ESP_OK) {
+        s_wifi_connecting = false;
+        ESP_LOGE(TAG, "Wi-Fi join failed to start: %s", esp_err_to_name(err));
+    }
 }
 
 void goopad_init(void)
@@ -772,5 +801,14 @@ void goopad_init(void)
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &config));
     }
     ESP_ERROR_CHECK(hw_wifi_start());
-    if (s_ssid[0]) ESP_ERROR_CHECK(esp_wifi_connect());
+    if (s_ssid[0]) {
+        s_wifi_connecting = true;
+        s_wifi_connect_attempts = 1;
+        esp_err_t err = esp_wifi_connect();
+        if (err != ESP_OK) {
+            s_wifi_connecting = false;
+            ESP_LOGE(TAG, "saved Wi-Fi connection failed to start: %s",
+                     esp_err_to_name(err));
+        }
+    }
 }

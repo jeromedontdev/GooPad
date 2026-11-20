@@ -35,15 +35,24 @@ from GooPad validate HTTPS certificates. The searchable icon picker includes 275
 symbols, and the icon field accepts other short icon codes or glyphs. Common
 symbols map to the built-in LVGL icon font on the panel; unsupported glyphs
 fall back to the button label's initial. The editor also bundles 2,163
-searchable Font Awesome Free solid, regular, and brand icons. Font Awesome
-selections and uploaded images are converted to 32×32 RGB565 and saved under
+searchable Font Awesome Free solid, regular, and brand icons. Enter Font
+Awesome codes such as `fa-server` or `fa-brands fa-github`, or search the
+bundled catalog. Font Awesome selections and uploaded images are converted to
+32×32 RGB565 and saved under
 `/goopad` on the SD card; a card is required to use them. The **Settings** page
 contains device themes, background color, website appearance, backups, firmware
 updates, and admin-password changes. The device's information panel also has
 theme and SD firmware-update controls. The display has Midnight, Ocean, Forest,
-and Light accents, custom background colors, and rounded, square, or circular
-tile corners. Up to 32 macros are stored locally; grid size controls how many
-appear on each page.
+and Light palettes, custom background colors, and per-macro font colors and
+rounded, square, or circular tile shapes. Up to 32 macros are stored locally;
+grid size controls how many appear on each page.
+
+The editor and device web API currently use HTTP. HTTPS is practical on the
+ESP32-S3, especially with its PSRAM, but requires a browser-trusted certificate
+and renewal/provisioning strategy. A self-signed certificate would trigger
+browser warnings and undermine the simple setup flow; until a suitable
+certificate strategy is selected, keep GooPad on a trusted local network and
+do not expose its web server to the internet.
 
 The bundled Font Awesome icon data is version 7.3.1; attribution and license
 details are in [third_party/fontawesome/NOTICE.txt](./third_party/fontawesome/NOTICE.txt).

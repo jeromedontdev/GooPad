@@ -19,6 +19,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
+import windows_startup
 
 
 APP_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "GooPad"
@@ -414,6 +415,7 @@ def main():
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--gui", action="store_true", help="Show the desktop control panel")
     parser.add_argument("--no-gui", action="store_true", help="Run in console mode")
+    parser.add_argument("--minimized", action="store_true", help="Start the desktop panel minimized")
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
         parser.error("port must be between 1024 and 65535")
@@ -439,7 +441,7 @@ def main():
         parser.error(f"Could not listen on port {args.port}: {error}")
     try:
         if (args.gui or getattr(sys, "frozen", False)) and not args.no_gui:
-            desktop_panel(server, config, address, args.port)
+            desktop_panel(server, config, address, args.port, args.minimized)
         else:
             server.serve_forever()
     except KeyboardInterrupt:
@@ -448,13 +450,13 @@ def main():
         server.server_close()
 
 
-def desktop_panel(server, config, address, port):
+def desktop_panel(server, config, address, port, minimized=False):
     import tkinter as tk
     from tkinter import messagebox, ttk
 
     root = tk.Tk()
     root.title("GooPad Companion")
-    root.geometry("540x340")
+    root.geometry("540x380")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=20)
     frame.pack(fill="both", expand=True)
@@ -490,6 +492,17 @@ def desktop_panel(server, config, address, port):
 
     ttk.Checkbutton(frame, text="Allow PowerShell commands (off by default)",
                     variable=allowed, command=change_permission).pack(anchor="w", pady=10)
+    startup = tk.BooleanVar(value=windows_startup.startup_enabled())
+
+    def change_startup():
+        try:
+            windows_startup.set_startup(startup.get(), APP_DIR, __file__, port)
+        except OSError as error:
+            startup.set(windows_startup.startup_enabled())
+            messagebox.showerror("Could not change Windows startup", str(error))
+
+    ttk.Checkbutton(frame, text="Start with Windows (at sign-in, minimized)",
+                    variable=startup, command=change_startup).pack(anchor="w", pady=4)
     state = tk.StringVar(value=LAST_RESULT)
     ttk.Label(frame, textvariable=state, wraplength=490).pack(anchor="w", pady=6)
     ttk.Label(frame, text="In GooPad: Settings > Windows companion > paste address and token.\n"
@@ -503,6 +516,8 @@ def desktop_panel(server, config, address, port):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     refresh()
+    if minimized:
+        root.iconify()
     try:
         root.mainloop()
     finally:

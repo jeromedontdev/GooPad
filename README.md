@@ -129,10 +129,30 @@ a failed step stops the sequence and is reported in the app/log and last-result
 check. Do not run Companion as Administrator. Its config and log are in
 `%LOCALAPPDATA%\GooPad`.
 
-Companion is a per-user desktop app, **not a Windows system service**: services
-run in a different session and cannot reliably send keys to your desktop.
-For sign-in startup, create a shortcut to the executable and place it in the
-folder opened by Win+R, `shell:startup`. The PC must be awake and logged in.
+#### Manual or automatic Windows startup
+
+| Mode | Starts | Stops | Available actions |
+| --- | --- | --- | --- |
+| Open the app manually | When you open it | Closing the app or signing out | All desktop actions |
+| **Start with Windows** checkbox | When this user signs in, minimized | Closing the app or signing out | Same desktop actions |
+
+**Desktop startup is recommended** for everyday macro-pad use. Hotkeys, media
+keys and typed text require your awake, logged-in, unlocked desktop. Minimize
+the app to keep it running; closing it stops the listener. Windows startup uses
+only this user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry.
+For the packaged app it copies the executable into
+`%LOCALAPPDATA%\GooPad\bin`, so moving the extracted download does not break
+startup. Disabling the checkbox removes the startup entry, retaining that copy.
+After downloading an update, close the old app, open the new executable, and
+uncheck/recheck this option to refresh its startup copy. Remove any old manual
+`shell:startup` shortcut to avoid launching two copies. When running from Python
+source, keep the source directory and interpreter at their registered paths.
+
+Both launch methods support PowerShell when enabled locally, running as your
+normal Windows user. No administrator prompt or Windows service is needed.
+The app does not run before sign-in or after sign-out. Windows service support
+is intentionally not included.
+
 The device talks to Companion over token-authenticated **HTTP on the LAN**;
 unlike the editor link, this link is not encrypted. Never port-forward it or
 use an untrusted Wi-Fi network.
@@ -202,6 +222,9 @@ machine). The board is an ESP32-S3-WROOM-1U-N16R8: 16 MB flash, 8 MB octal
 PSRAM, ST7701S RGB display, GT911 touch, and microSD slot.
 
 Run the existing Companion tests with `python -m unittest tests.test_companion`.
+The desktop Python receiver and Windows startup use the standard library.
+Build the Windows download with
+`.\tools\make_companion.ps1`; PyInstaller must also be installed.
 For authenticated hardware regression checks (PowerShell 7), run
 `.\tests\Test-GooPadDevice.ps1 -Device https://<device-ip> -Credential (Get-Credential admin)`.
 This temporarily exercises nine grid sizes, five shapes, power clamps,

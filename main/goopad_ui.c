@@ -596,23 +596,40 @@ static void build_grid_screen(void)
     int page_count = (total + per_page - 1) / per_page;
     if (page_count < 2) page_count = 2;
     cJSON *bg = root ? cJSON_GetObjectItemCaseSensitive(root, "background") : NULL;
-    unsigned background = cJSON_IsString(bg) ? (unsigned)strtoul(bg->valuestring, NULL, 16)
-                                               : 0x111827;
-    cJSON *shape = root ? cJSON_GetObjectItemCaseSensitive(root, "shape") : NULL;
     cJSON *device_theme = root ? cJSON_GetObjectItemCaseSensitive(root, "theme") : NULL;
+    const char *theme_name = cJSON_IsString(device_theme)
+                                 ? device_theme->valuestring : "midnight";
     bool light_theme = cJSON_IsString(device_theme) &&
                        strcmp(device_theme->valuestring, "light") == 0;
+    unsigned theme_background = 0x111827;
     uint32_t accent_color = 0xA5B4FC;
-    if (cJSON_IsString(device_theme)) {
-        if (!strcmp(device_theme->valuestring, "ocean")) accent_color = 0x67E8F9;
-        if (!strcmp(device_theme->valuestring, "forest")) accent_color = 0x6EE7B7;
-        if (light_theme) accent_color = 0x334155;
+    if (!strcmp(theme_name, "ocean")) {
+        accent_color = 0x67E8F9;
+        theme_background = 0x0B1B2A;
+    } else if (!strcmp(theme_name, "forest")) {
+        accent_color = 0x6EE7B7;
+        theme_background = 0x10251D;
+    } else if (light_theme) {
+        accent_color = 0x334155;
+        theme_background = 0xF1F5F9;
+    }
+    unsigned background = cJSON_IsString(bg)
+        ? (unsigned)strtoul(bg->valuestring, NULL, 16) : theme_background;
+    if (background == 0x111827 && strcmp(theme_name, "midnight")) {
+        background = theme_background;
     }
     lv_obj_set_style_bg_color(s_screen, color(background), 0);
     lv_obj_set_style_text_color(s_screen, light_theme ? color(0x172033) : lv_color_white(), 0);
 
+    int screen_width = lv_obj_get_width(s_screen);
+    int screen_height = lv_obj_get_height(s_screen);
+    if (screen_width <= 0 || screen_height <= 0) {
+        ESP_LOGE(TAG, "invalid screen dimensions: %d x %d", screen_width, screen_height);
+        cJSON_Delete(root);
+        return;
+    }
     lv_obj_t *info_button = lv_button_create(s_screen);
-    lv_obj_set_pos(info_button, 432, 6);
+    lv_obj_set_pos(info_button, screen_width - 48, 6);
     lv_obj_set_size(info_button, 40, 36);
     lv_obj_set_style_bg_opa(info_button, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(info_button, 1, 0);
@@ -624,8 +641,12 @@ static void build_grid_screen(void)
     lv_obj_center(info_icon);
 
     s_pages = lv_obj_create(s_screen);
-    lv_obj_set_pos(s_pages, 0, 48);
-    lv_obj_set_size(s_pages, 480, 393);
+    const int page_top = 48;
+    const int footer_height = 36;
+    int page_height = screen_height - page_top - footer_height;
+    if (page_height < 1) page_height = 1;
+    lv_obj_set_pos(s_pages, 0, page_top);
+    lv_obj_set_size(s_pages, screen_width, page_height);
     lv_obj_set_style_bg_opa(s_pages, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(s_pages, 0, 0);
     lv_obj_set_style_pad_all(s_pages, 0, 0);
@@ -636,37 +657,65 @@ static void build_grid_screen(void)
     lv_obj_set_scrollbar_mode(s_pages, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_event_cb(s_pages, page_scroll_cb, LV_EVENT_SCROLL_END, NULL);
 
+    const int tile_padding = 10;
+    const int tile_gap = 8;
+    int cell_width = (screen_width - 2 * tile_padding - (cols - 1) * tile_gap) / cols;
+    int cell_height = (page_height - 2 * tile_padding - (rows - 1) * tile_gap) / rows;
+    if (cell_width < 1 || cell_height < 1) {
+        ESP_LOGE(TAG, "screen too small for %dx%d grid in %dx%d viewport",
+                 cols, rows, screen_width, page_height);
+        cJSON_Delete(root);
+        return;
+    }
+    ESP_LOGI(TAG, "render grid %dx%d on %dx%d display", cols, rows,
+             screen_width, screen_height);
     for (int page = 0; page < page_count; page++) {
         lv_obj_t *surface = lv_obj_create(s_pages);
-        lv_obj_set_size(surface, 480, 393);
+        lv_obj_set_size(surface, screen_width, page_height);
         lv_obj_set_style_bg_opa(surface, LV_OPA_TRANSP, 0);
         lv_obj_set_style_border_width(surface, 0, 0);
-        lv_obj_set_style_pad_all(surface, 10, 0);
-        lv_obj_set_style_pad_row(surface, 8, 0);
-        lv_obj_set_style_pad_column(surface, 8, 0);
-        lv_obj_set_flex_flow(surface, LV_FLEX_FLOW_ROW_WRAP);
+        lv_obj_set_style_pad_all(surface, 0, 0);
         lv_obj_set_scrollable(surface, false);
         for (int slot = 0; slot < per_page; slot++) {
             int index = page * per_page + slot;
             cJSON *macro = index < total ? cJSON_GetArrayItem(macros, index) : NULL;
             lv_obj_t *tile = lv_button_create(surface);
-            int width = (460 - (cols - 1) * 8) / cols;
-            int height = (373 - (rows - 1) * 8) / rows;
+            int width = cell_width;
+            int height = cell_height;
+            int column = slot % cols;
+            int row = slot / cols;
+            int x = tile_padding + column * (cell_width + tile_gap);
+            int y = tile_padding + row * (cell_height + tile_gap);
+            cJSON *shape = macro
+                ? cJSON_GetObjectItemCaseSensitive(macro, "shape") : NULL;
+            bool circle = cJSON_IsString(shape) &&
+                          !strcmp(shape->valuestring, "circle");
+            if (circle) {
+                width = height = cell_width < cell_height ? cell_width : cell_height;
+                x += (cell_width - width) / 2;
+                y += (cell_height - height) / 2;
+            }
             lv_obj_set_size(tile, width, height);
+            lv_obj_set_pos(tile, x, y);
             lv_obj_set_style_bg_color(tile, color(0x273449), 0);
-            int radius = cJSON_IsString(shape) && !strcmp(shape->valuestring, "square")
-                             ? 4 : cJSON_IsString(shape) &&
-                                   !strcmp(shape->valuestring, "circle")
-                                       ? LV_RADIUS_CIRCLE : 18;
+            int radius = circle ? LV_RADIUS_CIRCLE :
+                         cJSON_IsString(shape) && !strcmp(shape->valuestring, "square")
+                             ? 4 : 18;
+            lv_obj_set_style_border_width(tile, 2, 0);
+            lv_obj_set_style_border_color(tile, color(accent_color), 0);
             lv_obj_set_style_radius(tile, radius, 0);
             if (macro) {
                 cJSON *name = cJSON_GetObjectItemCaseSensitive(macro, "name");
                 cJSON *icon = cJSON_GetObjectItemCaseSensitive(macro, "icon");
                 cJSON *accent = cJSON_GetObjectItemCaseSensitive(macro, "color");
+                cJSON *font_color = cJSON_GetObjectItemCaseSensitive(macro, "textColor");
                 const char *caption = cJSON_IsString(name) ? name->valuestring : "Macro";
                 const char *glyph = cJSON_IsString(icon) ? icon->valuestring : "•";
                 unsigned accent_value = cJSON_IsString(accent)
                     ? (unsigned)strtoul(accent->valuestring, NULL, 16) : 0x4F46E5;
+                lv_color_t text_color = cJSON_IsString(font_color)
+                    ? color((unsigned)strtoul(font_color->valuestring, NULL, 16))
+                    : light_theme ? color(0x172033) : lv_color_white();
                 lv_obj_set_style_bg_color(tile, color(accent_value), 0);
                 lv_obj_add_event_cb(tile, tile_cb, LV_EVENT_CLICKED,
                                     (void *)(uintptr_t)index);
@@ -692,10 +741,16 @@ static void build_grid_screen(void)
                     const char *drawn_icon = symbol_for_icon(glyph);
                     char initial[2] = {caption[0], '\0'};
                     lv_obj_t *symbol = label(tile, drawn_icon ? drawn_icon : initial,
-                                             24, lv_color_white());
+                                             24, text_color);
+                    lv_obj_set_width(symbol, width - 16);
+                    lv_label_set_long_mode(symbol, LV_LABEL_LONG_DOT);
+                    lv_obj_set_style_text_align(symbol, LV_TEXT_ALIGN_CENTER, 0);
                     lv_obj_align(symbol, LV_ALIGN_CENTER, 0, -13);
                 }
-                lv_obj_t *text = label(tile, caption, 14, lv_color_white());
+                lv_obj_t *text = label(tile, caption, 14, text_color);
+                lv_obj_set_width(text, width - 16);
+                lv_label_set_long_mode(text, LV_LABEL_LONG_DOT);
+                lv_obj_set_style_text_align(text, LV_TEXT_ALIGN_CENTER, 0);
                 lv_obj_align(text, LV_ALIGN_CENTER, 0, 23);
             } else {
                 lv_obj_set_style_bg_color(tile, color(0x1F2937), 0);

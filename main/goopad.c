@@ -333,6 +333,17 @@ static bool valid_icon_key(const char *key)
     return true;
 }
 
+static bool valid_hex_color(const cJSON *value)
+{
+    if (!cJSON_IsString(value) || strlen(value->valuestring) != 6) return false;
+    for (size_t i = 0; i < 6; i++) {
+        char c = value->valuestring[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
+              (c >= 'A' && c <= 'F'))) return false;
+    }
+    return true;
+}
+
 static bool validate_config(const char *json)
 {
     cJSON *root = cJSON_Parse(json);
@@ -356,6 +367,9 @@ static bool validate_config(const char *json)
         cJSON *action_mode = cJSON_GetObjectItemCaseSensitive(item, "actionMode");
         cJSON *pc_address = cJSON_GetObjectItemCaseSensitive(item, "pcAddress");
         cJSON *pc_target = cJSON_GetObjectItemCaseSensitive(item, "pcTarget");
+        cJSON *shape = cJSON_GetObjectItemCaseSensitive(item, "shape");
+        cJSON *text_color = cJSON_GetObjectItemCaseSensitive(item, "textColor");
+        cJSON *tile_color = cJSON_GetObjectItemCaseSensitive(item, "color");
         valid = cJSON_IsObject(item) && cJSON_IsString(name) && strlen(name->valuestring) <= 24 &&
                 cJSON_IsString(icon) && strlen(icon->valuestring) <= 8 &&
                 cJSON_IsString(url) &&
@@ -381,7 +395,13 @@ static bool validate_config(const char *json)
                 (!pc_address || (cJSON_IsString(pc_address) &&
                                  strlen(pc_address->valuestring) <= 160)) &&
                 (!pc_target || (cJSON_IsString(pc_target) &&
-                                valid_url(pc_target->valuestring)));
+                                valid_url(pc_target->valuestring))) &&
+                (!shape || (cJSON_IsString(shape) &&
+                            (!strcmp(shape->valuestring, "rounded") ||
+                             !strcmp(shape->valuestring, "square") ||
+                             !strcmp(shape->valuestring, "circle")))) &&
+                (!text_color || valid_hex_color(text_color)) &&
+                (!tile_color || valid_hex_color(tile_color));
         if (!valid) break;
     }
     cJSON_Delete(root);
@@ -410,8 +430,10 @@ static esp_err_t icons_handler(httpd_req_t *req)
     if (auth != ESP_OK) return auth;
     httpd_resp_set_type(req, "application/json; charset=utf-8");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    size_t length = strnlen((const char *)fa_icons_json_start,
+                            (size_t)(fa_icons_json_end - fa_icons_json_start));
     return httpd_resp_send(req, (const char *)fa_icons_json_start,
-                           (ssize_t)(fa_icons_json_end - fa_icons_json_start));
+                           (ssize_t)length);
 }
 
 static esp_err_t config_get_handler(httpd_req_t *req)

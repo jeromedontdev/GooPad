@@ -174,6 +174,7 @@ void console_init(void);
 
 /* hw_wifi.c */
 esp_err_t hw_wifi_init(void);
+esp_err_t hw_wifi_start(void);
 esp_err_t hw_wifi_scan(void);
 void hw_wifi_stop(void);
 

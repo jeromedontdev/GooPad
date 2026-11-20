@@ -116,6 +116,38 @@ static void connect_cb(lv_event_t *event)
     goopad_wifi_join(ssid, password ? password : "");
 }
 
+static void hide_keyboard(void)
+{
+    lv_obj_set_hidden(s_keyboard, true);
+    lv_obj_set_hidden(s_network_list, false);
+    lv_label_set_text(s_status, g_app.wifi.ap_count
+                                    ? "Select a Wi-Fi network or tap Type Wi-Fi"
+                                    : "No networks found. Tap Scan or Type Wi-Fi.");
+}
+
+static void keyboard_event_cb(lv_event_t *event)
+{
+    lv_event_code_t code = lv_event_get_code(event);
+    if (code == LV_EVENT_CANCEL || code == LV_EVENT_READY) {
+        hide_keyboard();
+    }
+}
+
+static void show_keyboard(lv_obj_t *textarea)
+{
+    lv_keyboard_set_textarea(s_keyboard, textarea);
+    lv_obj_set_hidden(s_network_list, true);
+    lv_obj_set_hidden(s_keyboard, false);
+    lv_obj_move_foreground(s_keyboard);
+    lv_label_set_text(s_status, "Type here, then tap the keyboard checkmark to finish");
+}
+
+static void show_ssid_keyboard_cb(lv_event_t *event)
+{
+    (void)event;
+    show_keyboard(s_ssid);
+}
+
 static void select_network_cb(lv_event_t *event)
 {
     uintptr_t index = (uintptr_t)lv_event_get_user_data(event);
@@ -123,9 +155,7 @@ static void select_network_cb(lv_event_t *event)
     const char *ssid = g_app.wifi.aps[index].ssid;
     lv_textarea_set_text(s_ssid, ssid);
     lv_textarea_set_text(s_password, "");
-    lv_obj_set_hidden(s_keyboard, false);
-    lv_keyboard_set_textarea(s_keyboard, s_password);
-    lv_obj_move_foreground(s_keyboard);
+    show_keyboard(s_password);
     lv_obj_add_state(s_password, LV_STATE_FOCUSED);
 }
 
@@ -138,7 +168,7 @@ static void display_scan_results(void)
     for (int i = 0; i < g_app.wifi.ap_count; i++) {
         lv_obj_t *item = lv_button_create(s_network_list);
         lv_obj_set_width(item, lv_pct(100));
-        lv_obj_set_height(item, 34);
+        lv_obj_set_height(item, 42);
         lv_obj_set_style_bg_color(item, color(0x273449), 0);
         lv_obj_add_event_cb(item, select_network_cb, LV_EVENT_CLICKED,
                             (void *)(uintptr_t)i);
@@ -151,9 +181,11 @@ static void display_scan_results(void)
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
         lv_obj_center(name);
     }
-    lv_label_set_text(s_status, g_app.wifi.ap_count
-                                    ? "Select a Wi-Fi network or type its name above"
-                                    : "No networks found - type the network name above");
+    if (lv_obj_is_hidden(s_keyboard)) {
+        lv_label_set_text(s_status, g_app.wifi.ap_count
+                                        ? "Select a Wi-Fi network or tap Type Wi-Fi"
+                                        : "No networks found. Tap Scan or Type Wi-Fi.");
+    }
 }
 
 static void scan_task(void *arg)
@@ -197,10 +229,7 @@ static void scan_cb(lv_event_t *event)
 
 static void focus_textarea_cb(lv_event_t *event)
 {
-    lv_obj_t *textarea = lv_event_get_target(event);
-    lv_obj_set_hidden(s_keyboard, false);
-    lv_keyboard_set_textarea(s_keyboard, textarea);
-    lv_obj_move_foreground(s_keyboard);
+    show_keyboard(lv_event_get_target(event));
 }
 
 static void build_setup_screen(void)
@@ -231,13 +260,16 @@ static void build_setup_screen(void)
     lv_textarea_set_placeholder_text(s_password, "Wi-Fi password");
     lv_obj_add_event_cb(s_password, focus_textarea_cb, LV_EVENT_FOCUSED, NULL);
     lv_obj_add_event_cb(s_password, focus_textarea_cb, LV_EVENT_CLICKED, NULL);
-    s_scan_button = button(s_screen, "Scan networks", 15, 162, 162, 38,
+    s_scan_button = button(s_screen, "Scan", 14, 162, 134, 38,
                            scan_cb, NULL, 0x334155);
-    button(s_screen, "Join Wi-Fi", 184, 162, 281, 38, connect_cb, NULL, 0x4F46E5);
+    button(s_screen, "Type Wi-Fi", 156, 162, 142, 38,
+           show_ssid_keyboard_cb, NULL, 0x334155);
+    button(s_screen, "Join Wi-Fi", 306, 162, 160, 38,
+           connect_cb, NULL, 0x4F46E5);
 
     s_network_list = lv_obj_create(s_screen);
-    lv_obj_set_pos(s_network_list, 14, 207);
-    lv_obj_set_size(s_network_list, 452, 82);
+    lv_obj_set_pos(s_network_list, 14, 230);
+    lv_obj_set_size(s_network_list, 452, 250);
     lv_obj_set_style_bg_opa(s_network_list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(s_network_list, 0, 0);
     lv_obj_set_style_pad_all(s_network_list, 0, 0);
@@ -247,16 +279,21 @@ static void build_setup_screen(void)
     lv_obj_set_scrollbar_mode(s_network_list, LV_SCROLLBAR_MODE_AUTO);
     s_status = label(s_screen, "Tap a field to type with the on-screen keyboard", 14,
                      color(0x94A3B8));
-    lv_obj_set_pos(s_status, 16, 289);
+    lv_obj_set_pos(s_status, 16, 205);
     lv_obj_set_width(s_status, 448);
     lv_label_set_long_mode(s_status, LV_LABEL_LONG_DOT);
 
     s_keyboard = lv_keyboard_create(s_screen);
-    lv_obj_set_pos(s_keyboard, 0, 297);
-    lv_obj_set_size(s_keyboard, 480, 183);
+    lv_obj_set_pos(s_keyboard, 0, 252);
+    lv_obj_set_size(s_keyboard, 480, 228);
     lv_keyboard_set_mode(s_keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
     lv_keyboard_set_textarea(s_keyboard, s_ssid);
+    lv_obj_add_event_cb(s_keyboard, keyboard_event_cb, LV_EVENT_CANCEL, NULL);
+    lv_obj_add_event_cb(s_keyboard, keyboard_event_cb, LV_EVENT_READY, NULL);
     lv_obj_set_hidden(s_keyboard, true);
+    lv_obj_add_event_cb(s_ssid, focus_textarea_cb, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(s_password, focus_textarea_cb, LV_EVENT_PRESSED, NULL);
+    lv_obj_set_hidden(s_network_list, false);
     s_scan_in_progress = false;
 }
 

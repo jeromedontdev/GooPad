@@ -223,7 +223,7 @@ static void scan_cb(lv_event_t *event)
     }
 }
 
-static void focus_textarea_cb(lv_event_t *event)
+static void textarea_clicked_cb(lv_event_t *event)
 {
     show_keyboard(lv_event_get_current_target(event));
 }
@@ -244,8 +244,7 @@ static void build_setup_screen(void)
     lv_textarea_set_one_line(s_ssid, true);
     lv_textarea_set_max_length(s_ssid, 32);
     lv_textarea_set_placeholder_text(s_ssid, "Wi-Fi network name");
-    lv_obj_add_event_cb(s_ssid, focus_textarea_cb, LV_EVENT_FOCUSED, NULL);
-    lv_obj_add_event_cb(s_ssid, focus_textarea_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(s_ssid, textarea_clicked_cb, LV_EVENT_CLICKED, NULL);
 
     s_password = lv_textarea_create(s_screen);
     lv_obj_set_pos(s_password, 14, 119);
@@ -254,8 +253,7 @@ static void build_setup_screen(void)
     lv_textarea_set_max_length(s_password, 64);
     lv_textarea_set_password_mode(s_password, true);
     lv_textarea_set_placeholder_text(s_password, "Wi-Fi password");
-    lv_obj_add_event_cb(s_password, focus_textarea_cb, LV_EVENT_FOCUSED, NULL);
-    lv_obj_add_event_cb(s_password, focus_textarea_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(s_password, textarea_clicked_cb, LV_EVENT_CLICKED, NULL);
     s_scan_button = button(s_screen, "Scan networks", 15, 162, 162, 38,
                            scan_cb, NULL, 0x334155);
     button(s_screen, "Join Wi-Fi", 184, 162, 281, 38,
@@ -285,8 +283,6 @@ static void build_setup_screen(void)
     lv_obj_add_event_cb(s_keyboard, keyboard_event_cb, LV_EVENT_CANCEL, NULL);
     lv_obj_add_event_cb(s_keyboard, keyboard_event_cb, LV_EVENT_READY, NULL);
     lv_obj_set_hidden(s_keyboard, true);
-    lv_obj_add_event_cb(s_ssid, focus_textarea_cb, LV_EVENT_PRESSED, NULL);
-    lv_obj_add_event_cb(s_password, focus_textarea_cb, LV_EVENT_PRESSED, NULL);
     lv_obj_set_hidden(s_network_list, false);
     s_scan_in_progress = false;
 }

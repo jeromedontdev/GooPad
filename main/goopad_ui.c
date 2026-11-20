@@ -3,7 +3,10 @@
 
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_wifi.h"
 #include "cJSON.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -17,6 +20,8 @@ static lv_obj_t *s_status;
 static lv_obj_t *s_keyboard;
 static lv_obj_t *s_ssid;
 static lv_obj_t *s_password;
+static lv_obj_t *s_network_list;
+static lv_obj_t *s_scan_button;
 static lv_obj_t *s_pages;
 static lv_obj_t *s_dots;
 static lv_timer_t *s_timer;
@@ -24,6 +29,7 @@ static char *s_config_buffer;
 static char *s_rendered_config;
 static uint8_t *s_icon_buffers;
 static bool s_grid_shown;
+static volatile bool s_scan_in_progress;
 
 static lv_color_t color(uint32_t value)
 {
@@ -96,6 +102,10 @@ static void theme_screen(void)
 static void connect_cb(lv_event_t *event)
 {
     (void)event;
+    if (s_scan_in_progress) {
+        lv_label_set_text(s_status, "Please wait for the Wi-Fi scan to finish");
+        return;
+    }
     const char *ssid = lv_textarea_get_text(s_ssid);
     const char *password = lv_textarea_get_text(s_password);
     if (!ssid || !ssid[0]) {
@@ -108,42 +118,89 @@ static void connect_cb(lv_event_t *event)
 
 static void select_network_cb(lv_event_t *event)
 {
-    const char *ssid = lv_event_get_user_data(event);
+    uintptr_t index = (uintptr_t)lv_event_get_user_data(event);
+    if (index >= (uintptr_t)g_app.wifi.ap_count) return;
+    const char *ssid = g_app.wifi.aps[index].ssid;
     lv_textarea_set_text(s_ssid, ssid);
     lv_textarea_set_text(s_password, "");
+    lv_obj_set_hidden(s_keyboard, false);
     lv_keyboard_set_textarea(s_keyboard, s_password);
+    lv_obj_move_foreground(s_keyboard);
+    lv_obj_add_state(s_password, LV_STATE_FOCUSED);
+}
+
+static void display_scan_results(void)
+{
+    if (!s_network_list || !lv_obj_is_valid(s_network_list)) return;
+    lv_obj_clean(s_network_list);
+    lv_obj_set_flex_flow(s_network_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(s_network_list, 3, 0);
+    for (int i = 0; i < g_app.wifi.ap_count; i++) {
+        lv_obj_t *item = lv_button_create(s_network_list);
+        lv_obj_set_width(item, lv_pct(100));
+        lv_obj_set_height(item, 34);
+        lv_obj_set_style_bg_color(item, color(0x273449), 0);
+        lv_obj_add_event_cb(item, select_network_cb, LV_EVENT_CLICKED,
+                            (void *)(uintptr_t)i);
+        char network_text[64];
+        snprintf(network_text, sizeof(network_text), "%s    %d dBm%s",
+                 g_app.wifi.aps[i].ssid, g_app.wifi.aps[i].rssi,
+                 g_app.wifi.aps[i].auth == WIFI_AUTH_OPEN ? "" : "  locked");
+        lv_obj_t *name = label(item, network_text, 14, lv_color_white());
+        lv_obj_set_width(name, lv_pct(100));
+        lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+        lv_obj_center(name);
+    }
+    lv_label_set_text(s_status, g_app.wifi.ap_count
+                                    ? "Select a Wi-Fi network or type its name above"
+                                    : "No networks found - type the network name above");
+}
+
+static void scan_task(void *arg)
+{
+    (void)arg;
+    esp_err_t err = hw_wifi_scan();
+    if (ui_lock(0)) {
+        if (s_scan_button && lv_obj_is_valid(s_scan_button)) {
+            lv_obj_set_disabled(s_scan_button, false);
+        }
+        if (!s_grid_shown) {
+            if (err == ESP_OK) {
+                display_scan_results();
+            } else if (s_status && lv_obj_is_valid(s_status)) {
+                lv_label_set_text(s_status, "Scan failed - type the network name above");
+            }
+        }
+        s_scan_in_progress = false;
+        ui_unlock();
+    } else {
+        ESP_LOGE(TAG, "could not reacquire UI lock after Wi-Fi scan");
+        s_scan_in_progress = false;
+    }
+    vTaskDelete(NULL);
 }
 
 static void scan_cb(lv_event_t *event)
 {
     (void)event;
+    if (s_scan_in_progress) return;
+    s_scan_in_progress = true;
     lv_label_set_text(s_status, "Scanning nearby Wi-Fi...");
-    esp_err_t err = hw_wifi_scan();
-    if (err != ESP_OK) {
-        lv_label_set_text(s_status, "Scan failed - enter the network name");
-        return;
+    lv_obj_clean(s_network_list);
+    lv_obj_set_disabled(s_scan_button, true);
+    if (xTaskCreate(scan_task, "wifi_scan", 6144, NULL, 4, NULL) != pdPASS) {
+        s_scan_in_progress = false;
+        lv_obj_set_disabled(s_scan_button, false);
+        lv_label_set_text(s_status, "Could not start scan - type the network name");
     }
-    lv_obj_t *list = lv_obj_get_child(s_screen, 6);
-    if (!list) return;
-    lv_obj_clean(list);
-    lv_obj_set_flex_flow(list, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_pad_column(list, 5, 0);
-    for (int i = 0; i < g_app.wifi.ap_count; i++) {
-        lv_obj_t *item = lv_button_create(list);
-        lv_obj_set_height(item, 38);
-        lv_obj_set_style_bg_color(item, color(0x273449), 0);
-        lv_obj_add_event_cb(item, select_network_cb, LV_EVENT_CLICKED,
-                            g_app.wifi.aps[i].ssid);
-        lv_obj_t *name = label(item, g_app.wifi.aps[i].ssid, 14, lv_color_white());
-        lv_obj_center(name);
-    }
-    lv_label_set_text(s_status, g_app.wifi.ap_count ? "Choose a network, then enter its password"
-                                                    : "No networks found - enter the name");
 }
 
 static void focus_textarea_cb(lv_event_t *event)
 {
-    lv_keyboard_set_textarea(s_keyboard, lv_event_get_target(event));
+    lv_obj_t *textarea = lv_event_get_target(event);
+    lv_obj_set_hidden(s_keyboard, false);
+    lv_keyboard_set_textarea(s_keyboard, textarea);
+    lv_obj_move_foreground(s_keyboard);
 }
 
 static void build_setup_screen(void)
@@ -160,36 +217,47 @@ static void build_setup_screen(void)
     lv_obj_set_pos(s_ssid, 14, 76);
     lv_obj_set_size(s_ssid, 452, 38);
     lv_textarea_set_one_line(s_ssid, true);
+    lv_textarea_set_max_length(s_ssid, 32);
     lv_textarea_set_placeholder_text(s_ssid, "Wi-Fi network name");
     lv_obj_add_event_cb(s_ssid, focus_textarea_cb, LV_EVENT_FOCUSED, NULL);
+    lv_obj_add_event_cb(s_ssid, focus_textarea_cb, LV_EVENT_CLICKED, NULL);
 
     s_password = lv_textarea_create(s_screen);
     lv_obj_set_pos(s_password, 14, 119);
     lv_obj_set_size(s_password, 452, 38);
     lv_textarea_set_one_line(s_password, true);
+    lv_textarea_set_max_length(s_password, 64);
     lv_textarea_set_password_mode(s_password, true);
     lv_textarea_set_placeholder_text(s_password, "Wi-Fi password");
     lv_obj_add_event_cb(s_password, focus_textarea_cb, LV_EVENT_FOCUSED, NULL);
-    button(s_screen, "Scan networks", 15, 162, 162, 38, scan_cb, NULL, 0x334155);
+    lv_obj_add_event_cb(s_password, focus_textarea_cb, LV_EVENT_CLICKED, NULL);
+    s_scan_button = button(s_screen, "Scan networks", 15, 162, 162, 38,
+                           scan_cb, NULL, 0x334155);
     button(s_screen, "Join Wi-Fi", 184, 162, 281, 38, connect_cb, NULL, 0x4F46E5);
 
-    lv_obj_t *list = lv_obj_create(s_screen);
-    lv_obj_set_pos(list, 14, 207);
-    lv_obj_set_size(list, 452, 54);
-    lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(list, 0, 0);
-    lv_obj_set_style_pad_all(list, 0, 0);
-    lv_obj_set_scroll_dir(list, LV_DIR_HOR);
-    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_OFF);
+    s_network_list = lv_obj_create(s_screen);
+    lv_obj_set_pos(s_network_list, 14, 207);
+    lv_obj_set_size(s_network_list, 452, 82);
+    lv_obj_set_style_bg_opa(s_network_list, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(s_network_list, 0, 0);
+    lv_obj_set_style_pad_all(s_network_list, 0, 0);
+    lv_obj_set_style_pad_row(s_network_list, 3, 0);
+    lv_obj_set_flex_flow(s_network_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scroll_dir(s_network_list, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(s_network_list, LV_SCROLLBAR_MODE_AUTO);
     s_status = label(s_screen, "Tap a field to type with the on-screen keyboard", 14,
                      color(0x94A3B8));
-    lv_obj_set_pos(s_status, 16, 265);
+    lv_obj_set_pos(s_status, 16, 289);
+    lv_obj_set_width(s_status, 448);
+    lv_label_set_long_mode(s_status, LV_LABEL_LONG_DOT);
 
     s_keyboard = lv_keyboard_create(s_screen);
     lv_obj_set_pos(s_keyboard, 0, 297);
     lv_obj_set_size(s_keyboard, 480, 183);
     lv_keyboard_set_mode(s_keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
     lv_keyboard_set_textarea(s_keyboard, s_ssid);
+    lv_obj_set_hidden(s_keyboard, true);
+    s_scan_in_progress = false;
 }
 
 static void tile_cb(lv_event_t *event)

@@ -65,10 +65,7 @@ esp_err_t hw_wifi_init(void)
     return ESP_OK;
 }
 
-/* Run a blocking scan and record the results.
- *
- * Called from the UI task, so it is kept short: an active scan on 13
- * channels takes a couple of seconds. */
+/* Run a blocking scan and record the results. Call from a worker task. */
 esp_err_t hw_wifi_scan(void)
 {
     if (!s_wifi_ready) {
@@ -107,7 +104,15 @@ esp_err_t hw_wifi_scan(void)
     }
 
     uint16_t count = 0;
-    esp_wifi_scan_get_ap_num(&count);
+    err = esp_wifi_scan_get_ap_num(&count);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "could not get scan result count: %s", esp_err_to_name(err));
+        g_app.wifi.scanning = false;
+        g_app.wifi.ap_count = 0;
+        g_app.results.wifi = TEST_FAIL;
+        esp_wifi_stop();
+        return err;
+    }
     if (count > HW_WIFI_MAX_APS) {
         count = HW_WIFI_MAX_APS;
     }
@@ -115,13 +120,26 @@ esp_err_t hw_wifi_scan(void)
     wifi_ap_record_t records[HW_WIFI_MAX_APS];
     memset(records, 0, sizeof(records));
     if (count > 0) {
-        esp_wifi_scan_get_ap_records(&count, records);
+        err = esp_wifi_scan_get_ap_records(&count, records);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "could not get scan results: %s", esp_err_to_name(err));
+            g_app.wifi.scanning = false;
+            g_app.wifi.ap_count = 0;
+            g_app.results.wifi = TEST_FAIL;
+            esp_wifi_stop();
+            return err;
+        }
     }
 
     g_app.wifi.ap_count = count;
     for (int i = 0; i < count; i++) {
-        snprintf(g_app.wifi.aps[i].ssid, sizeof(g_app.wifi.aps[i].ssid),
-                 "%s", (const char *)records[i].ssid);
+        size_t ssid_len = strnlen((const char *)records[i].ssid,
+                                  sizeof(records[i].ssid));
+        if (ssid_len >= sizeof(g_app.wifi.aps[i].ssid)) {
+            ssid_len = sizeof(g_app.wifi.aps[i].ssid) - 1;
+        }
+        memcpy(g_app.wifi.aps[i].ssid, records[i].ssid, ssid_len);
+        g_app.wifi.aps[i].ssid[ssid_len] = '\0';
         g_app.wifi.aps[i].rssi = records[i].rssi;
         g_app.wifi.aps[i].channel = records[i].primary;
         g_app.wifi.aps[i].auth = (int)records[i].authmode;

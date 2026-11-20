@@ -140,7 +140,7 @@ static void show_keyboard(lv_obj_t *textarea)
     lv_keyboard_set_textarea(s_keyboard, textarea);
     lv_obj_set_hidden(s_network_list, true);
     lv_obj_set_hidden(s_keyboard, false);
-    lv_obj_move_foreground(s_keyboard);
+    lv_obj_invalidate(lv_layer_top());
     lv_label_set_text(s_status, "Type here, then tap the keyboard checkmark to finish");
 }
 
@@ -196,7 +196,10 @@ static void scan_task(void *arg)
             if (err == ESP_OK) {
                 display_scan_results();
             } else if (s_status && lv_obj_is_valid(s_status)) {
-                lv_label_set_text(s_status, "Scan failed - tap a field to enter network details");
+                char message[80];
+                snprintf(message, sizeof(message), "Scan failed: %s",
+                         esp_err_to_name(err));
+                lv_label_set_text(s_status, message);
             }
         }
         s_scan_in_progress = false;
@@ -225,8 +228,10 @@ static void scan_cb(lv_event_t *event)
 
 static void textarea_pressed_cb(lv_event_t *event)
 {
-    ESP_LOGI(TAG, "Wi-Fi text box pressed");
-    show_keyboard(lv_event_get_current_target(event));
+    lv_obj_t *textarea = lv_event_get_current_target(event);
+    ESP_LOGI(TAG, "Wi-Fi text box pressed at (%d,%d)",
+             (int)lv_obj_get_x(textarea), (int)lv_obj_get_y(textarea));
+    show_keyboard(textarea);
 }
 
 static void build_setup_screen(void)
@@ -242,19 +247,23 @@ static void build_setup_screen(void)
     s_ssid = lv_textarea_create(s_screen);
     lv_obj_set_pos(s_ssid, 14, 76);
     lv_obj_set_size(s_ssid, 452, 38);
+    lv_obj_set_clickable(s_ssid, true);
     lv_textarea_set_one_line(s_ssid, true);
     lv_textarea_set_max_length(s_ssid, 32);
     lv_textarea_set_placeholder_text(s_ssid, "Wi-Fi network name");
     lv_obj_add_event_cb(s_ssid, textarea_pressed_cb, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(s_ssid, textarea_pressed_cb, LV_EVENT_CLICKED, NULL);
 
     s_password = lv_textarea_create(s_screen);
     lv_obj_set_pos(s_password, 14, 119);
     lv_obj_set_size(s_password, 452, 38);
+    lv_obj_set_clickable(s_password, true);
     lv_textarea_set_one_line(s_password, true);
     lv_textarea_set_max_length(s_password, 64);
     lv_textarea_set_password_mode(s_password, true);
     lv_textarea_set_placeholder_text(s_password, "Wi-Fi password");
     lv_obj_add_event_cb(s_password, textarea_pressed_cb, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(s_password, textarea_pressed_cb, LV_EVENT_CLICKED, NULL);
     s_scan_button = button(s_screen, "Scan networks", 15, 162, 162, 38,
                            scan_cb, NULL, 0x334155);
     button(s_screen, "Join Wi-Fi", 184, 162, 281, 38,
@@ -276,13 +285,15 @@ static void build_setup_screen(void)
     lv_obj_set_width(s_status, 448);
     lv_label_set_long_mode(s_status, LV_LABEL_LONG_DOT);
 
-    s_keyboard = lv_keyboard_create(s_screen);
-    lv_obj_set_pos(s_keyboard, 0, 252);
+    if (!s_keyboard || !lv_obj_is_valid(s_keyboard)) {
+        s_keyboard = lv_keyboard_create(lv_layer_top());
+        lv_obj_add_event_cb(s_keyboard, keyboard_event_cb, LV_EVENT_CANCEL, NULL);
+        lv_obj_add_event_cb(s_keyboard, keyboard_event_cb, LV_EVENT_READY, NULL);
+    }
     lv_obj_set_size(s_keyboard, 480, 228);
+    lv_obj_align(s_keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_keyboard_set_mode(s_keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
     lv_keyboard_set_textarea(s_keyboard, s_ssid);
-    lv_obj_add_event_cb(s_keyboard, keyboard_event_cb, LV_EVENT_CANCEL, NULL);
-    lv_obj_add_event_cb(s_keyboard, keyboard_event_cb, LV_EVENT_READY, NULL);
     lv_obj_set_hidden(s_keyboard, true);
     lv_obj_set_hidden(s_network_list, false);
     s_scan_in_progress = false;
@@ -310,6 +321,9 @@ static void page_scroll_cb(lv_event_t *event)
 static void build_grid_screen(void)
 {
     if (!s_config_buffer || !s_rendered_config) return;
+    if (s_keyboard && lv_obj_is_valid(s_keyboard)) {
+        lv_obj_set_hidden(s_keyboard, true);
+    }
     goopad_get_config(s_config_buffer, 12001);
     strlcpy(s_rendered_config, s_config_buffer, 12001);
     s_grid_shown = true;

@@ -716,6 +716,10 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
     (void)arg;
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         s_connected = false;
+        if (g_app.wifi.scanning) {
+            ESP_LOGI(TAG, "deferring reconnect until Wi-Fi scan completes");
+            return;
+        }
         ESP_LOGW(TAG, "Wi-Fi disconnected; retrying");
         esp_wifi_connect();
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
@@ -741,13 +745,7 @@ void goopad_wifi_join(const char *ssid, const char *password)
         ESP_LOGE(TAG, "could not save Wi-Fi credentials: %s", esp_err_to_name(err));
         return;
     }
-    err = hw_wifi_start();
-    if (err != ESP_OK) return;
-    wifi_config_t config = {0};
-    strlcpy((char *)config.sta.ssid, ssid, sizeof(config.sta.ssid));
-    strlcpy((char *)config.sta.password, password, sizeof(config.sta.password));
-    err = esp_wifi_set_config(WIFI_IF_STA, &config);
-    if (err == ESP_OK) err = esp_wifi_connect();
+    err = hw_wifi_connect(ssid, password);
     if (err != ESP_OK) ESP_LOGE(TAG, "Wi-Fi join failed to start: %s", esp_err_to_name(err));
 }
 

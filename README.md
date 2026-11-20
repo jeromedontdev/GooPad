@@ -24,15 +24,29 @@ a stable bookmark.
 
 ## Macros and customization
 
-Each tile supports a name, color, icon/glyph, `GET` or `POST`, target URL, and
-JSON request body. `Webhook` and `HTTP command` both issue a request from the
-ESP32; HTTPS validates certificates. The searchable icon picker includes 275+
+Each tile supports a name, color, icon/glyph, and a plain-language action.
+**Open a link or trigger a service** needs only the complete link supplied by
+that service. **Open a website on my Windows PC** uses the Companion app and
+asks for its displayed address/token and the website; it opens only HTTP(S)
+links in the PC's default browser. **Custom web request (Advanced)** retains
+the optional `GET`/`POST`, target URL, JSON body, and token controls. Requests
+from GooPad validate HTTPS certificates. The searchable icon picker includes 275+
 symbols, and the icon field accepts other short icon codes or glyphs. Common
 symbols map to the built-in LVGL icon font on the panel; unsupported glyphs
-fall back to the button label's initial. The display has Midnight, Ocean,
-Forest, and Light accents, custom
-background colors, and rounded, square, or circular tile corners. Up to 32
-macros are stored locally; grid size controls how many appear on each page.
+fall back to the button label's initial. The editor also bundles 2,163
+searchable Font Awesome Free solid, regular, and brand icons. Font Awesome
+selections and uploaded images are converted to 32×32 RGB565 and saved under
+`/goopad` on the SD card; a card is required to use them. The display has
+Midnight, Ocean, Forest, and Light accents, custom background colors, and
+rounded, square, or circular tile corners. Up to 32 macros are stored locally;
+grid size controls how many appear on each page.
+
+The bundled Font Awesome icon data is version 7.3.1; attribution and license
+details are in [third_party/fontawesome/NOTICE.txt](./third_party/fontawesome/NOTICE.txt).
+To regenerate the catalog from the official npm packages, unpack the matching
+`free-solid-svg-icons`, `free-regular-svg-icons`, and `free-brands-svg-icons`
+packages into one directory and run
+`python tools/generate_fa_catalog.py <packages-directory> main/fa-icons.json`.
 
 ### Windows companion
 
@@ -41,8 +55,11 @@ webhook receiver on the Windows PC. On first run it creates
 `%LOCALAPPDATA%\GooPad\companion.json` with a random shared token. Add an
 action entry that maps a short ID to a program and argument list, then set a
 GooPad macro URL to `http://<pc-ip>:8787/hook/<id>` and copy the token into
-that macro's companion-token field. Requests are token-checked, private-LAN
-only, and launch only explicitly configured programs with `shell=False`.
+that macro's companion-token field. For the simple **Open a website on my
+Windows PC** action, use the displayed Companion address and token; no JSON
+or action entry is needed. The companion opens only HTTP(S) links in the
+default browser. Requests are token-checked and private-LAN only. Configured
+program actions launch only explicitly allowed programs with `shell=False`.
 For SSH, map an action to Windows OpenSSH (`ssh.exe`) with a preconfigured
 host/key and fixed argument list; the macro cannot supply or alter commands.
 Allow port 8787 only on a trusted/private Windows network when prompted.
@@ -145,7 +162,7 @@ This initial GooPad firmware implements Wi-Fi onboarding, the local editor,
 persisted HTTP/webhook macros, grid/layout/theme controls, SD config backup,
 and file/GitHub/SD application OTA. SSH can be delegated to a predefined
 Windows companion action; there is no SSH client on the ESP32 itself.
-User-uploaded image icons are not included yet; they need a dedicated storage
-and display-decoding path. The source retains the original hardware
+The ESP32 itself does not include an SSH client; SSH actions are delegated to
+the allowlisted Windows companion. The source retains the original hardware
 diagnostics files as reference, but GooPad no longer launches the test UI or
 writes hardware-test files to the SD card.

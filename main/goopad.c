@@ -23,11 +23,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/stat.h>
 
 static const char *TAG = "goopad";
 static const char *NVS_NS = "goopad";
 #define CONFIG_MAX_BYTES 12000
 #define MAX_MACROS 32
+#define ICON_BYTES (32 * 32 * 2)
 
 static const char s_default_config[] =
     "{\"cols\":3,\"rows\":3,\"theme\":\"midnight\",\"background\":\"111827\","
@@ -38,6 +41,8 @@ static const char s_default_config[] =
 
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
+extern const uint8_t fa_icons_json_start[] asm("_binary_fa_icons_json_start");
+extern const uint8_t fa_icons_json_end[] asm("_binary_fa_icons_json_end");
 
 static char *s_config;
 static char s_web_key[25];
@@ -47,6 +52,9 @@ static httpd_handle_t s_server;
 static char s_ip_address[16];
 static SemaphoreHandle_t s_config_lock;
 
+static esp_err_t auth_required(httpd_req_t *req);
+static bool valid_icon_key(const char *key);
+
 static bool read_string(const char *key, char *out, size_t capacity)
 {
     nvs_handle_t nvs;
@@ -55,6 +63,62 @@ static bool read_string(const char *key, char *out, size_t capacity)
     esp_err_t err = nvs_get_str(nvs, key, out, &length);
     nvs_close(nvs);
     return err == ESP_OK;
+}
+
+static esp_err_t icon_upload_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+    if (!g_app.sd.mounted) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Insert and mount an SD card");
+    }
+    if (req->content_len != ICON_BYTES) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Expected a 32x32 RGB565 icon");
+    }
+    char query[32];
+    char value[20];
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "key", value, sizeof(value)) != ESP_OK ||
+        !valid_icon_key(value)) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Valid icon key is required");
+    }
+
+    char *image = heap_caps_malloc(ICON_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!image) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Image buffer unavailable");
+    size_t received = 0;
+    while (received < ICON_BYTES) {
+        int n = httpd_req_recv(req, image + received, ICON_BYTES - received);
+        if (n <= 0) {
+            free(image);
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Icon upload interrupted");
+        }
+        received += (size_t)n;
+    }
+
+    const char *directory = BSP_SD_MOUNT_POINT "/goopad";
+    if (mkdir(directory, 0775) != 0 && errno != EEXIST) {
+        free(image);
+        ESP_LOGE(TAG, "could not create SD icon directory: errno=%d", errno);
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not create icon folder");
+    }
+    char temporary[48];
+    char path[48];
+    snprintf(temporary, sizeof(temporary), "%s/icon-%s.tmp", directory, value);
+    snprintf(path, sizeof(path), "%s/icon-%s.rgb565", directory, value);
+    FILE *file = fopen(temporary, "wb");
+    if (!file) {
+        free(image);
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not write icon to SD");
+    }
+    bool ok = fwrite(image, 1, ICON_BYTES, file) == ICON_BYTES;
+    free(image);
+    if (fclose(file) != 0) ok = false;
+    if (!ok || rename(temporary, path) != 0) {
+        remove(temporary);
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not save icon to SD");
+    }
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
 
 static esp_err_t save_string(const char *key, const char *value)
@@ -200,6 +264,16 @@ static bool valid_url(const char *url)
            !strchr(url, '@');
 }
 
+static bool valid_icon_key(const char *key)
+{
+    if (!key || strlen(key) != 17 || key[0] != 'i') return false;
+    for (size_t i = 1; i < 17; i++) {
+        if (!((key[i] >= '0' && key[i] <= '9') ||
+              (key[i] >= 'a' && key[i] <= 'f'))) return false;
+    }
+    return true;
+}
+
 static bool validate_config(const char *json)
 {
     cJSON *root = cJSON_Parse(json);
@@ -218,6 +292,11 @@ static bool validate_config(const char *json)
         cJSON *icon = cJSON_GetObjectItemCaseSensitive(item, "icon");
         cJSON *body = cJSON_GetObjectItemCaseSensitive(item, "body");
         cJSON *secret = cJSON_GetObjectItemCaseSensitive(item, "secret");
+        cJSON *icon_image = cJSON_GetObjectItemCaseSensitive(item, "iconImage");
+        cJSON *fa_icon = cJSON_GetObjectItemCaseSensitive(item, "faIcon");
+        cJSON *action_mode = cJSON_GetObjectItemCaseSensitive(item, "actionMode");
+        cJSON *pc_address = cJSON_GetObjectItemCaseSensitive(item, "pcAddress");
+        cJSON *pc_target = cJSON_GetObjectItemCaseSensitive(item, "pcTarget");
         valid = cJSON_IsObject(item) && cJSON_IsString(name) && strlen(name->valuestring) <= 24 &&
                 cJSON_IsString(icon) && strlen(icon->valuestring) <= 8 &&
                 cJSON_IsString(url) && valid_url(url->valuestring) &&
@@ -228,7 +307,18 @@ static bool validate_config(const char *json)
                 (strcmp(method->valuestring, "GET") == 0 ||
                  strcmp(method->valuestring, "POST") == 0) &&
                 cJSON_IsString(body) && strlen(body->valuestring) <= 256 &&
-                cJSON_IsString(secret) && strlen(secret->valuestring) <= 64;
+                cJSON_IsString(secret) && strlen(secret->valuestring) <= 64 &&
+                (!icon_image || (cJSON_IsString(icon_image) &&
+                                 valid_icon_key(icon_image->valuestring))) &&
+                (!fa_icon || (cJSON_IsString(fa_icon) && strlen(fa_icon->valuestring) <= 80)) &&
+                (!action_mode || (cJSON_IsString(action_mode) &&
+                                  (!strcmp(action_mode->valuestring, "simple_link") ||
+                                   !strcmp(action_mode->valuestring, "pc_open_url") ||
+                                   !strcmp(action_mode->valuestring, "advanced")))) &&
+                (!pc_address || (cJSON_IsString(pc_address) &&
+                                 strlen(pc_address->valuestring) <= 160)) &&
+                (!pc_target || (cJSON_IsString(pc_target) &&
+                                valid_url(pc_target->valuestring)));
         if (!valid) break;
     }
     cJSON_Delete(root);
@@ -246,9 +336,19 @@ static esp_err_t index_handler(httpd_req_t *req)
         "default-src 'self'; style-src 'self' 'unsafe-inline'; "
         "script-src 'self' 'unsafe-inline'; connect-src 'self' "
         "https://api.github.com https://github.com https://release-assets.githubusercontent.com; "
-        "img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+        "img-src 'self' data: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
     return httpd_resp_send(req, (const char *)index_html_start,
                            (ssize_t)(index_html_end - index_html_start));
+}
+
+static esp_err_t icons_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+    httpd_resp_set_type(req, "application/json; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_send(req, (const char *)fa_icons_json_start,
+                           (ssize_t)(fa_icons_json_end - fa_icons_json_start));
 }
 
 static esp_err_t config_get_handler(httpd_req_t *req)
@@ -583,7 +683,7 @@ static esp_err_t start_server(void)
 {
     if (s_server) return ESP_OK;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 10;
+    config.max_uri_handlers = 12;
     config.lru_purge_enable = true;
     esp_err_t err = httpd_start(&s_server, &config);
     if (err != ESP_OK) return err;
@@ -597,6 +697,8 @@ static esp_err_t start_server(void)
         {.uri = "/api/status", .method = HTTP_GET, .handler = status_handler},
         {.uri = "/api/ota", .method = HTTP_POST, .handler = ota_upload_handler},
         {.uri = "/api/ota/sd", .method = HTTP_POST, .handler = ota_sd_handler},
+        {.uri = "/api/icons", .method = HTTP_GET, .handler = icons_handler},
+        {.uri = "/api/icon", .method = HTTP_POST, .handler = icon_upload_handler},
     };
     for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {
         err = httpd_register_uri_handler(s_server, &routes[i]);

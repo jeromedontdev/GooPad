@@ -216,15 +216,16 @@ static void scan_cb(lv_event_t *event)
     lv_label_set_text(s_status, "Scanning nearby Wi-Fi...");
     lv_obj_clean(s_network_list);
     lv_obj_set_disabled(s_scan_button, true);
-    if (xTaskCreate(scan_task, "wifi_scan", 6144, NULL, 4, NULL) != pdPASS) {
+    if (xTaskCreate(scan_task, "wifi_scan", 8192, NULL, 4, NULL) != pdPASS) {
         s_scan_in_progress = false;
         lv_obj_set_disabled(s_scan_button, false);
         lv_label_set_text(s_status, "Could not start scan - tap a field to enter network details");
     }
 }
 
-static void textarea_clicked_cb(lv_event_t *event)
+static void textarea_pressed_cb(lv_event_t *event)
 {
+    ESP_LOGI(TAG, "Wi-Fi text box pressed");
     show_keyboard(lv_event_get_current_target(event));
 }
 
@@ -244,7 +245,7 @@ static void build_setup_screen(void)
     lv_textarea_set_one_line(s_ssid, true);
     lv_textarea_set_max_length(s_ssid, 32);
     lv_textarea_set_placeholder_text(s_ssid, "Wi-Fi network name");
-    lv_obj_add_event_cb(s_ssid, textarea_clicked_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(s_ssid, textarea_pressed_cb, LV_EVENT_PRESSED, NULL);
 
     s_password = lv_textarea_create(s_screen);
     lv_obj_set_pos(s_password, 14, 119);
@@ -253,7 +254,7 @@ static void build_setup_screen(void)
     lv_textarea_set_max_length(s_password, 64);
     lv_textarea_set_password_mode(s_password, true);
     lv_textarea_set_placeholder_text(s_password, "Wi-Fi password");
-    lv_obj_add_event_cb(s_password, textarea_clicked_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(s_password, textarea_pressed_cb, LV_EVENT_PRESSED, NULL);
     s_scan_button = button(s_screen, "Scan networks", 15, 162, 162, 38,
                            scan_cb, NULL, 0x334155);
     button(s_screen, "Join Wi-Fi", 184, 162, 281, 38,

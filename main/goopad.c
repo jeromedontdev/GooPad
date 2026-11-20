@@ -741,6 +741,8 @@ void goopad_wifi_join(const char *ssid, const char *password)
         ESP_LOGE(TAG, "could not save Wi-Fi credentials: %s", esp_err_to_name(err));
         return;
     }
+    err = hw_wifi_start();
+    if (err != ESP_OK) return;
     wifi_config_t config = {0};
     strlcpy((char *)config.sta.ssid, ssid, sizeof(config.sta.ssid));
     strlcpy((char *)config.sta.password, password, sizeof(config.sta.password));
@@ -771,6 +773,6 @@ void goopad_init(void)
         read_string("wifi", (char *)config.sta.password, sizeof(config.sta.password));
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &config));
     }
-    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(hw_wifi_start());
     if (s_ssid[0]) ESP_ERROR_CHECK(esp_wifi_connect());
 }

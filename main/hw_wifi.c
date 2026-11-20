@@ -6,10 +6,9 @@
  * end, the PHY and the supplicant in one go. If a scan returns networks,
  * the radio is functional.
  *
- * The radio is left in station mode but NOT connected, and the interface
- * is stopped again after the scan so it does not sit there drawing
- * current. That matters on this board: there is no bulk capacitance on the
- * 5 V rail, so an idle-but-associated radio is a real load.
+ * The application owns the Wi-Fi driver's running state. A scan must not
+ * stop it afterward, because that can disconnect an active GooPad session
+ * and race the application's reconnect handler.
  */
 #include "app.h"
 #include "board.h"
@@ -27,6 +26,7 @@ static const char *TAG = "wifi";
 
 static bool s_netif_ready;
 static bool s_wifi_ready;
+static bool s_wifi_started;
 
 static esp_err_t ensure_init(void)
 {
@@ -65,6 +65,24 @@ esp_err_t hw_wifi_init(void)
     return ESP_OK;
 }
 
+esp_err_t hw_wifi_start(void)
+{
+    if (!s_wifi_ready) {
+        esp_err_t err = hw_wifi_init();
+        if (err != ESP_OK) return err;
+    }
+    if (s_wifi_started) return ESP_OK;
+
+    esp_err_t err = esp_wifi_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "wifi start: %s", esp_err_to_name(err));
+        g_app.results.wifi = TEST_FAIL;
+        return err;
+    }
+    s_wifi_started = true;
+    return ESP_OK;
+}
+
 /* Run a blocking scan and record the results. Call from a worker task. */
 esp_err_t hw_wifi_scan(void)
 {
@@ -78,9 +96,9 @@ esp_err_t hw_wifi_scan(void)
     ESP_LOGI(TAG, "starting scan");
     g_app.wifi.scanning = true;
 
-    esp_err_t err = esp_wifi_start();
-    if (err != ESP_OK && err != ESP_ERR_WIFI_INIT_STATE) {
-        ESP_LOGE(TAG, "wifi start: %s", esp_err_to_name(err));
+    bool started_for_scan = !s_wifi_started;
+    esp_err_t err = started_for_scan ? hw_wifi_start() : ESP_OK;
+    if (err != ESP_OK) {
         g_app.wifi.scanning = false;
         g_app.results.wifi = TEST_FAIL;
         return err;
@@ -97,9 +115,9 @@ esp_err_t hw_wifi_scan(void)
     err = esp_wifi_scan_start(&scan_cfg, true /* block */);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "scan failed: %s", esp_err_to_name(err));
-        g_app.wifi.scanning = false;
         g_app.results.wifi = TEST_FAIL;
-        esp_wifi_stop();
+        if (started_for_scan) hw_wifi_stop();
+        g_app.wifi.scanning = false;
         return err;
     }
 
@@ -107,10 +125,10 @@ esp_err_t hw_wifi_scan(void)
     err = esp_wifi_scan_get_ap_num(&count);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "could not get scan result count: %s", esp_err_to_name(err));
-        g_app.wifi.scanning = false;
         g_app.wifi.ap_count = 0;
         g_app.results.wifi = TEST_FAIL;
-        esp_wifi_stop();
+        if (started_for_scan) hw_wifi_stop();
+        g_app.wifi.scanning = false;
         return err;
     }
     if (count > HW_WIFI_MAX_APS) {
@@ -123,10 +141,10 @@ esp_err_t hw_wifi_scan(void)
         err = esp_wifi_scan_get_ap_records(&count, records);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "could not get scan results: %s", esp_err_to_name(err));
-            g_app.wifi.scanning = false;
             g_app.wifi.ap_count = 0;
             g_app.results.wifi = TEST_FAIL;
-            esp_wifi_stop();
+            if (started_for_scan) hw_wifi_stop();
+            g_app.wifi.scanning = false;
             return err;
         }
     }
@@ -145,7 +163,6 @@ esp_err_t hw_wifi_scan(void)
         g_app.wifi.aps[i].auth = (int)records[i].authmode;
     }
 
-    g_app.wifi.scanning = false;
     g_app.wifi.scan_count++;
     g_app.results.wifi = TEST_PASS;
 
@@ -156,16 +173,20 @@ esp_err_t hw_wifi_scan(void)
                  g_app.wifi.aps[i].channel, g_app.wifi.aps[i].auth);
     }
 
-    /* Stop the interface again: an idle radio still draws current, and
-     * this board has no headroom to spare. */
-    esp_wifi_stop();
+    if (started_for_scan) hw_wifi_stop();
+    g_app.wifi.scanning = false;
     return ESP_OK;
 }
 
 void hw_wifi_stop(void)
 {
-    if (s_wifi_ready) {
-        esp_wifi_stop();
-        ESP_LOGI(TAG, "WiFi stopped");
+    if (s_wifi_ready && s_wifi_started) {
+        esp_err_t err = esp_wifi_stop();
+        if (err == ESP_OK) {
+            s_wifi_started = false;
+            ESP_LOGI(TAG, "WiFi stopped");
+        } else {
+            ESP_LOGE(TAG, "WiFi stop failed: %s", esp_err_to_name(err));
+        }
     }
 }

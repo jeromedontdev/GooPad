@@ -185,6 +185,7 @@ static esp_err_t rgb_panel_create(void)
         .in_color_format = LCD_COLOR_FMT_RGB565,
         .out_color_format = LCD_COLOR_FMT_RGB565,
         .num_fbs = 2,
+        .bounce_buffer_size_px = 10 * BSP_LCD_H_RES,
         .dma_burst_size = 64,
         .hsync_gpio_num = BSP_LCD_HSYNC_GPIO,
         .vsync_gpio_num = BSP_LCD_VSYNC_GPIO,
@@ -220,7 +221,6 @@ static esp_err_t rgb_panel_create(void)
         .flags = {
             .fb_in_psram = true,
             .double_fb = true,
-            .bb_invalidate_cache = true,
         },
     };
 
@@ -327,7 +327,7 @@ esp_err_t hw_display_init(lv_display_t **out_disp){
     ESP_LOGI(TAG, "sending panel init sequence");
     ESP_RETURN_ON_ERROR(st7701_send_init(), TAG, "init sequence");
 
-    ESP_LOGI(TAG, "creating RGB panel (480x480, 2 frame buffers in PSRAM)");
+    ESP_LOGI(TAG, "creating RGB panel (480x480, PSRAM frames, 10-line DMA bounce buffers)");
     ESP_RETURN_ON_ERROR(rgb_panel_create(), TAG, "rgb panel");
 
     void *fb0 = NULL;
@@ -379,8 +379,8 @@ esp_err_t hw_display_init(lv_display_t **out_disp){
     ESP_RETURN_ON_ERROR(esp_timer_start_periodic(tick_timer, LVGL_TICK_PERIOD_MS * 1000),
                         TAG, "tick start");
 
-    BaseType_t ok = xTaskCreate(lvgl_task, "lvgl", LVGL_TASK_STACK, NULL,
-                                LVGL_TASK_PRIO, &s_lvgl_task);
+    BaseType_t ok = xTaskCreatePinnedToCore(lvgl_task, "lvgl", LVGL_TASK_STACK, NULL,
+                                LVGL_TASK_PRIO, &s_lvgl_task, 1);
     ESP_RETURN_ON_FALSE(ok == pdPASS, ESP_ERR_NO_MEM, TAG, "lvgl task");
 
     /* Start at a moderate brightness rather than 100%.

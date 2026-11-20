@@ -12,7 +12,9 @@ touch display into a Wi-Fi macro pad. It is built with ESP-IDF 6.1 and LVGL
    **Scan networks** fills the SSID list; selecting a network populates its
    name. The password field uses the same on-screen keyboard.
 2. After joining, the device shows its IP address and unique web-admin
-   password. Open `http://<device-ip>/` on a computer or phone on that Wi-Fi.
+   password. Open `https://<device-ip>/` on a computer or phone on that Wi-Fi.
+   The device creates its own self-signed certificate: accept the browser's
+   certificate warning for your GooPad before signing in.
 3. Sign in as `admin` with the password on the display. Create macros, choose
    a 2–4 column and row layout, colors, theme, and tile shape, then save.
 4. Tap a configured tile on GooPad to run its action. Unconfigured tiles stay
@@ -25,7 +27,10 @@ a stable bookmark.
 
 ## Macros and customization
 
-Each tile supports a name, color, icon/glyph, and a plain-language action.
+Each tile supports an optional label, color, visual, and a plain-language action.
+Choose **Icon / emoji**, **Font Awesome**, or **Image** from its visual-type
+dropdown. Blank labels stay blank; the visual is enlarged and centered.
+**Save to device** is below the live preview.
 **Open a link or trigger a service** needs only the complete link supplied by
 that service. **Open a website on my Windows PC** uses the Companion app and
 asks for its displayed address/token and the website; it opens only HTTP(S)
@@ -38,21 +43,31 @@ fall back to the button label's initial. The editor also bundles 2,163
 searchable Font Awesome Free solid, regular, and brand icons. Enter Font
 Awesome codes such as `fa-server` or `fa-brands fa-github`, or search the
 bundled catalog. Font Awesome selections and uploaded images are converted to
-32×32 RGB565 and saved under
+32×32 RGB565 with an 8-bit alpha plane and saved under
 `/goopad` on the SD card; a card is required to use them. The **Settings** page
 contains device themes, background color, website appearance, backups, firmware
 updates, and admin-password changes. The device's information panel also has
 theme and SD firmware-update controls. The display has Midnight, Ocean, Forest,
 and Light palettes, custom background colors, and per-macro font colors and
-rounded, square, or circular tile shapes. Up to 32 macros are stored locally;
+rounded, square, circle, pill, or soft-corner tile shapes. Up to 32 macros are stored locally;
 grid size controls how many appear on each page.
 
-The editor and device web API currently use HTTP. HTTPS is practical on the
-ESP32-S3, especially with its PSRAM, but requires a browser-trusted certificate
-and renewal/provisioning strategy. A self-signed certificate would trigger
-browser warnings and undermine the simple setup flow; until a suitable
-certificate strategy is selected, keep GooPad on a trusted local network and
-do not expose its web server to the internet.
+Each button can play a click, beep, chime, or alert through the board's I2S
+speaker, either alongside its web action or with **Play a sound only**.
+Playback is queued on a separate task. The board must have a speaker and
+the speaker routing links fitted; sound files are not supported.
+
+New icons retain transparency even when the tile color changes. Saving
+automatically upgrades older Font Awesome icons. Re-upload older custom
+images once: their original alpha was discarded by the previous firmware
+and cannot be reconstructed reliably.
+
+The editor and device API now use HTTPS on port 443 only. Each device generates
+its own P-256 key and self-signed certificate and saves them in NVS; firmware
+updates and reboots preserve them. The certificate includes the initial IP
+address, so reserve that address in your router. Browsers will warn because
+the certificate is self-signed (and if the IP changes). Only accept it for
+your own device on a trusted LAN; do not expose GooPad to the internet.
 
 The bundled Font Awesome icon data is version 7.3.1; attribution and license
 details are in [third_party/fontawesome/NOTICE.txt](./third_party/fontawesome/NOTICE.txt).
@@ -127,6 +142,12 @@ Use the USB-C/CH340 serial port shown by Windows (COM9 on the development
 machine). The board is an ESP32-S3-WROOM-1U-N16R8: 16 MB flash, 8 MB octal
 PSRAM, ST7701S RGB display, GT911 touch, and microSD slot.
 
+Run the existing Companion tests with `python -m unittest tests.test_companion`.
+For authenticated hardware regression checks (PowerShell 7), run
+`.\tests\Test-GooPadDevice.ps1 -Device https://<device-ip> -Credential (Get-Credential admin)`.
+This temporarily exercises nine grid sizes, five shapes, and a sound action,
+then restores the original configuration even if a check fails.
+
 To create a full-flash image and an app-only OTA image:
 
 ```powershell
@@ -143,10 +164,11 @@ To also flash the merged image:
 
 The editor and its API require HTTP Basic authentication using a random,
 device-specific password. That password is displayed on the touchscreen.
-The device currently serves plain HTTP, so use it only on a trusted Wi-Fi
-network; do not port-forward it or use an untrusted public hotspot. Wi-Fi
-credentials and the admin password are stored in NVS and are not flash-
-encrypted by this development build.
+HTTPS encrypts editor credentials and configuration in transit. The certificate
+is self-signed rather than publicly trusted. Use a trusted Wi-Fi network; do
+not port-forward it or use an untrusted public hotspot. Wi-Fi credentials,
+the TLS private key, and the admin password are stored in NVS and are not
+flash-encrypted by this development build.
 
 Macros intentionally make requests to the URLs you configure. Treat editor
 access as privileged and avoid targets that you would not trust the device to
@@ -163,6 +185,11 @@ accept arbitrary commands from request bodies.
 | Touch | GT911, I²C at `0x5D` |
 | SD | microSD over SPI2 |
 | Wi-Fi | 2.4 GHz station |
+
+The RGB display uses two PSRAM frames and internal 10-line DMA bounce buffers.
+VSYNC DMA restart prevents permanent scanout shifts after underruns; PSRAM
+instruction/rodata execution keeps the cache available during NVS/OTA writes.
+Rendering and HTTPS run on core 1, away from the core-0 scanout interrupt.
 
 ```text
 LCD RGB: DE 18, VSYNC 17, HSYNC 16, PCLK 21

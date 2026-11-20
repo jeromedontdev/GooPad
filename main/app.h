@@ -145,6 +145,8 @@ bool goopad_wifi_connected(void);
 bool goopad_wifi_connecting(void);
 bool goopad_configured(void);
 void goopad_get_config(char *out, size_t capacity);
+esp_err_t goopad_set_theme(const char *theme);
+esp_err_t goopad_install_ota_from_sd(void);
 void goopad_trigger(unsigned index);
 const char *goopad_web_password(void);
 void goopad_get_address(char *out, size_t capacity);

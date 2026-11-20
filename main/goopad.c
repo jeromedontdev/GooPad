@@ -45,7 +45,7 @@ extern const uint8_t fa_icons_json_start[] asm("_binary_fa_icons_json_start");
 extern const uint8_t fa_icons_json_end[] asm("_binary_fa_icons_json_end");
 
 static char *s_config;
-static char s_web_key[25];
+static char s_web_key[65];
 static char s_ssid[33];
 static volatile bool s_connected;
 static volatile bool s_wifi_connecting;
@@ -139,7 +139,7 @@ static esp_err_t save_string(const char *key, const char *value)
 static void ensure_web_key(void)
 {
     if (read_string("webkey", s_web_key, sizeof(s_web_key)) &&
-        strlen(s_web_key) == 24) return;
+        strlen(s_web_key) >= 8 && strlen(s_web_key) <= 64) return;
 
     static const char hex[] = "0123456789abcdef";
     uint8_t random[12];
@@ -198,6 +198,53 @@ void goopad_get_config(char *out, size_t capacity)
     }
 }
 
+esp_err_t goopad_set_theme(const char *theme)
+{
+    if (!theme || (strcmp(theme, "midnight") && strcmp(theme, "ocean") &&
+                   strcmp(theme, "forest") && strcmp(theme, "light"))) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (xSemaphoreTake(s_config_lock, portMAX_DELAY) != pdTRUE) {
+        return ESP_ERR_TIMEOUT;
+    }
+    cJSON *root = cJSON_Parse(s_config);
+    cJSON *theme_item = root ? cJSON_GetObjectItemCaseSensitive(root, "theme") : NULL;
+    if (cJSON_IsString(theme_item)) {
+        if (!cJSON_SetValuestring(theme_item, theme)) {
+            cJSON_Delete(root);
+            xSemaphoreGive(s_config_lock);
+            return ESP_ERR_NO_MEM;
+        }
+    } else if (root) {
+        if (!cJSON_AddStringToObject(root, "theme", theme)) {
+            cJSON_Delete(root);
+            xSemaphoreGive(s_config_lock);
+            return ESP_ERR_NO_MEM;
+        }
+    }
+    char *updated = root ? cJSON_PrintUnformatted(root) : NULL;
+    cJSON_Delete(root);
+    bool too_large = updated && strlen(updated) > CONFIG_MAX_BYTES;
+    if (!updated || too_large) {
+        free(updated);
+        xSemaphoreGive(s_config_lock);
+        return too_large ? ESP_ERR_INVALID_SIZE : ESP_ERR_NO_MEM;
+    }
+
+    nvs_handle_t nvs;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &nvs);
+    if (err == ESP_OK) {
+        err = nvs_set_blob(nvs, "config", updated, strlen(updated) + 1);
+        if (err == ESP_OK) err = nvs_commit(nvs);
+        nvs_close(nvs);
+    }
+    if (err == ESP_OK) strlcpy(s_config, updated, CONFIG_MAX_BYTES + 1);
+    free(updated);
+    xSemaphoreGive(s_config_lock);
+    return err;
+}
+
 const char *goopad_web_password(void)
 {
     return s_web_key;
@@ -228,16 +275,19 @@ static bool authorized(httpd_req_t *req)
     char header[128];
     if (httpd_req_get_hdr_value_str(req, "Authorization", header, sizeof(header)) != ESP_OK ||
         strncmp(header, "Basic ", 6) != 0) return false;
-    unsigned char decoded[64];
+    unsigned char decoded[80];
     size_t decoded_len = 0;
     if (mbedtls_base64_decode(decoded, sizeof(decoded), &decoded_len,
                               (const unsigned char *)header + 6,
                               strlen(header + 6)) != 0) return false;
     static const char username[] = "admin:";
-    if (decoded_len != sizeof(username) - 1 + 24 ||
+    if (decoded_len < sizeof(username) - 1 + 8 ||
+        decoded_len > sizeof(username) - 1 + 64 ||
         memcmp(decoded, username, sizeof(username) - 1) != 0) return false;
+    size_t password_len = decoded_len - (sizeof(username) - 1);
+    if (password_len != strlen(s_web_key)) return false;
     return constant_time_equal((const char *)decoded + sizeof(username) - 1,
-                               s_web_key, 24);
+                               s_web_key, password_len);
 }
 
 static esp_err_t auth_required(httpd_req_t *req)
@@ -308,7 +358,11 @@ static bool validate_config(const char *json)
         cJSON *pc_target = cJSON_GetObjectItemCaseSensitive(item, "pcTarget");
         valid = cJSON_IsObject(item) && cJSON_IsString(name) && strlen(name->valuestring) <= 24 &&
                 cJSON_IsString(icon) && strlen(icon->valuestring) <= 8 &&
-                cJSON_IsString(url) && valid_url(url->valuestring) &&
+                cJSON_IsString(url) &&
+                (valid_url(url->valuestring) ||
+                 (url->valuestring[0] == '\0' &&
+                  (!action_mode || (cJSON_IsString(action_mode) &&
+                                    !strcmp(action_mode->valuestring, "simple_link"))))) &&
                 cJSON_IsString(action) &&
                 (strcmp(action->valuestring, "webhook") == 0 ||
                  strcmp(action->valuestring, "http") == 0) &&
@@ -404,6 +458,52 @@ static esp_err_t config_post_handler(httpd_req_t *req)
     xSemaphoreGive(s_config_lock);
     free(body);
     httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
+}
+
+static esp_err_t password_post_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+
+    char *body = NULL;
+    esp_err_t err = receive_body(req, &body);
+    if (err != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                                   "Could not read password change");
+    }
+
+    cJSON *root = cJSON_Parse(body);
+    cJSON *password = root ? cJSON_GetObjectItemCaseSensitive(root, "password") : NULL;
+    bool valid = cJSON_IsString(password) && password->valuestring;
+    size_t length = valid ? strlen(password->valuestring) : 0;
+    valid = valid && length >= 8 && length <= 64;
+    for (size_t i = 0; valid && i < length; i++) {
+        unsigned char c = (unsigned char)password->valuestring[i];
+        if (c < 0x20 || c > 0x7e) valid = false;
+    }
+    if (!valid) {
+        cJSON_Delete(root);
+        memset(body, 0, strlen(body));
+        free(body);
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                                   "Password must be 8-64 printable ASCII characters");
+    }
+
+    err = save_string("webkey", password->valuestring);
+    if (err == ESP_OK) {
+        strlcpy(s_web_key, password->valuestring, sizeof(s_web_key));
+    }
+    cJSON_Delete(root);
+    memset(body, 0, strlen(body));
+    free(body);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "could not save admin password: %s", esp_err_to_name(err));
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                   "Could not save admin password");
+    }
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
 
@@ -627,21 +727,40 @@ static esp_err_t ota_sd_handler(httpd_req_t *req)
 {
     esp_err_t auth = auth_required(req);
     if (auth != ESP_OK) return auth;
+    esp_err_t err = goopad_install_ota_from_sd();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "SD firmware update failed: %s", esp_err_to_name(err));
+        return httpd_resp_send_err(req,
+            err == ESP_ERR_NOT_FOUND ? HTTPD_404_NOT_FOUND :
+            err == ESP_ERR_INVALID_SIZE ? HTTPD_400_BAD_REQUEST :
+            HTTPD_500_INTERNAL_SERVER_ERROR,
+            esp_err_to_name(err));
+    }
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true,\"restarting\":true}");
+    if (xTaskCreate(restart_task, "ota_restart", 2048, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "could not schedule OTA restart");
+    }
+    return ESP_OK;
+}
+
+esp_err_t goopad_install_ota_from_sd(void)
+{
     if (!g_app.sd.mounted) {
-        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No SD card mounted");
+        return ESP_ERR_INVALID_STATE;
     }
     FILE *file = fopen(BSP_SD_MOUNT_POINT "/goopad.bin", "rb");
-    if (!file) return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "goopad.bin not found on SD");
+    if (!file) return ESP_ERR_NOT_FOUND;
     const esp_partition_t *partition = esp_ota_get_next_update_partition(NULL);
     if (!partition || fseek(file, 0, SEEK_END) != 0) {
         fclose(file);
-        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not read SD image");
+        return ESP_FAIL;
     }
     long length = ftell(file);
     rewind(file);
     if (length <= 0 || (size_t)length > partition->size) {
         fclose(file);
-        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid SD firmware size");
+        return ESP_ERR_INVALID_SIZE;
     }
     esp_ota_handle_t handle = 0;
     esp_err_t err = esp_ota_begin(partition, (size_t)length, &handle);
@@ -650,7 +769,7 @@ static esp_err_t ota_sd_handler(httpd_req_t *req)
     if (!buffer) {
         fclose(file);
         if (started) esp_ota_abort(handle);
-        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA buffer unavailable");
+        return ESP_ERR_NO_MEM;
     }
     size_t remaining = (size_t)length;
     while (err == ESP_OK && remaining) {
@@ -666,9 +785,16 @@ static esp_err_t ota_sd_handler(httpd_req_t *req)
     fclose(file);
     if (err != ESP_OK) {
         if (started) esp_ota_abort(handle);
-        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "SD firmware update failed");
+        return err;
     }
-    return activate_ota(handle, req);
+    err = esp_ota_end(handle);
+    if (err == ESP_OK) {
+        const esp_partition_t *next = esp_ota_get_next_update_partition(NULL);
+        err = next ? esp_ota_set_boot_partition(next) : ESP_ERR_NOT_FOUND;
+    }
+    if (err != ESP_OK) ESP_LOGE(TAG, "SD OTA validation/activation failed: %s",
+                                esp_err_to_name(err));
+    return err;
 }
 
 static esp_err_t status_handler(httpd_req_t *req)
@@ -700,6 +826,7 @@ static esp_err_t start_server(void)
         {.uri = "/", .method = HTTP_GET, .handler = index_handler},
         {.uri = "/api/config", .method = HTTP_GET, .handler = config_get_handler},
         {.uri = "/api/config", .method = HTTP_POST, .handler = config_post_handler},
+        {.uri = "/api/password", .method = HTTP_POST, .handler = password_post_handler},
         {.uri = "/api/trigger", .method = HTTP_POST, .handler = trigger_handler},
         {.uri = "/api/wifi/join", .method = HTTP_POST, .handler = wifi_join_handler},
         {.uri = "/api/backup", .method = HTTP_POST, .handler = backup_handler},

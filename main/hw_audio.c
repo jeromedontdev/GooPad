@@ -34,10 +34,12 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
 
 static const char *TAG = "audio";
 
-#define AUDIO_TASK_STACK 6144
+#define AUDIO_TASK_STACK 8192
 #define AUDIO_TASK_PRIO  5
 #define AUDIO_QUEUE_LEN  8
 #define AUDIO_FRAMES     256
@@ -49,6 +51,7 @@ typedef enum {
     AUDIO_CMD_RESTORE_PINS,
     AUDIO_CMD_SUSPEND,
     AUDIO_CMD_SELFTEST,
+    AUDIO_CMD_SOUND,
 } audio_cmd_t;
 
 typedef struct {
@@ -57,11 +60,89 @@ typedef struct {
     int duration_ms;
     bool square;
     int bits;
+    char sound[8];
+    char file_key[18];
 } audio_req_t;
 
 static i2s_chan_handle_t s_tx;
 static QueueHandle_t s_queue;
 static bool s_ready;
+static bool s_sound_busy;
+static portMUX_TYPE s_sound_lock = portMUX_INITIALIZER_UNLOCKED;
+
+bool hw_audio_busy(void)
+{
+    portENTER_CRITICAL(&s_sound_lock);
+    bool busy = s_sound_busy;
+    portEXIT_CRITICAL(&s_sound_lock);
+    return busy;
+}
+
+static void sound_finished(void)
+{
+    portENTER_CRITICAL(&s_sound_lock);
+    s_sound_busy = false;
+    portEXIT_CRITICAL(&s_sound_lock);
+}
+
+static uint32_t read_le32(const uint8_t *p)
+{
+    return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+}
+
+bool hw_audio_valid_wav(const uint8_t *h, size_t size)
+{
+    return size > 44 && size <= 44 + BSP_I2S_SAMPLE_RATE * 2 * 30 &&
+        !memcmp(h, "RIFF", 4) && !memcmp(h + 8, "WAVEfmt ", 8) &&
+        read_le32(h + 4) == size - 8 && read_le32(h + 16) == 16 &&
+        h[20] == 1 && h[21] == 0 && h[22] == 1 && h[23] == 0 &&
+        read_le32(h + 24) == BSP_I2S_SAMPLE_RATE &&
+        read_le32(h + 28) == BSP_I2S_SAMPLE_RATE * 2 &&
+        h[32] == 2 && h[33] == 0 && h[34] == 16 && h[35] == 0 &&
+        !memcmp(h + 36, "data", 4) && read_le32(h + 40) == size - 44 &&
+        (size - 44) % 2 == 0;
+}
+
+esp_err_t hw_audio_play_sound(const char *sound, const char *file_key)
+{
+    if (!s_ready) {
+        ESP_LOGE(TAG, "sound requested before audio initialized");
+        return ESP_FAIL;
+    }
+    audio_req_t req = {.cmd = AUDIO_CMD_SOUND};
+    if (!sound || (strcmp(sound, "click") && strcmp(sound, "beep") &&
+        strcmp(sound, "chime") && strcmp(sound, "alert") && strcmp(sound, "file"))) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!strcmp(sound, "file")) {
+        if (!file_key || strlen(file_key) != 17 || file_key[0] != 'i') return ESP_ERR_INVALID_ARG;
+        for (int i = 1; i < 17; i++) {
+            if (!((file_key[i] >= '0' && file_key[i] <= '9') ||
+                  (file_key[i] >= 'a' && file_key[i] <= 'f'))) return ESP_ERR_INVALID_ARG;
+        }
+        strlcpy(req.file_key, file_key, sizeof(req.file_key));
+        char path[64];
+        snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/sound-%s.wav", file_key);
+        FILE *file = g_app.sd.mounted ? fopen(path, "rb") : NULL;
+        if (!file) {
+            ESP_LOGE(TAG, "sound file is unavailable");
+            return ESP_ERR_NOT_FOUND;
+        }
+        fclose(file);
+    }
+    strlcpy(req.sound, sound, sizeof(req.sound));
+    portENTER_CRITICAL(&s_sound_lock);
+    bool busy = s_sound_busy;
+    if (!busy) s_sound_busy = true;
+    portEXIT_CRITICAL(&s_sound_lock);
+    if (busy) return ESP_ERR_INVALID_STATE;
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE) {
+        sound_finished();
+        ESP_LOGE(TAG, "sound queue is full");
+        return ESP_ERR_INVALID_STATE;
+    }
+    return ESP_OK;
+}
 
 /* 0-100, applied on top of the waveform amplitude. */
 static volatile int s_volume_pct = BSP_VOLUME_DEFAULT_PCT;
@@ -401,6 +482,8 @@ static void play_tone(int freq_hz, int duration_ms, int amplitude, bool square)
             /* 16-bit is the native width and the one verified to work.
              * Wider slots carry the same value left-justified. */
             int16_t s16 = (int16_t)v;
+            uint32_t peak = s16 < 0 ? -(int32_t)s16 : s16;
+            if (peak > g_app.audio_peak) g_app.audio_peak = peak;
             int16_t l = (s_channel == AUDIO_CH_RIGHT) ? 0 : s16;
             int16_t r = (s_channel == AUDIO_CH_LEFT) ? 0 : s16;
             buf16[i * 2] = l;
@@ -443,6 +526,58 @@ static void play_tone(int freq_hz, int duration_ms, int amplitude, bool square)
     }
 }
 
+static void play_wav(const char *key)
+{
+    char path[64];
+    snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/sound-%s.wav", key);
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+        ESP_LOGE(TAG, "could not open sound file");
+        return;
+    }
+    uint8_t header[44];
+    if (fread(header, 1, sizeof(header), file) != sizeof(header) ||
+        !hw_audio_valid_wav(header, (size_t)read_le32(header + 40) + 44)) {
+        ESP_LOGE(TAG, "invalid sound WAV header");
+        fclose(file);
+        return;
+    }
+    static int16_t mono[AUDIO_FRAMES];
+    static int16_t stereo[AUDIO_FRAMES * 2];
+    static int32_t wide[AUDIO_FRAMES * 2];
+    size_t total = read_le32(header + 40) / 2;
+    size_t position = 0;
+    while (position < total) {
+        size_t frames = total - position < AUDIO_FRAMES ? total - position : AUDIO_FRAMES;
+        if (fread(mono, sizeof(int16_t), frames, file) != frames) {
+            ESP_LOGE(TAG, "sound file read interrupted");
+            break;
+        }
+        for (size_t i = 0; i < frames; i++) {
+            int32_t sample = (int32_t)mono[i] * s_volume_pct * BSP_AUDIO_MAX_PCT / 10000;
+            size_t edge = position + i < total - position - i ? position + i : total - position - i;
+            const size_t fade = BSP_I2S_SAMPLE_RATE / 100;
+            if (edge < fade) sample = sample * (int32_t)edge / (int32_t)fade;
+            uint32_t peak = sample < 0 ? -sample : sample;
+            if (peak > g_app.audio_peak) g_app.audio_peak = peak;
+            stereo[i * 2] = stereo[i * 2 + 1] = (int16_t)sample;
+            wide[i * 2] = wide[i * 2 + 1] = sample * 65536;
+        }
+        size_t sent;
+        const void *data = s_bits == 16 ? (const void *)stereo : (const void *)wide;
+        size_t bytes = frames * 2 * (s_bits == 16 ? sizeof(int16_t) : sizeof(int32_t));
+        esp_err_t err = i2s_channel_write(s_tx, data, bytes, &sent, 1000);
+        if (err != ESP_OK || sent != bytes) {
+            ESP_LOGE(TAG, "sound I2S write failed: %s", esp_err_to_name(err));
+            break;
+        }
+        g_app.audio_bytes_written += sent;
+        position += frames;
+    }
+    fclose(file);
+    if (position == total) g_app.audio_tones_played++;
+}
+
 static void audio_task(void *arg)
 {
     (void)arg;
@@ -461,6 +596,23 @@ static void audio_task(void *arg)
         }
 
         switch (req.cmd) {
+            case AUDIO_CMD_SOUND:
+                g_app.audio_peak = 0;
+                if (!strcmp(req.sound, "file")) play_wav(req.file_key);
+                else if (!strcmp(req.sound, "click")) play_tone(1800, 40, AUDIO_PEAK_AMPLITUDE, false);
+                else if (!strcmp(req.sound, "beep")) play_tone(1000, 200, AUDIO_PEAK_AMPLITUDE, false);
+                else if (!strcmp(req.sound, "chime")) {
+                    play_tone(660, 150, AUDIO_PEAK_AMPLITUDE, false);
+                    play_tone(880, 250, AUDIO_PEAK_AMPLITUDE, false);
+                } else if (!strcmp(req.sound, "alert")) {
+                    play_tone(440, 200, AUDIO_PEAK_AMPLITUDE, false);
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                    play_tone(440, 200, AUDIO_PEAK_AMPLITUDE, false);
+                }
+                if (strcmp(req.sound, "file")) g_app.audio_tones_played++;
+                vTaskDelay(pdMS_TO_TICKS(100));
+                sound_finished();
+                break;
             case AUDIO_CMD_SET_BITS:
                 apply_bits(req.bits);
                 break;
@@ -546,8 +698,8 @@ esp_err_t hw_audio_init(void)
     s_queue = xQueueCreate(AUDIO_QUEUE_LEN, sizeof(audio_req_t));
     ESP_RETURN_ON_FALSE(s_queue, ESP_ERR_NO_MEM, TAG, "audio queue");
 
-    BaseType_t ok = xTaskCreate(audio_task, "audio", AUDIO_TASK_STACK, NULL,
-                                AUDIO_TASK_PRIO, NULL);
+    BaseType_t ok = xTaskCreatePinnedToCore(audio_task, "audio", AUDIO_TASK_STACK, NULL,
+                                AUDIO_TASK_PRIO, NULL, 1);
     ESP_RETURN_ON_FALSE(ok == pdPASS, ESP_ERR_NO_MEM, TAG, "audio task");
 
     s_ready = true;

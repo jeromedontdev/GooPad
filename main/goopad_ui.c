@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ICON_BYTES (32 * 32 * 3)
+#define ICON_BYTES (160 * 160 * 3)
 #define MAX_MACROS 32
 
 static const char *TAG = "goopad_ui";
@@ -30,6 +30,10 @@ static lv_obj_t *s_page_dots[32];
 static lv_obj_t *s_info_overlay;
 static lv_obj_t *s_theme_dropdown;
 static lv_obj_t *s_settings_status;
+static lv_obj_t *s_brightness_slider;
+static lv_obj_t *s_volume_slider;
+static lv_obj_t *s_brightness_label;
+static lv_obj_t *s_volume_label;
 static size_t s_page_dot_count;
 static lv_timer_t *s_timer;
 static char *s_config_buffer;
@@ -277,18 +281,20 @@ static void back_to_info_cb(lv_event_t *event)
 static void save_device_theme_cb(lv_event_t *event)
 {
     (void)event;
-    static const char *themes[] = {"midnight", "ocean", "forest", "light"};
+    static const char *themes[] = {"midnight", "ocean", "forest", "light", "custom"};
     if (!s_theme_dropdown || !lv_obj_is_valid(s_theme_dropdown)) return;
     uint16_t selected = lv_dropdown_get_selected(s_theme_dropdown);
     if (selected >= sizeof(themes) / sizeof(themes[0])) return;
     esp_err_t err = goopad_set_theme(themes[selected]);
+    if (err == ESP_OK) err = goopad_set_controls(
+        lv_slider_get_value(s_brightness_slider), lv_slider_get_value(s_volume_slider));
     if (err != ESP_OK && s_settings_status && lv_obj_is_valid(s_settings_status)) {
         char message[64];
         snprintf(message, sizeof(message), "Could not save theme: %s",
                  esp_err_to_name(err));
         lv_label_set_text(s_settings_status, message);
     } else if (s_settings_status && lv_obj_is_valid(s_settings_status)) {
-        lv_label_set_text(s_settings_status, "Theme saved.");
+        lv_label_set_text(s_settings_status, "Settings saved.");
     }
 }
 
@@ -345,13 +351,29 @@ static void install_sd_ota_cb(lv_event_t *event)
     }
 }
 
+static void power_slider_cb(lv_event_t *event)
+{
+    lv_obj_t *slider = lv_event_get_target(event);
+    int value = lv_slider_get_value(slider);
+    char text[40];
+    if (slider == s_brightness_slider) {
+        board_backlight_set(value);
+        snprintf(text, sizeof(text), "Display brightness: %d%%", value);
+        lv_label_set_text(s_brightness_label, text);
+    } else {
+        hw_audio_set_volume(value);
+        snprintf(text, sizeof(text), "Sound volume: %d%%", value);
+        lv_label_set_text(s_volume_label, text);
+    }
+}
+
 static void build_info_panel(bool settings)
 {
     if (!s_info_overlay || !lv_obj_is_valid(s_info_overlay)) return;
     lv_obj_clean(s_info_overlay);
 
     lv_obj_t *panel = lv_obj_create(s_info_overlay);
-    lv_obj_set_size(panel, 420, 300);
+    lv_obj_set_size(panel, 420, settings ? 420 : 300);
     lv_obj_center(panel);
     lv_obj_set_style_bg_color(panel, color(0x1E293B), 0);
     lv_obj_set_style_border_color(panel, color(0x475569), 0);
@@ -366,13 +388,15 @@ static void build_info_panel(bool settings)
         char details[160];
         char address[16];
         goopad_get_address(address, sizeof(address));
-        snprintf(details, sizeof(details), "Web editor: https://%s\nAdmin password: %s",
-                 address, goopad_web_password());
+        const char *initial = goopad_initial_password();
+        snprintf(details, sizeof(details), "Web editor: https://%s\n%s%s",
+                 address, initial ? "Initial password: " : "Original password unavailable on this upgrade.",
+                 initial ? initial : "");
         lv_obj_t *info = label(panel, details, 14, lv_color_white());
         lv_obj_set_width(info, 380);
         lv_label_set_long_mode(info, LV_LABEL_LONG_WRAP);
         lv_obj_align(info, LV_ALIGN_TOP_LEFT, 0, 40);
-        lv_obj_t *hint = label(panel, "Use Settings for device themes or firmware updates.",
+        lv_obj_t *hint = label(panel, "Changed passwords are never displayed here.\nUse your existing admin password to sign in.",
                                14, color(0xCBD5E1));
         lv_obj_set_width(hint, 380);
         lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
@@ -385,37 +409,53 @@ static void build_info_panel(bool settings)
     lv_obj_t *theme_label = label(panel, "Device color theme", 15, color(0xCBD5E1));
     lv_obj_align(theme_label, LV_ALIGN_TOP_LEFT, 0, 42);
     s_theme_dropdown = lv_dropdown_create(panel);
-    lv_dropdown_set_options(s_theme_dropdown, "Midnight\nOcean\nForest\nLight");
+    lv_dropdown_set_options(s_theme_dropdown, "Midnight\nOcean\nForest\nLight\nCustom");
     lv_obj_set_pos(s_theme_dropdown, 0, 68);
     lv_obj_set_size(s_theme_dropdown, 210, 42);
-    char config[12001];
-    goopad_get_config(config, sizeof(config));
-    cJSON *root = cJSON_Parse(config);
+    goopad_get_config(s_config_buffer, 12001);
+    cJSON *root = cJSON_Parse(s_config_buffer);
     cJSON *theme = root ? cJSON_GetObjectItemCaseSensitive(root, "theme") : NULL;
     if (cJSON_IsString(theme)) {
         if (!strcmp(theme->valuestring, "ocean")) lv_dropdown_set_selected(s_theme_dropdown, 1);
         else if (!strcmp(theme->valuestring, "forest")) lv_dropdown_set_selected(s_theme_dropdown, 2);
         else if (!strcmp(theme->valuestring, "light")) lv_dropdown_set_selected(s_theme_dropdown, 3);
+        else if (!strcmp(theme->valuestring, "custom")) lv_dropdown_set_selected(s_theme_dropdown, 4);
     }
     cJSON_Delete(root);
-    button(panel, "Save theme", 230, 68, 160, 42,
+    button(panel, "Save settings", 224, 68, 150, 42,
            save_device_theme_cb, NULL, 0x4F46E5);
 
-    lv_obj_t *firmware_label = label(panel, "Firmware update", 15, color(0xCBD5E1));
-    lv_obj_align(firmware_label, LV_ALIGN_TOP_LEFT, 0, 122);
-    button(panel, "Install from SD", 0, 148, 210, 42,
+    char text[40];
+    snprintf(text, sizeof(text), "Display brightness: %d%%", board_backlight_get());
+    s_brightness_label = label(panel, text, 14, lv_color_white());
+    lv_obj_set_pos(s_brightness_label, 0, 122);
+    s_brightness_slider = lv_slider_create(panel);
+    lv_obj_set_pos(s_brightness_slider, 10, 151);
+    lv_obj_set_size(s_brightness_slider, 354, 14);
+    lv_slider_set_range(s_brightness_slider, 0, 100);
+    lv_slider_set_value(s_brightness_slider, board_backlight_get(), LV_ANIM_OFF);
+    lv_obj_add_event_cb(s_brightness_slider, power_slider_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    snprintf(text, sizeof(text), "Sound volume: %d%%", hw_audio_get_volume());
+    s_volume_label = label(panel, text, 14, lv_color_white());
+    lv_obj_set_pos(s_volume_label, 0, 181);
+    s_volume_slider = lv_slider_create(panel);
+    lv_obj_set_pos(s_volume_slider, 10, 210);
+    lv_obj_set_size(s_volume_slider, 354, 14);
+    lv_slider_set_range(s_volume_slider, 0, 100);
+    lv_slider_set_value(s_volume_slider, hw_audio_get_volume(), LV_ANIM_OFF);
+    lv_obj_add_event_cb(s_volume_slider, power_slider_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_t *power_hint = label(panel, "Both controls retain the board's safe power caps.",
+                                14, color(0x94A3B8));
+    lv_obj_set_width(power_hint, 374);
+    lv_obj_set_pos(power_hint, 0, 241);
+    button(panel, "Install SD /goopad.bin", 0, 278, 250, 38,
            install_sd_ota_cb, NULL, 0x4F46E5);
-    lv_obj_t *firmware_hint = label(panel, "Place the OTA .bin at /goopad.bin on the SD card.",
-                                    12, color(0x94A3B8));
-    lv_obj_set_width(firmware_hint, 380);
-    lv_label_set_long_mode(firmware_hint, LV_LABEL_LONG_WRAP);
-    lv_obj_align(firmware_hint, LV_ALIGN_TOP_LEFT, 0, 195);
     s_settings_status = label(panel, "", 12, color(0xCBD5E1));
     lv_obj_set_width(s_settings_status, 380);
     lv_label_set_long_mode(s_settings_status, LV_LABEL_LONG_DOT);
-    lv_obj_align(s_settings_status, LV_ALIGN_TOP_LEFT, 0, 215);
-    button(panel, "Back", 150, 250, 112, 38, back_to_info_cb, NULL, 0x475569);
-    button(panel, "Close", 278, 250, 112, 38, close_info_cb, NULL, 0x475569);
+    lv_obj_align(s_settings_status, LV_ALIGN_TOP_LEFT, 0, 320);
+    button(panel, "Back", 140, 344, 110, 38, back_to_info_cb, NULL, 0x475569);
+    button(panel, "Close", 264, 344, 110, 38, close_info_cb, NULL, 0x475569);
 }
 
 static void show_info_cb(lv_event_t *event)
@@ -547,7 +587,8 @@ static void build_loading_screen(void)
 static void tile_cb(lv_event_t *event)
 {
     unsigned index = (unsigned)(uintptr_t)lv_event_get_user_data(event);
-    goopad_trigger(index);
+    esp_err_t err = goopad_trigger(index);
+    if (err != ESP_OK) ESP_LOGW(TAG, "button %u: %s", index, esp_err_to_name(err));
 }
 
 static void page_scroll_cb(lv_event_t *event)
@@ -616,11 +657,8 @@ static void build_grid_screen(void)
         accent_color = 0x334155;
         theme_background = 0xF1F5F9;
     }
-    unsigned background = cJSON_IsString(bg)
+    unsigned background = !strcmp(theme_name, "custom") && cJSON_IsString(bg)
         ? (unsigned)strtoul(bg->valuestring, NULL, 16) : theme_background;
-    if (background == 0x111827 && strcmp(theme_name, "midnight")) {
-        background = theme_background;
-    }
     lv_obj_set_style_bg_color(s_screen, color(background), 0);
     lv_obj_set_style_text_color(s_screen, light_theme ? color(0x172033) : lv_color_white(), 0);
 
@@ -711,8 +749,11 @@ static void build_grid_screen(void)
                          soft ? (width < height ? width : height) / 3 :
                          cJSON_IsString(shape) && !strcmp(shape->valuestring, "square")
                              ? 4 : 18;
-            lv_obj_set_style_border_width(tile, 2, 0);
-            lv_obj_set_style_border_color(tile, color(accent_color), 0);
+            cJSON *outline = macro ? cJSON_GetObjectItemCaseSensitive(macro, "outline") : NULL;
+            cJSON *outline_color = macro ? cJSON_GetObjectItemCaseSensitive(macro, "outlineColor") : NULL;
+            lv_obj_set_style_border_width(tile, cJSON_IsFalse(outline) ? 0 : 2, 0);
+            lv_obj_set_style_border_color(tile, cJSON_IsString(outline_color)
+                ? color((unsigned)strtoul(outline_color->valuestring, NULL, 16)) : color(accent_color), 0);
             lv_obj_set_style_radius(tile, radius, 0);
             lv_obj_set_style_pad_all(tile, 0, 0);
             lv_obj_set_style_shadow_width(tile, 0, 0);
@@ -736,6 +777,8 @@ static void build_grid_screen(void)
                 cJSON *image_format = cJSON_GetObjectItemCaseSensitive(macro, "iconFormat");
                 bool alpha = cJSON_IsString(image_format) &&
                              !strcmp(image_format->valuestring, "rgb565a8");
+                cJSON *size_item = cJSON_GetObjectItemCaseSensitive(macro, "iconSize");
+                int side = alpha && cJSON_IsNumber(size_item) && size_item->valueint == 160 ? 160 : 32;
                 int icon_size = (width < height ? width : height) - (caption[0] ? 32 : 20);
                 if (icon_size < 16) icon_size = 16;
                 int icon_y = caption[0] ? -10 : 0;
@@ -743,11 +786,11 @@ static void build_grid_screen(void)
                 if (cJSON_IsString(custom_image) && g_app.sd.mounted && s_icon_buffers) {
                     char path[64];
                     snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.%s",
-                             custom_image->valuestring, alpha ? "rgb565a8" : "rgb565");
+                             custom_image->valuestring, side == 160 ? "160.rgb565a8" : alpha ? "rgb565a8" : "rgb565");
                     FILE *image = fopen(path, "rb");
                     if (image) {
                         uint8_t *pixels = s_icon_buffers + (size_t)index * ICON_BYTES;
-                        size_t bytes = alpha ? ICON_BYTES : 32 * 32 * 2;
+                        size_t bytes = (size_t)side * side * (alpha ? 3 : 2);
                         image_drawn = fread(pixels, 1, bytes, image) == bytes;
                         fclose(image);
                         if (image_drawn) {
@@ -756,14 +799,14 @@ static void build_grid_screen(void)
                                 .header = {
                                     .magic = LV_IMAGE_HEADER_MAGIC,
                                     .cf = alpha ? LV_COLOR_FORMAT_RGB565A8 : LV_COLOR_FORMAT_RGB565,
-                                    .w = 32, .h = 32, .stride = 64,
+                                    .w = side, .h = side, .stride = side * 2,
                                 },
                                 .data_size = bytes,
                                 .data = pixels,
                             };
                             lv_obj_t *image_obj = lv_image_create(tile);
                             lv_image_set_src(image_obj, &s_icon_images[index]);
-                            lv_image_set_scale(image_obj, icon_size * 256 / 32);
+                            lv_image_set_scale(image_obj, icon_size * 256 / side);
                             lv_obj_align(image_obj, LV_ALIGN_CENTER, 0, icon_y);
                         }
                     } else {

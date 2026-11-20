@@ -66,6 +66,11 @@ int board_backlight_get(void)
     return s_backlight_pct;
 }
 
+uint32_t board_backlight_duty(void)
+{
+    return ledc_get_duty(BL_LEDC_MODE, BL_LEDC_CHANNEL);
+}
+
 esp_err_t board_init(void)
 {
     ESP_LOGI(TAG, "initialising board");

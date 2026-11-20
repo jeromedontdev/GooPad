@@ -6,3 +6,5 @@ dependencies.lock
 *.log
 *_log.txt
 dist/
+__pycache__/
+*.py[cod]

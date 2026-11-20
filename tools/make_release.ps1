@@ -1,4 +1,4 @@
-# Builds a single merged image that can be flashed to offset 0x0.
+# Builds a merged first-flash image and an application-only OTA image.
 #
 # The normal `idf.py flash` writes four separate binaries at four offsets.
 # A merged image is easier to hand out: one file, one offset, and it works
@@ -8,10 +8,11 @@
 # Usage:
 #   .\tools\make_release.ps1
 #   .\tools\make_release.ps1 -Port COM4      # also flash it
-#   .\tools\make_release.ps1 -SkipBuild      # reuse the existing build
+#   .\tools\make_release.ps1 -SkipBuild -BuildDir C:\Temp\GooPad-idf-build
 
 param(
     [string]$Port = "",
+    [string]$BuildDir = "build",
     [switch]$SkipBuild
 )
 
@@ -30,22 +31,24 @@ Write-Host "Version: $version"
 
 if (-not $SkipBuild) {
     Write-Host "Building..."
-    idf.py build
+    idf.py -B $BuildDir build
     if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 }
 
-$build = Join-Path $root "build"
+$build = if ([System.IO.Path]::IsPathRooted($BuildDir)) { $BuildDir } else { Join-Path $root $BuildDir }
 $bootloader = Join-Path $build "bootloader\bootloader.bin"
 $partitions = Join-Path $build "partition_table\partition-table.bin"
-$app = Join-Path $build "esp32s3_4848s040_hwtest.bin"
+$otaData = Join-Path $build "ota_data_initial.bin"
+$app = Join-Path $build "GooPad.bin"
 
-foreach ($f in @($bootloader, $partitions, $app)) {
+foreach ($f in @($bootloader, $partitions, $otaData, $app)) {
     if (-not (Test-Path $f)) { throw "Missing build artifact: $f" }
 }
 
 $dist = Join-Path $root "dist"
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
-$out = Join-Path $dist "esp32s3_4848s040_hwtest-$version.bin"
+$out = Join-Path $dist "GooPad-$version-merged.bin"
+$otaOut = Join-Path $dist "GooPad-ota-$version.bin"
 
 Write-Host "Merging..."
 # Flash parameters must match what the build actually produced, otherwise
@@ -63,20 +66,23 @@ $flashFreq = Get-SdkValue "CONFIG_ESPTOOLPY_FLASHFREQ" "80m"
 $flashSize = Get-SdkValue "CONFIG_ESPTOOLPY_FLASHSIZE" "16MB"
 Write-Host "Flash params: mode=$flashMode freq=$flashFreq size=$flashSize"
 
-# Offsets come from partitions.csv: bootloader at 0x0, partition table at
-# 0x8000, factory app at 0x10000.
+# Offsets come from partitions.csv: bootloader 0x0, partition table 0x8000,
+# OTA metadata 0x10000, and the first OTA app slot 0x20000.
 esptool --chip esp32s3 merge-bin `
     --flash-mode $flashMode --flash-freq $flashFreq --flash-size $flashSize `
     -o $out `
     0x0     $bootloader `
     0x8000  $partitions `
-    0x10000 $app
+    0x10000 $otaData `
+    0x20000 $app
 
 if ($LASTEXITCODE -ne 0) { throw "merge-bin failed" }
 
+Copy-Item -Force $app $otaOut
 $size = (Get-Item $out).Length
 Write-Host ""
 Write-Host "Created $out ($([math]::Round($size/1KB)) KB)"
+Write-Host "Created $otaOut ($([math]::Round((Get-Item $otaOut).Length/1KB)) KB; application-only OTA image)"
 Write-Host ""
 Write-Host "Flash with:"
 Write-Host "  esptool --chip esp32s3 -p <PORT> -b 460800 write-flash 0x0 `"$out`""

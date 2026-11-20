@@ -35,6 +35,7 @@ CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 
 # --- FreeRTOS -------------------------------------------------------------
 CONFIG_FREERTOS_HZ=1000
@@ -83,12 +84,8 @@ CONFIG_I2S_ISR_IRAM_SAFE=n
 
 # --- Radios ---------------------------------------------------------------
 CONFIG_ESP_WIFI_ENABLED=y
-CONFIG_BT_ENABLED=y
-CONFIG_BT_NIMBLE_ENABLED=y
-CONFIG_BT_NIMBLE_ROLE_CENTRAL=y
-CONFIG_BT_NIMBLE_ROLE_OBSERVER=y
-CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
-CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
 
 # --- Brownout -------------------------------------------------------------
 # Enabled at level 7 (2.44 V), the lowest threshold the ESP32-S3 offers.

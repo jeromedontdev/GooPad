@@ -73,19 +73,6 @@ static esp_err_t sd_mount(void)
              (unsigned long long)(g_app.sd.capacity_bytes / (1024 * 1024)),
              (unsigned)s_card->csd.capacity, (unsigned)s_card->csd.sector_size);
 
-    /* Prove the card is writable, not just readable. */
-    const char *probe_path = BSP_SD_MOUNT_POINT "/hwtest.txt";
-    FILE *f = fopen(probe_path, "w");
-    if (f) {
-        fprintf(f, "ESP32-S3-4848S040 hardware test\n");
-        fclose(f);
-        g_app.sd.write_ok = true;
-        ESP_LOGI(TAG, "write test OK");
-    } else {
-        g_app.sd.write_ok = false;
-        ESP_LOGW(TAG, "write test failed");
-    }
-
     /* Count files in the root directory. */
     g_app.sd.file_count = 0;
     DIR *dir = opendir(BSP_SD_MOUNT_POINT);

@@ -121,8 +121,8 @@ static void hide_keyboard(void)
     lv_obj_set_hidden(s_keyboard, true);
     lv_obj_set_hidden(s_network_list, false);
     lv_label_set_text(s_status, g_app.wifi.ap_count
-                                    ? "Select a Wi-Fi network or tap Type Wi-Fi"
-                                    : "No networks found. Tap Scan or Type Wi-Fi.");
+                                    ? "Select a Wi-Fi network or tap a field to type"
+                                    : "No networks found. Tap Scan or enter a network name.");
 }
 
 static void keyboard_event_cb(lv_event_t *event)
@@ -135,17 +135,13 @@ static void keyboard_event_cb(lv_event_t *event)
 
 static void show_keyboard(lv_obj_t *textarea)
 {
+    ESP_LOGI(TAG, "opening Wi-Fi keyboard for %s",
+             textarea == s_password ? "password" : "network name");
     lv_keyboard_set_textarea(s_keyboard, textarea);
     lv_obj_set_hidden(s_network_list, true);
     lv_obj_set_hidden(s_keyboard, false);
     lv_obj_move_foreground(s_keyboard);
     lv_label_set_text(s_status, "Type here, then tap the keyboard checkmark to finish");
-}
-
-static void show_ssid_keyboard_cb(lv_event_t *event)
-{
-    (void)event;
-    show_keyboard(s_ssid);
 }
 
 static void select_network_cb(lv_event_t *event)
@@ -183,8 +179,8 @@ static void display_scan_results(void)
     }
     if (lv_obj_is_hidden(s_keyboard)) {
         lv_label_set_text(s_status, g_app.wifi.ap_count
-                                        ? "Select a Wi-Fi network or tap Type Wi-Fi"
-                                        : "No networks found. Tap Scan or Type Wi-Fi.");
+                                        ? "Select a Wi-Fi network or tap a field to type"
+                                        : "No networks found. Tap Scan or enter a network name.");
     }
 }
 
@@ -200,7 +196,7 @@ static void scan_task(void *arg)
             if (err == ESP_OK) {
                 display_scan_results();
             } else if (s_status && lv_obj_is_valid(s_status)) {
-                lv_label_set_text(s_status, "Scan failed - type the network name above");
+                lv_label_set_text(s_status, "Scan failed - tap a field to enter network details");
             }
         }
         s_scan_in_progress = false;
@@ -223,13 +219,13 @@ static void scan_cb(lv_event_t *event)
     if (xTaskCreate(scan_task, "wifi_scan", 6144, NULL, 4, NULL) != pdPASS) {
         s_scan_in_progress = false;
         lv_obj_set_disabled(s_scan_button, false);
-        lv_label_set_text(s_status, "Could not start scan - type the network name");
+        lv_label_set_text(s_status, "Could not start scan - tap a field to enter network details");
     }
 }
 
 static void focus_textarea_cb(lv_event_t *event)
 {
-    show_keyboard(lv_event_get_target(event));
+    show_keyboard(lv_event_get_current_target(event));
 }
 
 static void build_setup_screen(void)
@@ -260,11 +256,9 @@ static void build_setup_screen(void)
     lv_textarea_set_placeholder_text(s_password, "Wi-Fi password");
     lv_obj_add_event_cb(s_password, focus_textarea_cb, LV_EVENT_FOCUSED, NULL);
     lv_obj_add_event_cb(s_password, focus_textarea_cb, LV_EVENT_CLICKED, NULL);
-    s_scan_button = button(s_screen, "Scan", 14, 162, 134, 38,
+    s_scan_button = button(s_screen, "Scan networks", 15, 162, 162, 38,
                            scan_cb, NULL, 0x334155);
-    button(s_screen, "Type Wi-Fi", 156, 162, 142, 38,
-           show_ssid_keyboard_cb, NULL, 0x334155);
-    button(s_screen, "Join Wi-Fi", 306, 162, 160, 38,
+    button(s_screen, "Join Wi-Fi", 184, 162, 281, 38,
            connect_cb, NULL, 0x4F46E5);
 
     s_network_list = lv_obj_create(s_screen);
@@ -277,7 +271,7 @@ static void build_setup_screen(void)
     lv_obj_set_flex_flow(s_network_list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_scroll_dir(s_network_list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(s_network_list, LV_SCROLLBAR_MODE_AUTO);
-    s_status = label(s_screen, "Tap a field to type with the on-screen keyboard", 14,
+    s_status = label(s_screen, "Tap a Wi-Fi field to open the keyboard", 14,
                      color(0x94A3B8));
     lv_obj_set_pos(s_status, 16, 205);
     lv_obj_set_width(s_status, 448);

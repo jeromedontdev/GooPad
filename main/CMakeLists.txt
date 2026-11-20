@@ -1,24 +1,20 @@
 idf_component_register(
     SRCS
         "main.c"
+        "goopad.c"
+        "goopad_ui.c"
         "board.c"
         "hw_display.c"
         "hw_touch.c"
-        "hw_power.c"
         "hw_sdcard.c"
-        "hw_audio.c"
         "hw_gpio.c"
         "hw_wifi.c"
-        "hw_ble.c"
-        "settings.c"
-        "console.c"
-        "ui.c"
+    EMBED_TXTFILES "index.html"
     INCLUDE_DIRS "."
     REQUIRES
         driver
         esp_driver_gpio
         esp_driver_i2c
-        esp_driver_i2s
         esp_driver_ledc
         esp_driver_sdspi
         esp_driver_spi
@@ -29,12 +25,14 @@ idf_component_register(
         esp_psram
         esp_hw_support
         esp_timer
-        console
         nvs_flash
         esp_wifi
         esp_netif
         esp_event
-        bt
         esp_lvgl_port
         esp_lcd_touch_gt911
+        esp_http_server
+        esp_http_client
+        app_update
+        mbedtls
 )

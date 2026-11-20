@@ -4,6 +4,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "driver/i2c_master.h"
@@ -135,6 +136,17 @@ void ui_init(lv_display_t *disp);
 bool ui_lock(uint32_t timeout_ms);
 void ui_unlock(void);
 void ui_refresh(void);
+
+/* GooPad product UI and macro service. */
+void goopad_ui_init(lv_display_t *disp);
+void goopad_init(void);
+void goopad_wifi_join(const char *ssid, const char *password);
+bool goopad_wifi_connected(void);
+bool goopad_configured(void);
+void goopad_get_config(char *out, size_t capacity);
+void goopad_trigger(unsigned index);
+const char *goopad_web_password(void);
+void goopad_get_address(char *out, size_t capacity);
 
 /* hw_*.c */
 esp_err_t hw_display_init(lv_display_t **out_disp);

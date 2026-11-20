@@ -1,5 +1,6 @@
 #include "app.h"
 #include "board.h"
+#include "src/misc/cache/instance/lv_image_cache.h"
 
 #include "esp_log.h"
 #include "esp_heap_caps.h"
@@ -11,7 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ICON_BYTES (32 * 32 * 2)
+#define ICON_BYTES (32 * 32 * 3)
 #define MAX_MACROS 32
 
 static const char *TAG = "goopad_ui";
@@ -34,6 +35,7 @@ static lv_timer_t *s_timer;
 static char *s_config_buffer;
 static char *s_rendered_config;
 static uint8_t *s_icon_buffers;
+static lv_image_dsc_t s_icon_images[MAX_MACROS];
 static bool s_grid_shown;
 static bool s_loading_shown;
 static volatile bool s_scan_in_progress;
@@ -79,7 +81,8 @@ static lv_obj_t *label(lv_obj_t *parent, const char *text, int size, lv_color_t 
 {
     lv_obj_t *obj = lv_label_create(parent);
     lv_label_set_text(obj, text);
-    lv_obj_set_style_text_font(obj, size >= 20 ? &lv_font_montserrat_20 :
+    lv_obj_set_style_text_font(obj, size >= 28 ? &lv_font_montserrat_28 :
+                                      size >= 20 ? &lv_font_montserrat_20 :
                                       size >= 16 ? &lv_font_montserrat_16 :
                                                    &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(obj, fg, 0);
@@ -363,7 +366,7 @@ static void build_info_panel(bool settings)
         char details[160];
         char address[16];
         goopad_get_address(address, sizeof(address));
-        snprintf(details, sizeof(details), "Web editor: http://%s\nAdmin password: %s",
+        snprintf(details, sizeof(details), "Web editor: https://%s\nAdmin password: %s",
                  address, goopad_web_password());
         lv_obj_t *info = label(panel, details, 14, lv_color_white());
         lv_obj_set_width(info, 380);
@@ -690,26 +693,36 @@ static void build_grid_screen(void)
                 ? cJSON_GetObjectItemCaseSensitive(macro, "shape") : NULL;
             bool circle = cJSON_IsString(shape) &&
                           !strcmp(shape->valuestring, "circle");
+            bool soft = cJSON_IsString(shape) && !strcmp(shape->valuestring, "soft");
+            bool pill = cJSON_IsString(shape) && !strcmp(shape->valuestring, "pill");
             if (circle) {
                 width = height = cell_width < cell_height ? cell_width : cell_height;
                 x += (cell_width - width) / 2;
                 y += (cell_height - height) / 2;
             }
+            if (pill) {
+                height = cell_height * 3 / 4;
+                y += (cell_height - height) / 2;
+            }
             lv_obj_set_size(tile, width, height);
             lv_obj_set_pos(tile, x, y);
             lv_obj_set_style_bg_color(tile, color(0x273449), 0);
-            int radius = circle ? LV_RADIUS_CIRCLE :
+            int radius = circle ? LV_RADIUS_CIRCLE : pill ? height / 2 :
+                         soft ? (width < height ? width : height) / 3 :
                          cJSON_IsString(shape) && !strcmp(shape->valuestring, "square")
                              ? 4 : 18;
             lv_obj_set_style_border_width(tile, 2, 0);
             lv_obj_set_style_border_color(tile, color(accent_color), 0);
             lv_obj_set_style_radius(tile, radius, 0);
+            lv_obj_set_style_pad_all(tile, 0, 0);
+            lv_obj_set_style_shadow_width(tile, 0, 0);
+            lv_obj_set_style_clip_corner(tile, true, 0);
             if (macro) {
                 cJSON *name = cJSON_GetObjectItemCaseSensitive(macro, "name");
                 cJSON *icon = cJSON_GetObjectItemCaseSensitive(macro, "icon");
                 cJSON *accent = cJSON_GetObjectItemCaseSensitive(macro, "color");
                 cJSON *font_color = cJSON_GetObjectItemCaseSensitive(macro, "textColor");
-                const char *caption = cJSON_IsString(name) ? name->valuestring : "Macro";
+                const char *caption = cJSON_IsString(name) ? name->valuestring : "";
                 const char *glyph = cJSON_IsString(icon) ? icon->valuestring : "•";
                 unsigned accent_value = cJSON_IsString(accent)
                     ? (unsigned)strtoul(accent->valuestring, NULL, 16) : 0x4F46E5;
@@ -720,38 +733,63 @@ static void build_grid_screen(void)
                 lv_obj_add_event_cb(tile, tile_cb, LV_EVENT_CLICKED,
                                     (void *)(uintptr_t)index);
                 cJSON *custom_image = cJSON_GetObjectItemCaseSensitive(macro, "iconImage");
+                cJSON *image_format = cJSON_GetObjectItemCaseSensitive(macro, "iconFormat");
+                bool alpha = cJSON_IsString(image_format) &&
+                             !strcmp(image_format->valuestring, "rgb565a8");
+                int icon_size = (width < height ? width : height) - (caption[0] ? 32 : 20);
+                if (icon_size < 16) icon_size = 16;
+                int icon_y = caption[0] ? -10 : 0;
                 bool image_drawn = false;
                 if (cJSON_IsString(custom_image) && g_app.sd.mounted && s_icon_buffers) {
                     char path[64];
-                    snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.rgb565",
-                             custom_image->valuestring);
+                    snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.%s",
+                             custom_image->valuestring, alpha ? "rgb565a8" : "rgb565");
                     FILE *image = fopen(path, "rb");
                     if (image) {
                         uint8_t *pixels = s_icon_buffers + (size_t)index * ICON_BYTES;
-                        image_drawn = fread(pixels, 1, ICON_BYTES, image) == ICON_BYTES;
+                        size_t bytes = alpha ? ICON_BYTES : 32 * 32 * 2;
+                        image_drawn = fread(pixels, 1, bytes, image) == bytes;
                         fclose(image);
                         if (image_drawn) {
-                            lv_obj_t *canvas = lv_canvas_create(tile);
-                            lv_canvas_set_buffer(canvas, pixels, 32, 32, LV_COLOR_FORMAT_RGB565);
-                            lv_obj_align(canvas, LV_ALIGN_CENTER, 0, -13);
+                            lv_image_cache_drop(&s_icon_images[index]);
+                            s_icon_images[index] = (lv_image_dsc_t) {
+                                .header = {
+                                    .magic = LV_IMAGE_HEADER_MAGIC,
+                                    .cf = alpha ? LV_COLOR_FORMAT_RGB565A8 : LV_COLOR_FORMAT_RGB565,
+                                    .w = 32, .h = 32, .stride = 64,
+                                },
+                                .data_size = bytes,
+                                .data = pixels,
+                            };
+                            lv_obj_t *image_obj = lv_image_create(tile);
+                            lv_image_set_src(image_obj, &s_icon_images[index]);
+                            lv_image_set_scale(image_obj, icon_size * 256 / 32);
+                            lv_obj_align(image_obj, LV_ALIGN_CENTER, 0, icon_y);
                         }
+                    } else {
+                        ESP_LOGW(TAG, "could not load icon for macro %d", index);
                     }
                 }
                 if (!image_drawn) {
                     const char *drawn_icon = symbol_for_icon(glyph);
-                    char initial[2] = {caption[0], '\0'};
+                    char initial[2] = {caption[0] ? caption[0] : '?', '\0'};
                     lv_obj_t *symbol = label(tile, drawn_icon ? drawn_icon : initial,
-                                             24, text_color);
-                    lv_obj_set_width(symbol, width - 16);
-                    lv_label_set_long_mode(symbol, LV_LABEL_LONG_DOT);
-                    lv_obj_set_style_text_align(symbol, LV_TEXT_ALIGN_CENTER, 0);
-                    lv_obj_align(symbol, LV_ALIGN_CENTER, 0, -13);
+                                             28, text_color);
+                    lv_obj_update_layout(symbol);
+                    int largest = lv_obj_get_width(symbol) > lv_obj_get_height(symbol)
+                        ? lv_obj_get_width(symbol) : lv_obj_get_height(symbol);
+                    int scale = icon_size * 256 / (largest > 0 ? largest : 28);
+                    lv_obj_set_style_transform_scale_x(symbol, scale, 0);
+                    lv_obj_set_style_transform_scale_y(symbol, scale, 0);
+                    lv_obj_align(symbol, LV_ALIGN_CENTER, 0, icon_y);
                 }
-                lv_obj_t *text = label(tile, caption, 14, text_color);
-                lv_obj_set_width(text, width - 16);
-                lv_label_set_long_mode(text, LV_LABEL_LONG_DOT);
-                lv_obj_set_style_text_align(text, LV_TEXT_ALIGN_CENTER, 0);
-                lv_obj_align(text, LV_ALIGN_CENTER, 0, 23);
+                if (caption[0]) {
+                    lv_obj_t *text = label(tile, caption, 14, text_color);
+                    lv_obj_set_width(text, width - 16);
+                    lv_label_set_long_mode(text, LV_LABEL_LONG_DOT);
+                    lv_obj_set_style_text_align(text, LV_TEXT_ALIGN_CENTER, 0);
+                    lv_obj_align(text, LV_ALIGN_BOTTOM_MID, 0, -6);
+                }
             } else {
                 lv_obj_set_style_bg_color(tile, color(0x1F2937), 0);
                 bool swipe_test = page > 0 && slot == 0 && index >= total;

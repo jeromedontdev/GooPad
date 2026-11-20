@@ -3,6 +3,8 @@ idf_component_register(
         "main.c"
         "goopad.c"
         "goopad_ui.c"
+        "goopad_tls.c"
+        "hw_audio.c"
         "board.c"
         "hw_display.c"
         "hw_touch.c"
@@ -14,6 +16,7 @@ idf_component_register(
     REQUIRES
         driver
         esp_driver_gpio
+        esp_driver_i2s
         esp_driver_i2c
         esp_driver_ledc
         esp_driver_sdspi
@@ -32,6 +35,7 @@ idf_component_register(
         esp_lvgl_port
         esp_lcd_touch_gt911
         esp_http_server
+        esp_https_server
         esp_http_client
         app_update
         mbedtls

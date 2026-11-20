@@ -46,6 +46,9 @@ void app_main(void)
     if (hw_wifi_init() != ESP_OK) {
         ESP_LOGE(TAG, "Wi-Fi init failed");
     }
+    if (hw_audio_init() != ESP_OK) {
+        ESP_LOGE(TAG, "audio init failed; sound actions unavailable");
+    }
     goopad_init();
     goopad_ui_init(disp);
     esp_ota_mark_app_valid_cancel_rollback();

@@ -19,6 +19,7 @@ static const char *TAG = "touch";
 
 static esp_lcd_touch_handle_t s_touch;
 static esp_lcd_panel_io_handle_t s_touch_io;
+static bool s_touch_was_pressed;
 
 static void touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 {
@@ -45,17 +46,18 @@ static void touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
         g_app.touch_x = pt[0].x;
         g_app.touch_y = pt[0].y;
         g_app.touch_pressed = true;
-        /* Log the first touch and then every 50th, so a working panel is
-         * visible on the console without flooding it while drawing. */
-        if (g_app.touch_events == 0 || (g_app.touch_events % 50) == 0) {
+        /* Log each new press without repeating while the finger is held. */
+        if (!s_touch_was_pressed) {
             ESP_LOGI(TAG, "touch #%lu at (%d, %d)",
                      (unsigned long)(g_app.touch_events + 1), pt[0].x, pt[0].y);
         }
+        s_touch_was_pressed = true;
         g_app.touch_events++;
         g_app.results.touch = TEST_PASS;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
         g_app.touch_pressed = false;
+        s_touch_was_pressed = false;
     }
 }
 

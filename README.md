@@ -15,6 +15,11 @@ touch display into a Wi-Fi macro pad. It is built with ESP-IDF 6.1 and LVGL
    password. Open `https://<device-ip>/` on a computer or phone on that Wi-Fi.
    The device creates its own self-signed certificate: accept the browser's
    certificate warning for your GooPad before signing in.
+   New devices use an eight-character initial password without ambiguous
+   letters. Changing the password never changes the initial password shown
+   in Info, and the new password is never displayed. Older firmware did not
+   preserve the initial password separately; upgrades keep your login intact
+   and omit the password from Info rather than expose a changed password.
 3. Sign in as `admin` with the password on the display. Create macros, choose
    a 2–4 column and row layout, colors, theme, and tile shape, then save.
 4. Tap a configured tile on GooPad to run its action. Unconfigured tiles stay
@@ -43,22 +48,33 @@ fall back to the button label's initial. The editor also bundles 2,163
 searchable Font Awesome Free solid, regular, and brand icons. Enter Font
 Awesome codes such as `fa-server` or `fa-brands fa-github`, or search the
 bundled catalog. Font Awesome selections and uploaded images are converted to
-32×32 RGB565 with an 8-bit alpha plane and saved under
+160×160 RGB565 with an 8-bit alpha plane and saved under
 `/goopad` on the SD card; a card is required to use them. The **Settings** page
-contains device themes, background color, website appearance, backups, firmware
+contains preset themes plus Custom background controls, website appearance, backups, firmware
 updates, and admin-password changes. The device's information panel also has
-theme and SD firmware-update controls. The display has Midnight, Ocean, Forest,
+theme, display-brightness, sound-volume, and SD firmware-update controls. Brightness
+and volume changes take effect immediately; **Save settings** persists them.
+The display has Midnight, Ocean, Forest,
 and Light palettes, custom background colors, and per-macro font colors and
 rounded, square, circle, pill, or soft-corner tile shapes. Up to 32 macros are stored locally;
-grid size controls how many appear on each page.
+grid size controls how many appear on each page. Each macro can choose an
+outline color or remove its outline. Preset themes always use their own
+background; choose **Custom** for your own background.
 
 Each button can play a click, beep, chime, or alert through the board's I2S
 speaker, either alongside its web action or with **Play a sound only**.
-Playback is queued on a separate task. The board must have a speaker and
-the speaker routing links fitted; sound files are not supported.
+Select **Uploaded WAV / MP3** to upload a sound up to 30 seconds (15 MB input).
+The browser decodes and resamples it to 22050 Hz mono PCM WAV; the device
+streams it from SD on a separate task. Repeat taps while playback is busy
+are rejected rather than accumulating sounds or web actions.
+The board must have a speaker and the speaker routing links fitted.
+All sounds, including uploads, retain the original 60% waveform-amplitude
+cap; backlight brightness retains its 70% PWM cap. The user-facing sliders
+still range from 0–100. These caps do not replace an adequate USB supply.
 
 New icons retain transparency even when the tile color changes. Saving
-automatically upgrades older Font Awesome icons. Re-upload older custom
+automatically upgrades older Font Awesome icons to the higher resolution.
+Re-upload older custom
 images once: their original alpha was discarded by the previous firmware
 and cannot be reconstructed reliably.
 
@@ -145,8 +161,9 @@ PSRAM, ST7701S RGB display, GT911 touch, and microSD slot.
 Run the existing Companion tests with `python -m unittest tests.test_companion`.
 For authenticated hardware regression checks (PowerShell 7), run
 `.\tests\Test-GooPadDevice.ps1 -Device https://<device-ip> -Credential (Get-Credential admin)`.
-This temporarily exercises nine grid sizes, five shapes, and a sound action,
-then restores the original configuration even if a check fails.
+This temporarily exercises nine grid sizes, five shapes, power clamps,
+uploaded WAV playback and rapid sound taps, then restores configuration
+and power settings and deletes the test sound even if a check fails.
 
 To create a full-flash image and an app-only OTA image:
 

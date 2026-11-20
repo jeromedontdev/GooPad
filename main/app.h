@@ -114,6 +114,7 @@ typedef struct {
     /* Audio diagnostics. */
     volatile uint32_t audio_bytes_written;
     volatile uint32_t audio_tones_played;
+    volatile uint32_t audio_peak;
 
     i2c_master_bus_handle_t i2c_bus;
     lv_display_t *disp;
@@ -125,6 +126,7 @@ extern app_state_t g_app;
 esp_err_t board_init(void);
 void board_backlight_set(int percent);
 int board_backlight_get(void);
+uint32_t board_backlight_duty(void);
 void board_i2c_scan(void);
 
 /* settings.c */
@@ -147,8 +149,9 @@ bool goopad_configured(void);
 void goopad_get_config(char *out, size_t capacity);
 esp_err_t goopad_set_theme(const char *theme);
 esp_err_t goopad_install_ota_from_sd(void);
-void goopad_trigger(unsigned index);
-const char *goopad_web_password(void);
+esp_err_t goopad_trigger(unsigned index);
+const char *goopad_initial_password(void);
+esp_err_t goopad_set_controls(int brightness, int volume);
 void goopad_get_address(char *out, size_t capacity);
 
 /* hw_*.c */
@@ -172,6 +175,9 @@ int hw_audio_get_channel(void);
 void hw_audio_suspend(void);
 void hw_audio_restore_pins(void);
 void hw_audio_selftest(void);
+esp_err_t hw_audio_play_sound(const char *sound, const char *file_key);
+bool hw_audio_busy(void);
+bool hw_audio_valid_wav(const uint8_t *header, size_t size);
 void hw_info_init(void);
 void console_init(void);
 

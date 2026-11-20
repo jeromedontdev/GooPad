@@ -14,6 +14,7 @@
 #include "esp_random.h"
 #include "esp_wifi.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "cJSON.h"
@@ -34,6 +35,8 @@ static const char *NVS_NS = "goopad";
 #define MAX_MACROS 32
 #define ICON_BYTES (32 * 32 * 2)
 #define ALPHA_ICON_BYTES (32 * 32 * 3)
+#define LARGE_ICON_BYTES (160 * 160 * 3)
+#define SOUND_MAX_BYTES (44 + BSP_I2S_SAMPLE_RATE * 2 * 30)
 
 static const char s_default_config[] =
     "{\"cols\":3,\"rows\":3,\"theme\":\"midnight\",\"background\":\"111827\","
@@ -49,6 +52,7 @@ extern const uint8_t fa_icons_json_end[] asm("_binary_fa_icons_json_end");
 
 static char *s_config;
 static char s_web_key[65];
+static char s_initial_key[9];
 static char s_ssid[33];
 static volatile bool s_connected;
 static volatile bool s_wifi_connecting;
@@ -80,8 +84,9 @@ static esp_err_t icon_upload_handler(httpd_req_t *req)
     if (!g_app.sd.mounted) {
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Insert and mount an SD card");
     }
-    if (req->content_len != ICON_BYTES && req->content_len != ALPHA_ICON_BYTES) {
-        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Expected a 32x32 RGB565 or RGB565A8 icon");
+    if (req->content_len != ICON_BYTES && req->content_len != ALPHA_ICON_BYTES &&
+        req->content_len != LARGE_ICON_BYTES) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Expected a 32x32 or 160x160 icon");
     }
     char query[32];
     char value[20];
@@ -114,7 +119,8 @@ static esp_err_t icon_upload_handler(httpd_req_t *req)
     char path[64];
     snprintf(temporary, sizeof(temporary), "%s/icon-%s.tmp", directory, value);
     snprintf(path, sizeof(path), "%s/icon-%s.%s", directory, value,
-             image_bytes == ALPHA_ICON_BYTES ? "rgb565a8" : "rgb565");
+             image_bytes == ICON_BYTES ? "rgb565" :
+             image_bytes == LARGE_ICON_BYTES ? "160.rgb565a8" : "rgb565a8");
     FILE *file = fopen(temporary, "wb");
     if (!file) {
         free(image);
@@ -146,7 +152,7 @@ static esp_err_t icon_get_handler(httpd_req_t *req)
 {
     esp_err_t auth = auth_required(req);
     if (auth != ESP_OK) return auth;
-    char query[80], key[20], format[16];
+    char query[96], key[20], format[16], size[8];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         httpd_query_key_value(query, "key", key, sizeof(key)) != ESP_OK ||
         !valid_icon_key(key)) {
@@ -154,12 +160,14 @@ static esp_err_t icon_get_handler(httpd_req_t *req)
     }
     bool alpha = httpd_query_key_value(query, "format", format, sizeof(format)) == ESP_OK &&
                  !strcmp(format, "rgb565a8");
+    bool large = alpha && httpd_query_key_value(query, "size", size, sizeof(size)) == ESP_OK &&
+                 !strcmp(size, "160");
     char path[64];
     snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.%s",
-             key, alpha ? "rgb565a8" : "rgb565");
+             key, large ? "160.rgb565a8" : alpha ? "rgb565a8" : "rgb565");
     FILE *file = g_app.sd.mounted ? fopen(path, "rb") : NULL;
     if (!file) return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Icon not found on SD");
-    size_t bytes = alpha ? ALPHA_ICON_BYTES : ICON_BYTES;
+    size_t bytes = large ? LARGE_ICON_BYTES : alpha ? ALPHA_ICON_BYTES : ICON_BYTES;
     char *pixels = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     bool ok = pixels && fread(pixels, 1, bytes, file) == bytes;
     fclose(file);
@@ -175,18 +183,24 @@ static esp_err_t icon_get_handler(httpd_req_t *req)
 
 static void ensure_web_key(void)
 {
+    read_string("initialkey", s_initial_key, sizeof(s_initial_key));
     if (read_string("webkey", s_web_key, sizeof(s_web_key)) &&
         strlen(s_web_key) >= 8 && strlen(s_web_key) <= 64) return;
 
-    static const char hex[] = "0123456789abcdef";
-    uint8_t random[12];
+    static const char alphabet[] = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    uint8_t random[8];
     esp_fill_random(random, sizeof(random));
     for (size_t i = 0; i < sizeof(random); i++) {
-        s_web_key[i * 2] = hex[random[i] >> 4];
-        s_web_key[i * 2 + 1] = hex[random[i] & 15];
+        s_initial_key[i] = alphabet[random[i] & 31];
     }
-    s_web_key[24] = '\0';
-    ESP_ERROR_CHECK(save_string("webkey", s_web_key));
+    s_initial_key[8] = '\0';
+    strlcpy(s_web_key, s_initial_key, sizeof(s_web_key));
+    nvs_handle_t nvs;
+    ESP_ERROR_CHECK(nvs_open(NVS_NS, NVS_READWRITE, &nvs));
+    ESP_ERROR_CHECK(nvs_set_str(nvs, "initialkey", s_initial_key));
+    ESP_ERROR_CHECK(nvs_set_str(nvs, "webkey", s_web_key));
+    ESP_ERROR_CHECK(nvs_commit(nvs));
+    nvs_close(nvs);
 }
 
 static void load_config(void)
@@ -238,7 +252,8 @@ void goopad_get_config(char *out, size_t capacity)
 esp_err_t goopad_set_theme(const char *theme)
 {
     if (!theme || (strcmp(theme, "midnight") && strcmp(theme, "ocean") &&
-                   strcmp(theme, "forest") && strcmp(theme, "light"))) {
+                   strcmp(theme, "forest") && strcmp(theme, "light") &&
+                   strcmp(theme, "custom"))) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -255,6 +270,18 @@ esp_err_t goopad_set_theme(const char *theme)
         }
     } else if (root) {
         if (!cJSON_AddStringToObject(root, "theme", theme)) {
+            cJSON_Delete(root);
+            xSemaphoreGive(s_config_lock);
+            return ESP_ERR_NO_MEM;
+        }
+    }
+    if (root && strcmp(theme, "custom")) {
+        const char *background = !strcmp(theme, "ocean") ? "0B1B2A" :
+            !strcmp(theme, "forest") ? "10251D" : !strcmp(theme, "light") ? "F1F5F9" : "111827";
+        cJSON *bg = cJSON_GetObjectItemCaseSensitive(root, "background");
+        bool ok = cJSON_IsString(bg) ? cJSON_SetValuestring(bg, background) != NULL :
+                                       cJSON_AddStringToObject(root, "background", background) != NULL;
+        if (!ok) {
             cJSON_Delete(root);
             xSemaphoreGive(s_config_lock);
             return ESP_ERR_NO_MEM;
@@ -282,9 +309,28 @@ esp_err_t goopad_set_theme(const char *theme)
     return err;
 }
 
-const char *goopad_web_password(void)
+const char *goopad_initial_password(void)
 {
-    return s_web_key;
+    return s_initial_key[0] ? s_initial_key : NULL;
+}
+
+esp_err_t goopad_set_controls(int brightness, int volume)
+{
+    if (brightness < 0 || brightness > 100 || volume < 0 || volume > 100) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    nvs_handle_t nvs;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &nvs);
+    if (err != ESP_OK) return err;
+    err = nvs_set_u8(nvs, "brightness", (uint8_t)brightness);
+    if (err == ESP_OK) err = nvs_set_u8(nvs, "volume", (uint8_t)volume);
+    if (err == ESP_OK) err = nvs_commit(nvs);
+    nvs_close(nvs);
+    if (err == ESP_OK) {
+        board_backlight_set(brightness);
+        hw_audio_set_volume(volume);
+    }
+    return err;
 }
 
 void goopad_get_address(char *out, size_t capacity)
@@ -382,6 +428,94 @@ static bool valid_hex_color(const cJSON *value)
     return true;
 }
 
+static esp_err_t sound_upload_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+    if (!g_app.sd.mounted) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "SD card required");
+    char query[32], key[20];
+    if (req->content_len <= 44 || req->content_len > SOUND_MAX_BYTES ||
+        httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "key", key, sizeof(key)) != ESP_OK || !valid_icon_key(key)) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid sound size or key");
+    }
+    uint8_t header[44];
+    size_t received = 0;
+    while (received < sizeof(header)) {
+        int n = httpd_req_recv(req, (char *)header + received, sizeof(header) - received);
+        if (n <= 0) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Sound upload interrupted");
+        received += (size_t)n;
+    }
+    if (!hw_audio_valid_wav(header, (size_t)req->content_len)) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Expected 22050 Hz mono PCM WAV, at most 30 seconds");
+    }
+    if (mkdir(BSP_SD_MOUNT_POINT "/goopad", 0775) != 0 && errno != EEXIST) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not create sound folder");
+    }
+    char path[64], temporary[64];
+    snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/sound-%s.wav", key);
+    snprintf(temporary, sizeof(temporary), BSP_SD_MOUNT_POINT "/goopad/sound-%s.tmp", key);
+    FILE *file = fopen(temporary, "wb");
+    char *buffer = heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    bool ok = file && buffer && fwrite(header, 1, sizeof(header), file) == sizeof(header);
+    while (ok && received < (size_t)req->content_len) {
+        size_t remaining = (size_t)req->content_len - received;
+        int n = httpd_req_recv(req, buffer, remaining < 4096 ? remaining : 4096);
+        if (n <= 0) { ok = false; break; }
+        ok = fwrite(buffer, 1, (size_t)n, file) == (size_t)n;
+        received += (size_t)n;
+    }
+    free(buffer);
+    if (file && fclose(file) != 0) ok = false;
+    if (!ok || rename(temporary, path) != 0) {
+        remove(temporary);
+        ESP_LOGE(TAG, "sound upload failed");
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not save sound");
+    }
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
+}
+
+static esp_err_t sound_delete_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+    char query[32], key[20];
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "key", key, sizeof(key)) != ESP_OK || !valid_icon_key(key)) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid sound key");
+    }
+    xSemaphoreTake(s_config_lock, portMAX_DELAY);
+    bool used = strstr(s_config, key) != NULL || hw_audio_busy();
+    char path[64];
+    snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/sound-%s.wav", key);
+    int result = used ? -1 : remove(path);
+    xSemaphoreGive(s_config_lock);
+    if (used) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Sound is in use");
+    if (result != 0) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not delete sound");
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
+}
+
+static esp_err_t controls_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+    char *body = NULL;
+    if (receive_body(req, &body) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Could not read controls");
+    }
+    cJSON *root = cJSON_Parse(body);
+    cJSON *brightness = cJSON_GetObjectItemCaseSensitive(root, "brightness");
+    cJSON *volume = cJSON_GetObjectItemCaseSensitive(root, "volume");
+    bool valid = cJSON_IsNumber(brightness) && cJSON_IsNumber(volume) &&
+        brightness->valuedouble == brightness->valueint && volume->valuedouble == volume->valueint;
+    esp_err_t err = valid ? goopad_set_controls(brightness->valueint, volume->valueint) : ESP_ERR_INVALID_ARG;
+    cJSON_Delete(root);
+    free(body);
+    if (err != ESP_OK) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, esp_err_to_name(err));
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
+}
+
 static bool validate_config(const char *json)
 {
     cJSON *root = cJSON_Parse(json);
@@ -389,9 +523,18 @@ static bool validate_config(const char *json)
     cJSON *cols = cJSON_GetObjectItemCaseSensitive(root, "cols");
     cJSON *rows = cJSON_GetObjectItemCaseSensitive(root, "rows");
     cJSON *macros = cJSON_GetObjectItemCaseSensitive(root, "macros");
+    cJSON *theme = cJSON_GetObjectItemCaseSensitive(root, "theme");
+    cJSON *background = cJSON_GetObjectItemCaseSensitive(root, "background");
     bool valid = cJSON_IsNumber(cols) && cols->valueint >= 2 && cols->valueint <= 4 &&
                  cJSON_IsNumber(rows) && rows->valueint >= 2 && rows->valueint <= 4 &&
-                 cJSON_IsArray(macros) && cJSON_GetArraySize(macros) <= MAX_MACROS;
+                 cJSON_IsArray(macros) && cJSON_GetArraySize(macros) <= MAX_MACROS &&
+                 (!theme || (cJSON_IsString(theme) &&
+                             (!strcmp(theme->valuestring, "midnight") ||
+                              !strcmp(theme->valuestring, "ocean") ||
+                              !strcmp(theme->valuestring, "forest") ||
+                              !strcmp(theme->valuestring, "light") ||
+                              !strcmp(theme->valuestring, "custom")))) &&
+                 (!background || valid_hex_color(background));
     for (cJSON *item = valid ? macros->child : NULL; item; item = item->next) {
         cJSON *name = cJSON_GetObjectItemCaseSensitive(item, "name");
         cJSON *url = cJSON_GetObjectItemCaseSensitive(item, "url");
@@ -410,6 +553,11 @@ static bool validate_config(const char *json)
         cJSON *tile_color = cJSON_GetObjectItemCaseSensitive(item, "color");
         cJSON *image_format = cJSON_GetObjectItemCaseSensitive(item, "iconFormat");
         cJSON *sound = cJSON_GetObjectItemCaseSensitive(item, "sound");
+        cJSON *sound_file = cJSON_GetObjectItemCaseSensitive(item, "soundFile");
+        cJSON *sound_name = cJSON_GetObjectItemCaseSensitive(item, "soundName");
+        cJSON *icon_size = cJSON_GetObjectItemCaseSensitive(item, "iconSize");
+        cJSON *outline = cJSON_GetObjectItemCaseSensitive(item, "outline");
+        cJSON *outline_color = cJSON_GetObjectItemCaseSensitive(item, "outlineColor");
         valid = cJSON_IsObject(item) && cJSON_IsString(name) && strlen(name->valuestring) <= 24 &&
                 cJSON_IsString(icon) && strlen(icon->valuestring) <= 8 &&
                 cJSON_IsString(url) &&
@@ -451,7 +599,19 @@ static bool validate_config(const char *json)
                              !strcmp(sound->valuestring, "click") ||
                              !strcmp(sound->valuestring, "beep") ||
                              !strcmp(sound->valuestring, "chime") ||
+                             !strcmp(sound->valuestring, "file") ||
                              !strcmp(sound->valuestring, "alert")))) &&
+                (!sound_file || (cJSON_IsString(sound_file) &&
+                                 valid_icon_key(sound_file->valuestring))) &&
+                (!sound_name || (cJSON_IsString(sound_name) && strlen(sound_name->valuestring) <= 384)) &&
+                (!(cJSON_IsString(sound) && !strcmp(sound->valuestring, "file")) ||
+                 cJSON_IsString(sound_file)) &&
+                (!icon_size || (cJSON_IsNumber(icon_size) &&
+                                (icon_size->valuedouble == 32 || icon_size->valuedouble == 160))) &&
+                (!(cJSON_IsNumber(icon_size) && icon_size->valueint == 160) ||
+                 (cJSON_IsString(image_format) && !strcmp(image_format->valuestring, "rgb565a8"))) &&
+                (!outline || cJSON_IsBool(outline)) &&
+                (!outline_color || valid_hex_color(outline_color)) &&
                 (!(cJSON_IsString(action_mode) && !strcmp(action_mode->valuestring, "sound")) ||
                  (cJSON_IsString(sound) && strcmp(sound->valuestring, "none"))) &&
                 (!text_color || valid_hex_color(text_color)) &&
@@ -626,7 +786,7 @@ static void macro_task(void *arg)
     vTaskDelete(NULL);
 }
 
-void goopad_trigger(unsigned index)
+esp_err_t goopad_trigger(unsigned index)
 {
     xSemaphoreTake(s_config_lock, portMAX_DELAY);
     cJSON *root = cJSON_Parse(s_config);
@@ -638,35 +798,35 @@ void goopad_trigger(unsigned index)
     cJSON *secret = item ? cJSON_GetObjectItemCaseSensitive(item, "secret") : NULL;
     cJSON *sound = item ? cJSON_GetObjectItemCaseSensitive(item, "sound") : NULL;
     cJSON *mode = item ? cJSON_GetObjectItemCaseSensitive(item, "actionMode") : NULL;
+    esp_err_t sound_err = ESP_OK;
     if (cJSON_IsString(sound) && strcmp(sound->valuestring, "none")) {
-        if (!strcmp(sound->valuestring, "click")) hw_audio_play_tone(1800, 40);
-        else if (!strcmp(sound->valuestring, "beep")) hw_audio_play_tone(1000, 200);
-        else if (!strcmp(sound->valuestring, "chime")) {
-            hw_audio_play_tone(660, 150);
-            hw_audio_play_tone(880, 250);
-        } else if (!strcmp(sound->valuestring, "alert")) {
-            hw_audio_play_tone(440, 200);
-            hw_audio_play_tone(440, 200);
-        }
+        cJSON *file = cJSON_GetObjectItemCaseSensitive(item, "soundFile");
+        sound_err = hw_audio_play_sound(sound->valuestring,
+                                        cJSON_IsString(file) ? file->valuestring : NULL);
+    }
+    if (sound_err != ESP_OK) {
+        cJSON_Delete(root);
+        xSemaphoreGive(s_config_lock);
+        return sound_err;
     }
     if (cJSON_IsString(mode) && !strcmp(mode->valuestring, "sound")) {
         cJSON_Delete(root);
         xSemaphoreGive(s_config_lock);
-        return;
+        return sound_err;
     }
     if (!cJSON_IsString(url) || !valid_url(url->valuestring) ||
         !cJSON_IsString(method) || !cJSON_IsString(body) || !cJSON_IsString(secret)) {
         cJSON_Delete(root);
         xSemaphoreGive(s_config_lock);
         ESP_LOGW(TAG, "macro %u is not configured", index);
-        return;
+        return sound_err != ESP_OK ? sound_err : ESP_ERR_INVALID_ARG;
     }
     macro_action_t *action = calloc(1, sizeof(*action));
     if (!action) {
         cJSON_Delete(root);
         xSemaphoreGive(s_config_lock);
         ESP_LOGE(TAG, "macro task allocation failed");
-        return;
+        return ESP_ERR_NO_MEM;
     }
     strlcpy(action->url, url->valuestring, sizeof(action->url));
     strlcpy(action->method, method->valuestring, sizeof(action->method));
@@ -677,7 +837,9 @@ void goopad_trigger(unsigned index)
     if (xTaskCreate(macro_task, "macro_http", 6144, action, 4, NULL) != pdPASS) {
         free(action);
         ESP_LOGE(TAG, "could not start macro task");
+        return ESP_ERR_NO_MEM;
     }
+    return ESP_OK;
 }
 
 static esp_err_t trigger_handler(httpd_req_t *req)
@@ -698,9 +860,14 @@ static esp_err_t trigger_handler(httpd_req_t *req)
         free(body);
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid macro index");
     }
-    goopad_trigger((unsigned)index->valueint);
+    esp_err_t err = goopad_trigger((unsigned)index->valueint);
     cJSON_Delete(root);
     free(body);
+    if (err == ESP_ERR_INVALID_STATE) {
+        httpd_resp_set_status(req, "429 Too Many Requests");
+        return httpd_resp_sendstr(req, "Sound is already playing");
+    }
+    if (err != ESP_OK) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, esp_err_to_name(err));
     return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
 
@@ -902,6 +1069,12 @@ static esp_err_t status_handler(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "soundAvailable", g_app.results.audio == TEST_PASS);
     cJSON_AddNumberToObject(root, "audioTones", g_app.audio_tones_played);
     cJSON_AddNumberToObject(root, "audioBytes", g_app.audio_bytes_written);
+    cJSON_AddNumberToObject(root, "audioPeak", g_app.audio_peak);
+    cJSON_AddNumberToObject(root, "uptimeMs", esp_timer_get_time() / 1000);
+    cJSON_AddBoolToObject(root, "audioBusy", hw_audio_busy());
+    cJSON_AddNumberToObject(root, "brightness", board_backlight_get());
+    cJSON_AddNumberToObject(root, "backlightDuty", board_backlight_duty());
+    cJSON_AddNumberToObject(root, "volume", hw_audio_get_volume());
     char *response = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     if (!response) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Status unavailable");
@@ -915,7 +1088,7 @@ static esp_err_t start_server(void)
 {
     if (s_server) return ESP_OK;
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
-    config.httpd.max_uri_handlers = 13;
+    config.httpd.max_uri_handlers = 16;
     config.httpd.core_id = 1;
     esp_err_t err = goopad_tls_configure(&config, s_ip_address);
     if (err == ESP_OK) err = httpd_ssl_start(&s_server, &config);
@@ -934,6 +1107,9 @@ static esp_err_t start_server(void)
         {.uri = "/api/icons", .method = HTTP_GET, .handler = icons_handler},
         {.uri = "/api/icon", .method = HTTP_POST, .handler = icon_upload_handler},
         {.uri = "/api/icon", .method = HTTP_GET, .handler = icon_get_handler},
+        {.uri = "/api/sound", .method = HTTP_POST, .handler = sound_upload_handler},
+        {.uri = "/api/sound", .method = HTTP_DELETE, .handler = sound_delete_handler},
+        {.uri = "/api/controls", .method = HTTP_POST, .handler = controls_handler},
     };
     for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {
         err = httpd_register_uri_handler(s_server, &routes[i]);
@@ -1027,6 +1203,13 @@ void goopad_init(void)
     ESP_ERROR_CHECK(s_config_lock ? ESP_OK : ESP_ERR_NO_MEM);
     load_config();
     ensure_web_key();
+    nvs_handle_t controls;
+    if (nvs_open(NVS_NS, NVS_READONLY, &controls) == ESP_OK) {
+        uint8_t value;
+        if (nvs_get_u8(controls, "brightness", &value) == ESP_OK) board_backlight_set(value);
+        if (nvs_get_u8(controls, "volume", &value) == ESP_OK) hw_audio_set_volume(value);
+        nvs_close(controls);
+    }
     read_string("ssid", s_ssid, sizeof(s_ssid));
     if (esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event, NULL) != ESP_OK ||
         esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event, NULL) != ESP_OK) {

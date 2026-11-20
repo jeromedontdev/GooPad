@@ -22,6 +22,7 @@ body.light button{background:#f1f5f9;color:#172033;border-color:#cbd5e1}body.lig
 .fa-dialog{width:min(650px,calc(100% - 24px));max-height:85vh;border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--ink);padding:0}.fa-dialog::backdrop{background:#020617cc}.fa-modal{padding:18px}.fa-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.fa-modal-head h2{margin:0 0 12px}.fa-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:7px;max-height:55vh;overflow:auto;margin-top:12px}.fa-results button{text-align:left;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hidden{display:none!important}
 .fa-dialog{overflow:hidden}.fa-dialog[open]{display:flex}.fa-modal{display:flex;flex-direction:column;width:100%;max-height:85vh;min-height:0;overflow:hidden}.fa-modal-head,.fa-modal>input,.fa-modal>p{flex-shrink:0}.fa-results{min-height:0;flex:1;overscroll-behavior:contain}.fa-results button{display:flex;gap:8px;align-items:center;min-width:0}.fa-results svg{width:28px;height:28px;flex-shrink:0}.fa-results span{overflow:hidden;text-overflow:ellipsis}.icon-code-row{flex-wrap:wrap}.icon-code-row input{flex:1 1 180px}
 .preview{aspect-ratio:480/396}.preview-page{grid-template-rows:repeat(var(--rows),minmax(0,1fr))}.preview-cell{min-width:0;min-height:0;display:grid;place-items:center;container-type:size}.preview button{width:100%;height:100%;min-height:0;position:relative;padding:8px}.preview button[data-shape=circle]{width:min(100cqw,100cqh);height:min(100cqw,100cqh);border-radius:50%}.preview button[data-shape=square]{border-radius:4px}.preview button[data-shape=pill]{height:75%;border-radius:999px}.preview button[data-shape=soft]{border-radius:32%}.preview .ico{font-size:min(55cqw,55cqh);line-height:1}.preview img{width:75%;height:calc(100% - 20px);object-fit:contain}.preview .image-only img{height:85%;width:85%}.preview small{flex-shrink:0}.preview button:hover{filter:none}
+#save{display:block;margin:12px auto 0}#saveStatus{text-align:center;min-height:24px;margin:8px 0 0}.save-status{color:var(--green)}.save-status.error{color:#ef4444}button[aria-busy=true]::before{content:"";display:inline-block;width:13px;height:13px;margin-right:8px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}input[type=checkbox]{width:auto}.preview button{border:2px solid transparent}
 footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-size:12px}a{color:#a5b4fc}body.light a{color:#4338ca}
 @media(max-width:780px){.layout{grid-template-columns:1fr}.side{grid-row:1}.fields,.macro-fields{grid-template-columns:1fr}.macro-fields .wide{grid-column:auto}.preview{grid-template-columns:repeat(3,1fr)}}
 </style>
@@ -39,14 +40,14 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <div class="field"><label>Rows per page</label><select id="rows"><option>2</option><option selected>3</option><option>4</option></select></div>
 </div><h2 style="margin-top:22px">Macros <span class="hint" id="count"></span></h2>
 <div id="macros"></div><button id="add" style="margin-top:12px">＋ Add macro</button><p class="hint">Set up a button with a link, open a website on your Windows PC, or choose Advanced for custom requests.</p></section>
-<aside class="side"><section class="panel"><h2>Live preview</h2><div class="preview" id="preview" aria-label="Swipe horizontally to preview GooPad pages"></div><div class="preview-dots" id="previewDots" aria-label="Preview pages"></div><p class="hint">Swipe horizontally to test page scrolling. Dots show your current page.</p><button class="primary" id="save">Save to device</button></section>
+<aside class="side"><section class="panel"><h2>Live preview</h2><div class="preview" id="preview" aria-label="Swipe horizontally to preview GooPad pages"></div><div class="preview-dots" id="previewDots" aria-label="Preview pages"></div><p class="hint">Swipe horizontally to test page scrolling. Dots show your current page.</p><button class="primary" id="save">Save to device</button><p id="saveStatus" class="save-status" role="status" aria-live="polite"></p></section>
 <p class="hint">Choose an icon and action in each macro. Use Settings for themes, colors, backup, updates, and your admin password.</p></aside>
 </div></div>
 <div id="settingsView" class="hidden"><div class="layout">
 <section class="panel"><h2>Device appearance</h2><div class="fields">
-<div class="field"><label for="deviceTheme">Device theme</label><select id="deviceTheme"><option value="midnight">Midnight</option><option value="ocean">Ocean</option><option value="forest">Forest</option><option value="light">Light</option></select></div>
-<div class="field"><label for="background">Device background</label><input id="background" type="color" value="#111827"></div>
-</div><p class="hint">Each theme changes the screen palette and tile outlines. A custom background color overrides the theme background.</p><button id="saveSettings" class="primary" type="button">Save appearance</button></section>
+<div class="field"><label for="deviceTheme">Device theme</label><select id="deviceTheme"><option value="midnight">Midnight</option><option value="ocean">Ocean</option><option value="forest">Forest</option><option value="light">Light</option><option value="custom">Custom</option></select></div>
+<div class="field" id="customBackground"><label for="background">Custom background</label><input id="background" type="color" value="#111827"></div>
+</div><p class="hint">Presets use their own background palette. Choose Custom to edit the background; each macro can also override its font, tile, and outline colors.</p><button id="saveSettings" class="primary" type="button">Save appearance</button></section>
 <aside class="side"><section class="panel"><h2>Website appearance</h2><p class="hint">Change the editor colors independently of the device.</p><button id="siteTheme" type="button">Use light website theme</button></section>
 <section class="panel"><h2>Backup and firmware</h2><p class="hint">Back up the current configuration to SD, upload an application image, check GitHub for a release, or install /goopad.bin from SD.</p><div class="toolbar"><button id="backup" type="button">Backup to SD</button><button id="otaPick" type="button">Upload firmware</button><button id="otaGithub" type="button">GitHub release</button><button id="otaSd" type="button">Install SD image</button></div><input id="firmware" type="file" accept=".bin" hidden></section>
 <section class="panel"><h2>Admin password</h2><p class="hint">Set a new password for the admin account. Use 8-64 printable characters. After saving, sign in again with the new password.</p><div class="fields"><div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"></div><div class="field"><label for="confirmPassword">Confirm password</label><input id="confirmPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"></div></div><button id="changePassword" class="primary" type="button" style="margin-top:12px">Change admin password</button></section></aside>
@@ -57,33 +58,37 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <footer>GooPad · Local-first macro controller · Configuration is stored on the device. Icons: <a href="https://fontawesome.com" target="_blank" rel="noopener noreferrer">Font Awesome Free</a>, CC BY 4.0.</footer>
 <script>
 const $=s=>document.querySelector(s), presets=[["Home","🏠"],["Light","💡"],["Music","🎵"],["Play","▶️"],["Pause","⏸️"],["Stop","⏹️"],["Volume","🔊"],["Mute","🔇"],["Next","⏭️"],["Back","⏮️"],["Web","🌐"],["Mail","✉️"],["Chat","💬"],["Camera","📷"],["Video","🎥"],["Photo","🖼️"],["Folder","📁"],["File","📄"],["Save","💾"],["Search","🔎"],["Settings","⚙️"],["Tools","🛠️"],["Lock","🔒"],["Unlock","🔓"],["Power","⏻"],["Refresh","🔄"],["Upload","⬆️"],["Download","⬇️"],["Copy","📋"],["Paste","📥"],["Cut","✂️"],["Undo","↩️"],["Redo","↪️"],["Star","⭐"],["Heart","❤️"],["Check","✅"],["Warning","⚠️"],["Info","ℹ️"],["Alert","🚨"],["Clock","🕒"],["Calendar","📅"],["Timer","⏱️"],["Network","📶"],["Wi-Fi","📡"],["Bluetooth","ᛒ"],["Cloud","☁️"],["Sun","☀️"],["Moon","🌙"],["Weather","🌦️"],["Temperature","🌡️"],["Car","🚗"],["Bike","🚲"],["Train","🚆"],["Plane","✈️"],["Rocket","🚀"],["Game","🎮"],["Controller","🕹️"],["Microphone","🎙️"],["Headphones","🎧"],["Speaker","🔈"],["Podcast","🎙️"],["Book","📖"],["Note","📝"],["Pen","🖊️"],["Brush","🖌️"],["Palette","🎨"],["Code","💻"],["Terminal","⌨️"],["Database","🗄️"],["Bug","🐞"],["Robot","🤖"],["Clipboard","📋"],["Chart","📊"],["Money","💰"],["Cart","🛒"],["Gift","🎁"],["Coffee","☕"],["Food","🍽️"],["Water","💧"],["Plant","🌱"],["Fire","🔥"],["Party","🎉"],["Bell","🔔"],["Alarm","⏰"],["Pin","📍"],["Map","🗺️"],["Flag","🚩"],["Globe","🌍"],["Key","🔑"],["Shield","🛡️"],["Eye","👁️"],["User","👤"],["Users","👥"],["Add","➕"],["Remove","➖"],["Close","✖️"],["Menu","☰"],["Grid","▦"],["List","☷"],["Arrow up","⬆"],["Arrow down","⬇"],["Arrow left","⬅"],["Arrow right","➡"],["Expand","⛶"],["Brightness","🔆"],["Contrast","◐"],["Color","🌈"],["Print","🖨️"],["Scan","▤"],["QR","▦"],["Phone","📱"],["Tablet","▣"],["Monitor","🖥️"],["Keyboard","⌨️"],["Mouse","🖱️"],["USB","🔌"],["Battery","🔋"],["Plug","🔌"],["Home automation","🏡"],["Door","🚪"],["Fan","🌀"],["Thermostat","🌡️"],["Vacuum","🧹"],["Coffee maker","☕"],["TV","📺"],["Projector","📽️"],["Presentation","📽️"],["Meeting","👥"],["Focus","🎯"],["Sleep","😴"],["Away","🚶"],["Work","🧰"],["Personal","👤"],["Macro","⚡"],["Webhook","🪝"],["HTTP","🔗"],["SSH","🔐"],["GitHub","🐙"],["Docker","🐳"],["Windows","⊞"],["Linux","🐧"],["Apple",""],["Android","🤖"],["Discord","🎮"],["Slack","💬"],["YouTube","▶"],["Twitch","🟣"],["Spotify","🟢"],["Netflix","🎬"],["Tidal","〰️"],["Home Assistant","🏠"],["Hue","💡"],["Sonos","🔊"],["OBS","🎥"],["Stream","📡"],["Record","⏺️"],["Screenshot","📸"],["Window","▣"],["Desktop","🖥️"],["Task","☑️"],["Run","⚡"],["Stopwatch","⏱️"],["Lock screen","🔒"],["Logout","↪️"],["Restart","🔄"],["Shutdown","⏻"],["Server","🗄️"],["Router","📡"],["Ethernet","🔌"],["Signal","📶"],["Satellite","🛰️"],["Sunrise","🌅"],["Sunset","🌇"],["Rain","🌧️"],["Snow","❄️"],["Storm","⛈️"],["Rainbow","🌈"],["Mountain","⛰️"],["Beach","🏖️"],["Tree","🌳"],["Leaf","🍃"],["Cat","🐈"],["Dog","🐕"],["Bird","🐦"],["Fish","🐟"],["Apple fruit","🍎"],["Strawberry","🍓"],["Pizza","🍕"],["Burger","🍔"],["Cake","🍰"],["Sports","⚽"],["Basketball","🏀"],["Tennis","🎾"],["Trophy","🏆"],["Medal","🏅"],["Running","🏃"],["Swim","🏊"],["Music note","🎼"],["Drum","🥁"],["Guitar","🎸"],["Violin","🎻"],["Trumpet","🎺"],["Ticket","🎟️"],["Theater","🎭"],["Art","🖼️"],["Writing","✍️"],["Language","🗣️"],["Translate","🔤"],["Puzzle","🧩"],["Dice","🎲"],["Chess","♟️"],["Cards","🃏"],["Target","🎯"],["Compass","🧭"],["Tools box","🧰"],["Hammer","🔨"],["Wrench","🔧"],["Gear","⚙️"],["Factory","🏭"],["Package","📦"],["Inbox","📥"],["Outbox","📤"],["Bookmark","🔖"],["Tag","🏷️"],["Link","🔗"],["Chain","⛓️"],["Paperclip","📎"],["Magnifier","🔍"],["Filter","🔽"],["Sort","↕️"],["Slider","🎚️"],["Equalizer","🎛️"],["Wave","〰️"],["Chart up","📈"],["Chart down","📉"],["Calendar day","🗓️"],["Hourglass","⌛"],["Stopwatch digital","⏲️"],["Map pin","📌"],["Compass rose","🧭"],["Earth Americas","🌎"],["Earth Asia","🌏"],["Handshake","🤝"],["Thumbs up","👍"],["Thumbs down","👎"],["Smile","😊"],["Thinking","🤔"],["Idea","💡"],["Sparkles","✨"],["Lightning","⚡"],["Magic","🪄"],["Crystal ball","🔮"],["Crown","👑"],["Flag checkered","🏁"],["Traffic light","🚦"],["Construction","🚧"],["Emergency","🆘"],["Medical","⚕️"],["First aid","🩹"],["Hospital","🏥"],["Home key","🗝️"],["Wallet","👛"],["Credit card","💳"],["Receipt","🧾"],["Bank","🏦"],["Calculator","🧮"],["Abacus","🧮"],["Toolbox","🧰"],["Hammer wrench","🛠️"],["Trash","🗑️"],["Recycle","♻️"],["Water drop","💦"],["Power plug","🔌"],["Battery low","🪫"],["Battery full","🔋"]];
-let cfg={cols:3,rows:3,theme:"midnight",background:"111827",shape:"rounded",macros:[]}, selectedIconInput=null,faIcons=null,faLoading=null,faTargetIndex=-1,faBusy=false;
+let cfg={cols:3,rows:3,theme:"midnight",background:"111827",shape:"rounded",macros:[]}, selectedIconInput=null,faIcons=null,faLoading=null,faTargetIndex=-1,faBusy=false,pendingUploads=0;
 function msg(t,bad=false){$("#status").textContent=t;$("#status").style.color=bad?"#fca5a5":"#34d399"}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function setForm(){ $("#cols").value=cfg.cols;$("#rows").value=cfg.rows;$("#background").value="#"+(cfg.background||"111827").replace("#","");$("#deviceTheme").value=cfg.theme||"midnight";render()}
+const themeBackgrounds={midnight:"111827",ocean:"0B1B2A",forest:"10251D",light:"F1F5F9"};
+function updateThemeFields(){const custom=$("#deviceTheme").value==="custom";$("#customBackground").classList.toggle("hidden",!custom);$("#background").disabled=!custom;if(!custom)$("#background").value="#"+themeBackgrounds[$("#deviceTheme").value]}
+function setForm(){ $("#cols").value=cfg.cols;$("#rows").value=cfg.rows;$("#background").value="#"+(cfg.background||"111827").replace("#","");$("#deviceTheme").value=cfg.theme||"midnight";updateThemeFields();render()}
 async function uploadMacroIcon(input,index,macro){const file=input.files[0];if(file)await uploadIconImage(file,index,macro)}
 async function uploadIconImage(file,index,macro,faIcon=null){
  if(!file.type.startsWith("image/")){msg("Choose an image file.",true);return false}
- msg("Preparing 32×32 icon…");
+ pendingUploads++;
+ msg("Preparing high-resolution icon…");
  try{
   const image=new Image(),url=URL.createObjectURL(file);
   try{await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error("The selected image could not be decoded."));image.src=url})}
   finally{URL.revokeObjectURL(url)}
-  const previewCanvas=document.createElement("canvas");previewCanvas.width=previewCanvas.height=32;
+  const side=160,pixelCount=side*side;
+  const previewCanvas=document.createElement("canvas");previewCanvas.width=previewCanvas.height=side;
   const previewContext=previewCanvas.getContext("2d");
   if(!previewContext)throw Error("Image preview canvas is unavailable.");
-  const scale=Math.min(32/image.naturalWidth,32/image.naturalHeight),w=image.naturalWidth*scale,h=image.naturalHeight*scale;
-  previewContext.drawImage(image,(32-w)/2,(32-h)/2,w,h);
-  const canvas=document.createElement("canvas");canvas.width=canvas.height=32;
+  const scale=Math.min(side/image.naturalWidth,side/image.naturalHeight),w=image.naturalWidth*scale,h=image.naturalHeight*scale;
+  previewContext.drawImage(image,(side-w)/2,(side-h)/2,w,h);
+  const canvas=document.createElement("canvas");canvas.width=canvas.height=side;
   const context=canvas.getContext("2d",{willReadFrequently:true});
   if(!context)throw Error("Image canvas is unavailable.");
   context.drawImage(previewCanvas,0,0);
-  const rgba=context.getImageData(0,0,32,32).data,pixels=new Uint8Array(32*32*3);
-  for(let i=0;i<32*32;i++){const r=rgba[i*4],g=rgba[i*4+1],b=rgba[i*4+2],v=((r>>3)<<11)|((g>>2)<<5)|(b>>3);pixels[i*2]=v&255;pixels[i*2+1]=v>>8;pixels[32*32*2+i]=rgba[i*4+3]}
+  const rgba=context.getImageData(0,0,side,side).data,pixels=new Uint8Array(pixelCount*3);
+  for(let i=0;i<pixelCount;i++){const r=rgba[i*4],g=rgba[i*4+1],b=rgba[i*4+2],v=((r>>3)<<11)|((g>>2)<<5)|(b>>3);pixels[i*2]=v&255;pixels[i*2+1]=v>>8;pixels[pixelCount*2+i]=rgba[i*4+3]}
   const bytes=crypto.getRandomValues(new Uint8Array(8)),key="i"+Array.from(bytes,v=>v.toString(16).padStart(2,"0")).join("");
   const response=await fetch("/api/icon?key="+key,{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:pixels});
   if(!response.ok)throw Error((await response.text())||response.statusText);
-  macro.iconImage=key;macro.iconFormat="rgb565a8";macro.iconSource=faIcon?"fontawesome":"image";macro.imagePreview=previewCanvas.toDataURL("image/png");
+  macro.iconImage=key;macro.iconFormat="rgb565a8";macro.iconSize=side;macro.iconSource=faIcon?"fontawesome":"image";macro.imagePreview=previewCanvas.toDataURL("image/png");
   const card=document.querySelectorAll(".macro")[index];
   if(card){card.querySelector('[data-k="iconSource"]').value=macro.iconSource;card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==macro.iconSource))}
   if(faIcon)macro.faIcon=faIcon;else {delete macro.faIcon;delete macro.faCode}
@@ -91,6 +96,36 @@ async function uploadIconImage(file,index,macro,faIcon=null){
   if(label)label.textContent=faIcon?"Selected: "+faIcon:"Custom image selected";
   preview();msg("Image uploaded to SD. Save the layout to apply it.");return true
  }catch(error){msg("Image upload failed: "+error.message,true);return false}
+ finally{pendingUploads--}
+}
+function encodeSoundWav(audio){
+ const samples=audio.getChannelData(0),buffer=new ArrayBuffer(44+samples.length*2),view=new DataView(buffer);
+ const text=(offset,value)=>{for(let i=0;i<value.length;i++)view.setUint8(offset+i,value.charCodeAt(i))};
+ text(0,"RIFF");view.setUint32(4,buffer.byteLength-8,true);text(8,"WAVEfmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);view.setUint32(24,22050,true);view.setUint32(28,44100,true);view.setUint16(32,2,true);view.setUint16(34,16,true);text(36,"data");view.setUint32(40,samples.length*2,true);
+ for(let i=0;i<samples.length;i++){const sample=Math.max(-1,Math.min(1,samples[i]));view.setInt16(44+i*2,Math.round(sample*(sample<0?32768:32767)),true)}
+ return buffer
+}
+async function uploadSound(input,macro){
+ const file=input.files[0];if(!file)return;
+ const label=input.closest(".field").querySelector("[data-sound-name]");
+ if(!/\.(wav|mp3)$/i.test(file.name)||file.size>15*1024*1024){msg("Choose a WAV or MP3 file up to 15 MB.",true);return}
+ pendingUploads++;input.disabled=true;label.textContent="Decoding sound…";
+ let decoder;
+ try{
+  decoder=new AudioContext();
+  const decoded=await decoder.decodeAudioData(await file.arrayBuffer());
+  if(!Number.isFinite(decoded.duration)||decoded.duration<=0||decoded.duration>30)throw Error("Choose a sound no longer than 30 seconds.");
+  const offline=new OfflineAudioContext(1,Math.ceil(decoded.duration*22050),22050),source=offline.createBufferSource();source.buffer=decoded;source.connect(offline.destination);source.start();
+  const pcm=await offline.startRendering(),wav=encodeSoundWav(pcm);
+  label.textContent="Uploading sound to SD…";
+  const bytes=crypto.getRandomValues(new Uint8Array(8)),key="i"+Array.from(bytes,v=>v.toString(16).padStart(2,"0")).join("");
+  const response=await fetch("/api/sound?key="+key,{method:"POST",headers:{"Content-Type":"audio/wav"},body:wav});
+  if(!response.ok)throw Error((await response.text())||response.statusText);
+  macro.sound="file";macro.soundFile=key;macro.soundName=file.name.slice(0,96);
+  label.textContent="Uploaded: "+file.name+" · "+decoded.duration.toFixed(1)+"s. Save to apply.";
+  msg("Sound uploaded. Save to device to apply it.")
+ }catch(error){label.textContent="Upload failed: "+error.message;msg(label.textContent,true)}
+ finally{if(decoder)await decoder.close();input.disabled=false;pendingUploads--}
 }
 function render(){
  const root=$("#macros");root.replaceChildren();
@@ -102,11 +137,13 @@ function render(){
   card.innerHTML=`<div class="macro-head"><b>Button ${i+1}${m.name?" · "+esc(m.name):""}</b><button class="danger" data-delete="${i}">Remove</button></div><div class="macro-fields">
   <div class="field"><label>Button label (optional)</label><input data-k="name" value="${esc(m.name)}" maxlength="24" placeholder="Leave blank for an image-only button"></div>
   <div class="field"><label>Visual type</label><select data-k="iconSource"><option value="emoji">Icon / emoji</option><option value="fontawesome">Font Awesome</option><option value="image">Image</option></select></div>
-  <div class="field wide" data-visual="emoji"><label>Icon / emoji</label><input data-k="icon" value="${esc(m.icon)}" maxlength="8"><div class="picker">${presets.slice(0,12).map(([name,icon])=>`<button type="button" data-emoji="${esc(icon)}" title="${esc(name)}">${esc(icon)}</button>`).join("")}</div></div>
+  <div class="field wide" data-visual="emoji"><label>Icon / emoji</label><input data-k="icon" value="${esc(m.icon)}" maxlength="8"><input data-emoji-search type="search" placeholder="Search icons / emoji, e.g. music"><div class="picker" data-emoji-results></div><span class="hint" data-emoji-count></span></div>
   <div class="field wide" data-visual="fontawesome"><label>Font Awesome code</label><div class="icon-code-row"><input data-fa-code value="${esc(m.faCode||"")}" placeholder="fa-server or fa-brands fa-github"><button type="button" data-fa-apply>Use code</button><button type="button" data-fa="${i}">Search</button></div><span class="hint" data-fa-label>${m.faIcon?"Selected: "+esc(m.faIcon):"Enter a code or search. SD card required."}</span></div>
   <div class="field wide" data-visual="image"><label>Image (transparent PNG recommended; SD card required)</label><input data-k="imageUpload" type="file" accept="image/*"></div>
   <div class="field"><label>Tile shape</label><select data-k="shape"><option value="rounded">Rounded</option><option value="square">Square</option><option value="circle">Circle</option><option value="pill">Pill</option><option value="soft">Soft corners</option></select></div><div class="field"><label>Tile color</label><input data-k="color" type="color" value="#${m.color}"></div><div class="field"><label>Font color</label><input data-k="textColor" type="color" value="#${m.textColor}"></div>
-  <div class="field"><label>Button sound (device speaker)</label><select data-k="sound"><option value="none">None</option><option value="click">Click</option><option value="beep">Beep</option><option value="chime">Chime</option><option value="alert">Alert</option></select></div>
+  <div class="field"><label><input data-k="outline" type="checkbox" ${m.outline!==false?"checked":""}> Show outline</label><input data-k="outlineColor" type="color" value="#${esc(m.outlineColor||"A5B4FC")}"></div>
+  <div class="field"><label>Button sound (device speaker)</label><select data-k="sound"><option value="none">None</option><option value="click">Click</option><option value="beep">Beep</option><option value="chime">Chime</option><option value="alert">Alert</option><option value="file">Uploaded WAV / MP3</option></select></div>
+  <div class="field wide" data-sound-upload><label>Upload sound (WAV / MP3, at most 30 seconds)</label><input data-k="soundUpload" type="file" accept=".wav,.mp3,audio/wav,audio/mpeg"><span class="hint" data-sound-name>${esc(m.soundName||"Choose a file. Audio is converted in your browser and stored on SD.")}</span></div>
   <div class="field wide"><label>What should this button do?</label><select data-k="actionMode"><option value="simple_link">Open a link or trigger a service</option><option value="pc_open_url">Open a website on my Windows PC</option><option value="sound">Play a sound only</option><option value="advanced">Custom web request (Advanced)</option></select></div>
   <div class="field wide mode-field" data-mode-field="simple_link"><label>Website or trigger link</label><input data-k="url" type="url" placeholder="https://example.com/your-trigger" value="${mode==="simple_link"?esc(m.url):""}"><span class="hint">Paste the link supplied by the service. Leave blank for an unconfigured tile.</span></div>
   <div class="field wide mode-field" data-mode-field="sound"><span class="hint">Choose a button sound above. No website or PC is required.</span></div>
@@ -119,36 +156,40 @@ function render(){
   card.querySelector('[data-k="shape"]').value=m.shape;
   card.querySelector('[data-k="sound"]').value=m.sound||"none";
   card.querySelector('[data-k="iconSource"]').value=m.iconSource;
+  card.querySelector("[data-sound-upload]").classList.toggle("hidden",m.sound!=="file");
   card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==m.iconSource));
   updateModeFields(card,mode);
   card.querySelectorAll("[data-k]").forEach(el=>{
-   if(el.type==="file"){el.addEventListener("change",()=>uploadMacroIcon(el,i,m));return}
-   const update=()=>{const key=el.dataset.k;if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.imagePreview;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}if(key==="iconSource"){card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==el.value))}if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="simple_link"){m.url="";card.querySelectorAll('[data-k="url"]').forEach(input=>input.value="")}m[key]=el.type==="color"?el.value.slice(1).toUpperCase():el.value;if(key==="actionMode")updateModeFields(card,el.value);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()};
+   if(el.type==="file"){el.addEventListener("change",()=>el.dataset.k==="soundUpload"?uploadSound(el,m):uploadMacroIcon(el,i,m));return}
+   const update=()=>{const key=el.dataset.k;if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}if(key==="iconSource"){card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==el.value))}if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="simple_link"){m.url="";card.querySelectorAll('[data-k="url"]').forEach(input=>input.value="")}m[key]=el.type==="checkbox"?el.checked:el.type==="color"?el.value.slice(1).toUpperCase():el.value;if(key==="sound")card.querySelector("[data-sound-upload]").classList.toggle("hidden",el.value!=="file");if(key==="actionMode")updateModeFields(card,el.value);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()};
    el.addEventListener("input",update);el.addEventListener("change",update);
    if(el.dataset.k==="icon")el.addEventListener("focus",()=>{selectedIconInput=el})
   });
   card.querySelector("[data-fa]").onclick=()=>openFaPicker(i);
   card.querySelector("[data-fa-apply]").onclick=()=>applyFaCode(i,card.querySelector("[data-fa-code]").value);
-  card.querySelectorAll("[data-emoji]").forEach(button=>button.onclick=()=>{const input=card.querySelector('[data-k="icon"]');input.value=button.dataset.emoji;input.dispatchEvent(new Event("input"))});
+  card.querySelector("[data-emoji-search]").oninput=()=>drawEmojiResults(card);
+  drawEmojiResults(card);
   card.querySelector("[data-delete]").onclick=()=>{cfg.macros.splice(i,1);render()};
  });
  $("#count").textContent=`(${cfg.macros.length}/32)`;preview()
 }
 function updateModeFields(card,mode){card.querySelectorAll("[data-mode-field]").forEach(field=>field.classList.toggle("hidden",field.dataset.modeField!==mode))}
+function drawEmojiResults(card){const query=card.querySelector("[data-emoji-search]").value.trim().toLowerCase(),matches=presets.filter(([name,icon])=>!query||name.toLowerCase().includes(query)||icon.includes(query)),results=card.querySelector("[data-emoji-results]");results.replaceChildren();matches.slice(0,24).forEach(([name,icon])=>{const button=document.createElement("button");button.type="button";button.textContent=icon;button.title=name;button.onclick=()=>{const input=card.querySelector('[data-k="icon"]');input.value=icon;input.dispatchEvent(new Event("input"))};results.append(button)});card.querySelector("[data-emoji-count]").textContent=`${matches.length} matches${matches.length>24?"; refine your search":""}`}
 function updatePreviewDots(){const p=$("#preview"),page=Math.round(p.scrollLeft/Math.max(1,p.clientWidth));$("#previewDots").querySelectorAll("span").forEach((dot,index)=>dot.setAttribute("aria-current",String(index===page)))}
-function preview(){const p=$("#preview"),dots=$("#previewDots");p.replaceChildren();dots.replaceChildren();p.style.background="#"+(cfg.background||"111827");const cols=Number($("#cols").value)||3,rows=Number($("#rows").value)||3,cap=cols*rows,count=Math.max(2,Math.ceil(cfg.macros.length/cap));for(let pageIndex=0;pageIndex<count;pageIndex++){const page=document.createElement("div");page.className="preview-page";page.style.setProperty("--cols",cols);page.style.setProperty("--rows",rows);for(let slot=0;slot<cap;slot++){const m=cfg.macros[pageIndex*cap+slot];if(!m&&!(pageIndex===1&&slot===0&&cfg.macros.length<=cap))continue;const cell=document.createElement("div");cell.className="preview-cell";const b=document.createElement("button");if(!m){b.disabled=true;b.textContent="Swipe test";b.style.background="#1f2937";b.style.color="#a5b4fc";cell.append(b);page.append(cell);continue}b.style.background="#"+(m.color||"4F46E5");b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.dataset.shape=m.shape||"rounded";b.classList.toggle("image-only",!m.name);if(m.imagePreview){const img=document.createElement("img");img.src=m.imagePreview;img.alt="";b.append(img)}else{const icon=document.createElement("span");icon.className="ico";icon.textContent=m.iconSource!=="emoji"&&m.iconSource?m.iconImage?"…":"?":m.icon||"";b.append(icon)}if(m.name){const name=document.createElement("small");name.textContent=m.name;b.append(name)}cell.append(b);page.append(cell)}p.append(page);const dot=document.createElement("span");dot.setAttribute("role","img");dot.setAttribute("aria-label",`Preview page ${pageIndex+1}`);dots.append(dot)}p.scrollLeft=0;updatePreviewDots()}
+function preview(){const p=$("#preview"),dots=$("#previewDots");p.replaceChildren();dots.replaceChildren();p.style.background="#"+(themeBackgrounds[cfg.theme]||cfg.background||"111827");const cols=Number($("#cols").value)||3,rows=Number($("#rows").value)||3,cap=cols*rows,count=Math.max(2,Math.ceil(cfg.macros.length/cap));for(let pageIndex=0;pageIndex<count;pageIndex++){const page=document.createElement("div");page.className="preview-page";page.style.setProperty("--cols",cols);page.style.setProperty("--rows",rows);for(let slot=0;slot<cap;slot++){const m=cfg.macros[pageIndex*cap+slot];if(!m&&!(pageIndex===1&&slot===0&&cfg.macros.length<=cap))continue;const cell=document.createElement("div");cell.className="preview-cell";const b=document.createElement("button");if(!m){b.disabled=true;b.textContent="Swipe test";b.style.background="#1f2937";b.style.color="#a5b4fc";cell.append(b);page.append(cell);continue}b.style.background="#"+(m.color||"4F46E5");b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.style.border=m.outline===false?"0":"2px solid #"+(m.outlineColor||({ocean:"67E8F9",forest:"6EE7B7",light:"334155"}[cfg.theme]||"A5B4FC"));b.dataset.shape=m.shape||"rounded";b.classList.toggle("image-only",!m.name);if(m.imagePreview){const img=document.createElement("img");img.src=m.imagePreview;img.alt="";b.append(img)}else{const icon=document.createElement("span");icon.className="ico";icon.textContent=m.iconSource!=="emoji"&&m.iconSource?m.iconImage?"…":"?":m.icon||"";b.append(icon)}if(m.name){const name=document.createElement("small");name.textContent=m.name;b.append(name)}cell.append(b);page.append(cell)}p.append(page);const dot=document.createElement("span");dot.setAttribute("role","img");dot.setAttribute("aria-label",`Preview page ${pageIndex+1}`);dots.append(dot)}p.scrollLeft=0;updatePreviewDots()}
 async function api(url,options={}){const r=await fetch(url,{cache:"no-store",...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});if(!r.ok)throw Error((await r.text())||r.statusText);return r.status===204?null:r.json()}
 async function loadIconPreviews(){
  for(const macro of cfg.macros){
   if(!macro.iconImage)continue;
   try{
-   const response=await fetch("/api/icon?key="+encodeURIComponent(macro.iconImage)+"&format="+(macro.iconFormat||"rgb565"),{cache:"force-cache"});
+   const side=macro.iconSize===160?160:32,count=side*side;
+   const response=await fetch("/api/icon?key="+encodeURIComponent(macro.iconImage)+"&format="+(macro.iconFormat||"rgb565")+"&size="+side,{cache:"force-cache"});
    if(!response.ok)throw Error(await response.text());
    const pixels=new Uint8Array(await response.arrayBuffer()),alpha=macro.iconFormat==="rgb565a8";
-   if(pixels.length!==(alpha?3072:2048))throw Error("Invalid icon image size.");
-   const canvas=document.createElement("canvas");canvas.width=canvas.height=32;
-   const context=canvas.getContext("2d"),image=context.createImageData(32,32);
-   for(let i=0;i<1024;i++){const value=pixels[i*2]|pixels[i*2+1]<<8;image.data[i*4]=Math.round((value>>11)*255/31);image.data[i*4+1]=Math.round(((value>>5)&63)*255/63);image.data[i*4+2]=Math.round((value&31)*255/31);image.data[i*4+3]=alpha?pixels[2048+i]:255}
+   if(pixels.length!==count*(alpha?3:2))throw Error("Invalid icon image size.");
+   const canvas=document.createElement("canvas");canvas.width=canvas.height=side;
+   const context=canvas.getContext("2d"),image=context.createImageData(side,side);
+   for(let i=0;i<count;i++){const value=pixels[i*2]|pixels[i*2+1]<<8;image.data[i*4]=Math.round((value>>11)*255/31);image.data[i*4+1]=Math.round(((value>>5)&63)*255/63);image.data[i*4+2]=Math.round((value&31)*255/31);image.data[i*4+3]=alpha?pixels[count*2+i]:255}
    context.putImageData(image,0,0);macro.imagePreview=canvas.toDataURL("image/png");
   }catch(error){msg("Could not load saved icon: "+error.message,true)}
  }
@@ -182,7 +223,7 @@ async function chooseFaIcon(icon){
  const macro=cfg.macros[faTargetIndex];if(!macro)return msg("Choose a macro before selecting an icon.",true);
  faBusy=true;$("#faResults").inert=true;$("#faCount").textContent="Uploading selected icon…";
  const paths=icon.path.map(path=>`<path fill="#fff" d="${path}"/>`).join("");
- const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 ${icon.width} ${icon.height}">${paths}</svg>`;
+ const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 ${icon.width} ${icon.height}">${paths}</svg>`;
  try{if(await uploadIconImage(new Blob([svg],{type:"image/svg+xml"}),faTargetIndex,macro,icon.style+":"+icon.name)){
   macro.faCode=icon.style==="brands"?`fa-brands fa-${icon.name}`:icon.style==="regular"?`fa-regular fa-${icon.name}`:`fa-${icon.name}`;
   const code=document.querySelectorAll(".macro")[faTargetIndex]?.querySelector("[data-fa-code]");
@@ -191,14 +232,14 @@ async function chooseFaIcon(icon){
  }}finally{faBusy=false;$("#faResults").inert=false;if($("#faDialog").open)drawFaResults()}
 }
 async function upgradeLegacyFaIcons(){
- const legacy=cfg.macros.filter(m=>m.faIcon&&m.iconFormat!=="rgb565a8");
+ const legacy=cfg.macros.filter(m=>m.faIcon&&(m.iconFormat!=="rgb565a8"||m.iconSize!==160));
  if(!legacy.length)return;
  await ensureFaIcons();
  for(const macro of legacy){
   const [style,name]=macro.faIcon.split(":");
   const icon=faIcons.find(icon=>icon.name===name&&icon.style===style);
   if(!icon)throw Error("Reselect the legacy Font Awesome icon: "+macro.faIcon);
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 ${icon.width} ${icon.height}">${icon.path.map(path=>`<path fill="#fff" d="${path}"/>`).join("")}</svg>`;
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 ${icon.width} ${icon.height}">${icon.path.map(path=>`<path fill="#fff" d="${path}"/>`).join("")}</svg>`;
   if(!await uploadIconImage(new Blob([svg],{type:"image/svg+xml"}),cfg.macros.indexOf(macro),macro,macro.faIcon))throw Error("Could not upgrade the legacy icon.");
  }
 }
@@ -224,6 +265,7 @@ function parseWebUrl(value,label){
  return parsed.href
 }
 function prepareMacroAction(m,index){
+ if(m.sound==="file"&&!m.soundFile)throw Error(`Button ${index+1}: upload a sound file first.`);
  if(m.actionMode==="sound"){
   if(!m.sound||m.sound==="none")throw Error(`Button ${index+1}: choose a sound.`);
   m.url="";m.method="GET";m.action="webhook";m.body="";m.secret="";
@@ -250,11 +292,12 @@ function prepareMacroAction(m,index){
 }
 $("#add").onclick=()=>{if(cfg.macros.length>=32)return msg("Maximum 32 macros.",true);cfg.macros.push({name:"New macro",icon:"⚡",actionMode:"simple_link",action:"webhook",method:"GET",url:"",body:"",secret:"",color:"4F46E5"});render()};
 $("#save").onclick=async()=>{
+ if(pendingUploads){$("#saveStatus").textContent="Wait for the upload to finish before saving.";return}
  cfg.cols=Number($("#cols").value);cfg.rows=Number($("#rows").value);cfg.background=$("#background").value.slice(1).toUpperCase();cfg.theme=$("#deviceTheme").value;
- const saveButton=$("#save");saveButton.disabled=true;
- try{cfg.macros.forEach(prepareMacroAction);await upgradeLegacyFaIcons();const stored={...cfg,macros:cfg.macros.map(({imagePreview,...macro})=>macro)};await api("/api/config",{method:"POST",body:JSON.stringify(stored)});const unconfigured=cfg.macros.filter(m=>m.actionMode==="simple_link"&&!String(m.url||"").trim()).length;msg(unconfigured?`Saved to GooPad. ${unconfigured} button${unconfigured===1?" is":"s are"} unconfigured.`:"Saved to GooPad.");preview()}
- catch(e){msg("Could not save to GooPad: "+e.message,true)}
- finally{saveButton.disabled=false}
+ const saveButton=$("#save"),settingsButton=$("#saveSettings"),status=$("#saveStatus");saveButton.disabled=settingsButton.disabled=true;saveButton.textContent=settingsButton.textContent="Saving…";saveButton.setAttribute("aria-busy","true");settingsButton.setAttribute("aria-busy","true");status.classList.remove("error");status.textContent="Saving configuration to GooPad…";msg(status.textContent);
+ try{await new Promise(resolve=>requestAnimationFrame(resolve));cfg.macros.forEach(prepareMacroAction);await upgradeLegacyFaIcons();const stored={...cfg,macros:cfg.macros.map(({imagePreview,...macro})=>macro)};await api("/api/config",{method:"POST",body:JSON.stringify(stored)});status.textContent="Saved to device.";msg(status.textContent);preview()}
+ catch(e){status.textContent="Save failed: "+e.message;status.classList.add("error");msg(status.textContent,true)}
+ finally{saveButton.disabled=settingsButton.disabled=false;saveButton.textContent="Save to device";settingsButton.textContent="Save appearance";saveButton.removeAttribute("aria-busy");settingsButton.removeAttribute("aria-busy")}
 };
 $("#saveSettings").onclick=()=>$("#save").click();
 $("#macrosTab").onclick=()=>{$("#editorView").classList.remove("hidden");$("#settingsView").classList.add("hidden");$("#macrosTab").classList.add("active");$("#settingsTab").classList.remove("active")};
@@ -269,8 +312,9 @@ $("#siteTheme").onclick=()=>{document.body.classList.toggle("light");$("#siteThe
 $("#deviceTheme").onchange=()=>{
  const previous=cfg.theme==="light"?"172033":"FFFFFF",next=$("#deviceTheme").value==="light"?"172033":"FFFFFF";
  cfg.macros.forEach((macro,index)=>{if(!macro.textColor||macro.textColor===previous){macro.textColor=next;const input=document.querySelectorAll(".macro")[index]?.querySelector('[data-k="textColor"]');if(input)input.value="#"+next}});
- cfg.theme=$("#deviceTheme").value;preview()
+ cfg.theme=$("#deviceTheme").value;updateThemeFields();cfg.background=$("#background").value.slice(1).toUpperCase();preview()
 };
+$("#background").oninput=()=>{cfg.background=$("#background").value.slice(1).toUpperCase();preview()};
 $("#changePassword").onclick=async()=>{
  const password=$("#newPassword").value,confirmation=$("#confirmPassword").value;
  if(!/^[\x20-\x7e]{8,64}$/.test(password)){msg("Password must be 8-64 printable ASCII characters.",true);return}

@@ -27,6 +27,8 @@ static lv_obj_t *s_pages;
 static lv_obj_t *s_dots;
 static lv_obj_t *s_page_dots[32];
 static lv_obj_t *s_info_overlay;
+static lv_obj_t *s_theme_dropdown;
+static lv_obj_t *s_settings_status;
 static size_t s_page_dot_count;
 static lv_timer_t *s_timer;
 static char *s_config_buffer;
@@ -35,6 +37,8 @@ static uint8_t *s_icon_buffers;
 static bool s_grid_shown;
 static bool s_loading_shown;
 static volatile bool s_scan_in_progress;
+static bool s_ota_running;
+static bool s_ota_armed;
 
 static lv_color_t color(uint32_t value)
 {
@@ -239,6 +243,8 @@ static void textarea_pressed_cb(lv_event_t *event)
     show_keyboard(textarea);
 }
 
+static void build_info_panel(bool settings);
+
 static void close_info_cb(lv_event_t *event)
 {
     (void)event;
@@ -246,6 +252,167 @@ static void close_info_cb(lv_event_t *event)
         lv_obj_del(s_info_overlay);
     }
     s_info_overlay = NULL;
+    s_theme_dropdown = NULL;
+    s_settings_status = NULL;
+    s_ota_armed = false;
+}
+
+static void show_settings_cb(lv_event_t *event)
+{
+    (void)event;
+    s_ota_armed = false;
+    build_info_panel(true);
+}
+
+static void back_to_info_cb(lv_event_t *event)
+{
+    (void)event;
+    s_ota_armed = false;
+    build_info_panel(false);
+}
+
+static void save_device_theme_cb(lv_event_t *event)
+{
+    (void)event;
+    static const char *themes[] = {"midnight", "ocean", "forest", "light"};
+    if (!s_theme_dropdown || !lv_obj_is_valid(s_theme_dropdown)) return;
+    uint16_t selected = lv_dropdown_get_selected(s_theme_dropdown);
+    if (selected >= sizeof(themes) / sizeof(themes[0])) return;
+    esp_err_t err = goopad_set_theme(themes[selected]);
+    if (err != ESP_OK && s_settings_status && lv_obj_is_valid(s_settings_status)) {
+        char message[64];
+        snprintf(message, sizeof(message), "Could not save theme: %s",
+                 esp_err_to_name(err));
+        lv_label_set_text(s_settings_status, message);
+    } else if (s_settings_status && lv_obj_is_valid(s_settings_status)) {
+        lv_label_set_text(s_settings_status, "Theme saved.");
+    }
+}
+
+static void install_sd_task(void *arg)
+{
+    (void)arg;
+    esp_err_t err = goopad_install_ota_from_sd();
+    if (err == ESP_OK) {
+        vTaskDelay(pdMS_TO_TICKS(1200));
+        esp_restart();
+    }
+    ESP_LOGE(TAG, "SD firmware update failed: %s", esp_err_to_name(err));
+
+    if (ui_lock(1000)) {
+        if (s_settings_status && lv_obj_is_valid(s_settings_status)) {
+            char message[72];
+            snprintf(message, sizeof(message), "Update failed: %s",
+                     esp_err_to_name(err));
+            lv_label_set_text(s_settings_status, message);
+        }
+        ui_unlock();
+    }
+    s_ota_running = false;
+    s_ota_armed = false;
+    vTaskDelete(NULL);
+}
+
+static void install_sd_ota_cb(lv_event_t *event)
+{
+    lv_obj_t *button_obj = lv_event_get_target(event);
+    if (s_ota_running) return;
+    if (!s_ota_armed) {
+        s_ota_armed = true;
+        lv_label_set_text(lv_obj_get_child(button_obj, 0), "Confirm install & reboot");
+        if (s_settings_status && lv_obj_is_valid(s_settings_status)) {
+            lv_label_set_text(s_settings_status,
+                              "Tap again to install /goopad.bin from SD.");
+        }
+        return;
+    }
+
+    s_ota_armed = false;
+    s_ota_running = true;
+    lv_label_set_text(lv_obj_get_child(button_obj, 0), "Installing...");
+    if (s_settings_status && lv_obj_is_valid(s_settings_status)) {
+        lv_label_set_text(s_settings_status, "Installing firmware. Do not power off.");
+    }
+    if (xTaskCreate(install_sd_task, "sd_ota", 6144, NULL, 5, NULL) != pdPASS) {
+        s_ota_running = false;
+        lv_label_set_text(lv_obj_get_child(button_obj, 0), "Install from SD");
+        if (s_settings_status && lv_obj_is_valid(s_settings_status)) {
+            lv_label_set_text(s_settings_status, "Could not start firmware update.");
+        }
+    }
+}
+
+static void build_info_panel(bool settings)
+{
+    if (!s_info_overlay || !lv_obj_is_valid(s_info_overlay)) return;
+    lv_obj_clean(s_info_overlay);
+
+    lv_obj_t *panel = lv_obj_create(s_info_overlay);
+    lv_obj_set_size(panel, 420, 300);
+    lv_obj_center(panel);
+    lv_obj_set_style_bg_color(panel, color(0x1E293B), 0);
+    lv_obj_set_style_border_color(panel, color(0x475569), 0);
+    lv_obj_set_style_radius(panel, 18, 0);
+    lv_obj_set_style_pad_all(panel, 18, 0);
+    lv_obj_set_scrollable(panel, false);
+
+    lv_obj_t *title = label(panel, settings ? "Device settings" : "Device information",
+                            20, color(0xA5B4FC));
+    lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, 0);
+    if (!settings) {
+        char details[160];
+        char address[16];
+        goopad_get_address(address, sizeof(address));
+        snprintf(details, sizeof(details), "Web editor: http://%s\nAdmin password: %s",
+                 address, goopad_web_password());
+        lv_obj_t *info = label(panel, details, 14, lv_color_white());
+        lv_obj_set_width(info, 380);
+        lv_label_set_long_mode(info, LV_LABEL_LONG_WRAP);
+        lv_obj_align(info, LV_ALIGN_TOP_LEFT, 0, 40);
+        lv_obj_t *hint = label(panel, "Use Settings for device themes or firmware updates.",
+                               14, color(0xCBD5E1));
+        lv_obj_set_width(hint, 380);
+        lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
+        lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 0, 120);
+        button(panel, "Settings", 150, 220, 112, 42, show_settings_cb, NULL, 0x4F46E5);
+        button(panel, "Close", 278, 220, 112, 42, close_info_cb, NULL, 0x475569);
+        return;
+    }
+
+    lv_obj_t *theme_label = label(panel, "Device color theme", 15, color(0xCBD5E1));
+    lv_obj_align(theme_label, LV_ALIGN_TOP_LEFT, 0, 42);
+    s_theme_dropdown = lv_dropdown_create(panel);
+    lv_dropdown_set_options(s_theme_dropdown, "Midnight\nOcean\nForest\nLight");
+    lv_obj_set_pos(s_theme_dropdown, 0, 68);
+    lv_obj_set_size(s_theme_dropdown, 210, 42);
+    char config[12001];
+    goopad_get_config(config, sizeof(config));
+    cJSON *root = cJSON_Parse(config);
+    cJSON *theme = root ? cJSON_GetObjectItemCaseSensitive(root, "theme") : NULL;
+    if (cJSON_IsString(theme)) {
+        if (!strcmp(theme->valuestring, "ocean")) lv_dropdown_set_selected(s_theme_dropdown, 1);
+        else if (!strcmp(theme->valuestring, "forest")) lv_dropdown_set_selected(s_theme_dropdown, 2);
+        else if (!strcmp(theme->valuestring, "light")) lv_dropdown_set_selected(s_theme_dropdown, 3);
+    }
+    cJSON_Delete(root);
+    button(panel, "Save theme", 230, 68, 160, 42,
+           save_device_theme_cb, NULL, 0x4F46E5);
+
+    lv_obj_t *firmware_label = label(panel, "Firmware update", 15, color(0xCBD5E1));
+    lv_obj_align(firmware_label, LV_ALIGN_TOP_LEFT, 0, 122);
+    button(panel, "Install from SD", 0, 148, 210, 42,
+           install_sd_ota_cb, NULL, 0x4F46E5);
+    lv_obj_t *firmware_hint = label(panel, "Place the OTA .bin at /goopad.bin on the SD card.",
+                                    12, color(0x94A3B8));
+    lv_obj_set_width(firmware_hint, 380);
+    lv_label_set_long_mode(firmware_hint, LV_LABEL_LONG_WRAP);
+    lv_obj_align(firmware_hint, LV_ALIGN_TOP_LEFT, 0, 195);
+    s_settings_status = label(panel, "", 12, color(0xCBD5E1));
+    lv_obj_set_width(s_settings_status, 380);
+    lv_label_set_long_mode(s_settings_status, LV_LABEL_LONG_DOT);
+    lv_obj_align(s_settings_status, LV_ALIGN_TOP_LEFT, 0, 215);
+    button(panel, "Back", 150, 250, 112, 38, back_to_info_cb, NULL, 0x475569);
+    button(panel, "Close", 278, 250, 112, 38, close_info_cb, NULL, 0x475569);
 }
 
 static void show_info_cb(lv_event_t *event)
@@ -260,33 +427,7 @@ static void show_info_cb(lv_event_t *event)
     lv_obj_set_style_border_width(s_info_overlay, 0, 0);
     lv_obj_set_style_pad_all(s_info_overlay, 0, 0);
     lv_obj_set_scrollable(s_info_overlay, false);
-
-    lv_obj_t *panel = lv_obj_create(s_info_overlay);
-    lv_obj_set_size(panel, 400, 250);
-    lv_obj_center(panel);
-    lv_obj_set_style_bg_color(panel, color(0x1E293B), 0);
-    lv_obj_set_style_border_color(panel, color(0x475569), 0);
-    lv_obj_set_style_radius(panel, 18, 0);
-    lv_obj_set_style_pad_all(panel, 18, 0);
-    lv_obj_set_scrollable(panel, false);
-
-    lv_obj_t *title = label(panel, "Device info & settings", 20, color(0xA5B4FC));
-    lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, 0);
-    char details[96];
-    char address[16];
-    goopad_get_address(address, sizeof(address));
-    snprintf(details, sizeof(details), "Web editor: http://%s\nAdmin password: %s",
-             address, goopad_web_password());
-    lv_obj_t *info = label(panel, details, 16, lv_color_white());
-    lv_obj_set_width(info, 360);
-    lv_label_set_long_mode(info, LV_LABEL_LONG_WRAP);
-    lv_obj_align(info, LV_ALIGN_TOP_LEFT, 0, 42);
-    lv_obj_t *hint = label(panel, "Open the web editor on another device to change macros, layout, and settings.",
-                           14, color(0xCBD5E1));
-    lv_obj_set_width(hint, 360);
-    lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
-    lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 0, 104);
-    button(panel, "Close", 250, 178, 112, 42, close_info_cb, NULL, 0x4F46E5);
+    build_info_panel(false);
 }
 
 static void password_visibility_cb(lv_event_t *event)
@@ -430,6 +571,9 @@ static void build_grid_screen(void)
         lv_obj_set_hidden(s_keyboard, true);
     }
     s_info_overlay = NULL;
+    s_theme_dropdown = NULL;
+    s_settings_status = NULL;
+    s_ota_armed = false;
     s_dots = NULL;
     s_page_dot_count = 0;
     memset(s_page_dots, 0, sizeof(s_page_dots));

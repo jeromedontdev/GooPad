@@ -15,7 +15,8 @@ touch display into a Wi-Fi macro pad. It is built with ESP-IDF 6.1 and LVGL
    password. Open `http://<device-ip>/` on a computer or phone on that Wi-Fi.
 3. Sign in as `admin` with the password on the display. Create macros, choose
    a 2–4 column and row layout, colors, theme, and tile shape, then save.
-4. Tap a tile on GooPad to send its configured HTTP request. Swipe between
+4. Tap a configured tile on GooPad to run its action. Unconfigured tiles stay
+   inactive, so you can save a layout before adding every action. Swipe between
    pages; the page dots show the current page.
 
 The browser editor is served from the device and remains available at its
@@ -36,10 +37,13 @@ symbols map to the built-in LVGL icon font on the panel; unsupported glyphs
 fall back to the button label's initial. The editor also bundles 2,163
 searchable Font Awesome Free solid, regular, and brand icons. Font Awesome
 selections and uploaded images are converted to 32×32 RGB565 and saved under
-`/goopad` on the SD card; a card is required to use them. The display has
-Midnight, Ocean, Forest, and Light accents, custom background colors, and
-rounded, square, or circular tile corners. Up to 32 macros are stored locally;
-grid size controls how many appear on each page.
+`/goopad` on the SD card; a card is required to use them. The **Settings** page
+contains device themes, background color, website appearance, backups, firmware
+updates, and admin-password changes. The device's information panel also has
+theme and SD firmware-update controls. The display has Midnight, Ocean, Forest,
+and Light accents, custom background colors, and rounded, square, or circular
+tile corners. Up to 32 macros are stored locally; grid size controls how many
+appear on each page.
 
 The bundled Font Awesome icon data is version 7.3.1; attribution and license
 details are in [third_party/fontawesome/NOTICE.txt](./third_party/fontawesome/NOTICE.txt).
@@ -89,7 +93,11 @@ keys with the OpenSSH `known_hosts` file.
 * **Upload firmware** accepts an ESP-IDF application `.bin`.
 * **GitHub release** downloads the latest GooPad release's `GooPad-ota-*.bin`
   asset in the browser and uploads it to the device.
-* **Install SD image** installs `/goopad.bin` from the mounted card.
+* **Install SD image** installs `/goopad.bin` from the mounted card. The same
+  app-only image can be installed from the device's info-panel Settings page.
+* **Change admin password** is available in website Settings. Use 8-64
+  printable ASCII characters; the browser asks you to sign in again after
+  saving.
 
 The OTA partition layout supports rollback if a new image fails to boot.
 Initial installation must flash the full merged image because it also installs
@@ -103,10 +111,10 @@ Install ESP-IDF 6.1 and its tools, then from PowerShell in this directory:
 & C:\esp\v6.1\esp-idf\export.bat
 idf.py set-target esp32s3
 idf.py build
-idf.py -p COM4 flash monitor
+idf.py -p COM9 flash monitor
 ```
 
-Use the USB-C/CH340 serial port shown by Windows (COM4 on the development
+Use the USB-C/CH340 serial port shown by Windows (COM9 on the development
 machine). The board is an ESP32-S3-WROOM-1U-N16R8: 16 MB flash, 8 MB octal
 PSRAM, ST7701S RGB display, GT911 touch, and microSD slot.
 

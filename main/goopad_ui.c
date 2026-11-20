@@ -240,7 +240,10 @@ static void password_visibility_cb(lv_event_t *event)
     s_password_visible = !s_password_visible;
     lv_textarea_set_password_mode(s_password, !s_password_visible);
     lv_obj_t *caption = lv_obj_get_child(lv_event_get_target(event), 0);
-    if (caption) lv_label_set_text(caption, s_password_visible ? "Hide" : "Show");
+    if (caption) {
+        lv_label_set_text(caption, s_password_visible ? LV_SYMBOL_EYE_CLOSE
+                                                       : LV_SYMBOL_EYE_OPEN);
+    }
 }
 
 static void build_setup_screen(void)
@@ -266,16 +269,24 @@ static void build_setup_screen(void)
 
     s_password = lv_textarea_create(s_screen);
     lv_obj_set_pos(s_password, 14, 119);
-    lv_obj_set_size(s_password, 374, 38);
+    lv_obj_set_size(s_password, 452, 38);
     lv_obj_set_clickable(s_password, true);
+    lv_obj_set_style_pad_right(s_password, 42, 0);
     lv_textarea_set_one_line(s_password, true);
     lv_textarea_set_max_length(s_password, 64);
     lv_textarea_set_password_mode(s_password, true);
     lv_textarea_set_placeholder_text(s_password, "Wi-Fi password");
     lv_obj_add_event_cb(s_password, textarea_pressed_cb, LV_EVENT_PRESSED, NULL);
     lv_obj_add_event_cb(s_password, textarea_pressed_cb, LV_EVENT_CLICKED, NULL);
-    button(s_screen, "Show", 396, 119, 70, 38,
-           password_visibility_cb, NULL, 0x334155);
+    lv_obj_t *password_eye = lv_button_create(s_screen);
+    lv_obj_set_pos(password_eye, 424, 119);
+    lv_obj_set_size(password_eye, 38, 38);
+    lv_obj_set_style_bg_opa(password_eye, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(password_eye, 0, 0);
+    lv_obj_set_style_shadow_width(password_eye, 0, 0);
+    lv_obj_add_event_cb(password_eye, password_visibility_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *eye_icon = label(password_eye, LV_SYMBOL_EYE_OPEN, 18, color(0xCBD5E1));
+    lv_obj_center(eye_icon);
     s_scan_button = button(s_screen, "Scan networks", 15, 162, 162, 38,
                            scan_cb, NULL, 0x334155);
     button(s_screen, "Join Wi-Fi", 184, 162, 281, 38,

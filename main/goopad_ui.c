@@ -20,6 +20,7 @@ static lv_obj_t *s_status;
 static lv_obj_t *s_keyboard;
 static lv_obj_t *s_ssid;
 static lv_obj_t *s_password;
+static bool s_password_visible;
 static lv_obj_t *s_network_list;
 static lv_obj_t *s_scan_button;
 static lv_obj_t *s_pages;
@@ -234,9 +235,18 @@ static void textarea_pressed_cb(lv_event_t *event)
     show_keyboard(textarea);
 }
 
+static void password_visibility_cb(lv_event_t *event)
+{
+    s_password_visible = !s_password_visible;
+    lv_textarea_set_password_mode(s_password, !s_password_visible);
+    lv_obj_t *caption = lv_obj_get_child(lv_event_get_target(event), 0);
+    if (caption) lv_label_set_text(caption, s_password_visible ? "Hide" : "Show");
+}
+
 static void build_setup_screen(void)
 {
     s_grid_shown = false;
+    s_password_visible = false;
     lv_obj_clean(s_screen);
     theme_screen();
     lv_obj_t *title = label(s_screen, "GooPad", 28, color(0xA5B4FC));
@@ -256,7 +266,7 @@ static void build_setup_screen(void)
 
     s_password = lv_textarea_create(s_screen);
     lv_obj_set_pos(s_password, 14, 119);
-    lv_obj_set_size(s_password, 452, 38);
+    lv_obj_set_size(s_password, 374, 38);
     lv_obj_set_clickable(s_password, true);
     lv_textarea_set_one_line(s_password, true);
     lv_textarea_set_max_length(s_password, 64);
@@ -264,6 +274,8 @@ static void build_setup_screen(void)
     lv_textarea_set_placeholder_text(s_password, "Wi-Fi password");
     lv_obj_add_event_cb(s_password, textarea_pressed_cb, LV_EVENT_PRESSED, NULL);
     lv_obj_add_event_cb(s_password, textarea_pressed_cb, LV_EVENT_CLICKED, NULL);
+    button(s_screen, "Show", 396, 119, 70, 38,
+           password_visibility_cb, NULL, 0x334155);
     s_scan_button = button(s_screen, "Scan networks", 15, 162, 162, 38,
                            scan_cb, NULL, 0x334155);
     button(s_screen, "Join Wi-Fi", 184, 162, 281, 38,

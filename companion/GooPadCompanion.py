@@ -4,6 +4,7 @@
 import argparse
 import base64
 import ctypes
+import datetime
 import hmac
 import ipaddress
 import json
@@ -13,6 +14,7 @@ import os
 import queue
 import secrets
 import socket
+import ssl
 import subprocess
 import sys
 import threading
@@ -22,10 +24,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 import windows_startup
+from cryptography import x509
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
 
 
 APP_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "GooPad"
 CONFIG_PATH = APP_DIR / "companion.json"
+TLS_NAME = "companion.goopad"
 MAX_BODY = 4096
 MAX_STEPS = 12
 RUN_LOCK = threading.Lock()
@@ -134,6 +142,95 @@ def load_config():
     if type(config.get("hide_on_startup", False)) is not bool:
         raise ValueError("'hide_on_startup' must be true or false")
     return config
+
+
+def tls_identity(directory, address):
+    directory.mkdir(parents=True, exist_ok=True)
+    cert_path, key_path = directory / "tls-cert.pem", directory / "tls-key.pem"
+    if cert_path.exists() != key_path.exists():
+        raise ValueError("Companion TLS identity is incomplete. Restore its certificate/key pair; do not discard a paired identity.")
+    if not cert_path.exists():
+        key = ec.generate_private_key(ec.SECP256R1())
+        subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, TLS_NAME)])
+        certificate = (
+            x509.CertificateBuilder().subject_name(subject).issuer_name(subject)
+            .public_key(key.public_key()).serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime(2020, 1, 1, tzinfo=datetime.timezone.utc))
+            .not_valid_after(datetime.datetime(2040, 1, 1, tzinfo=datetime.timezone.utc))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+            .add_extension(x509.SubjectAlternativeName([
+                x509.DNSName(TLS_NAME), x509.DNSName("localhost"),
+                x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+                x509.IPAddress(ipaddress.ip_address(address)),
+            ]), critical=False)
+            .sign(key, hashes.SHA256())
+        )
+        with key_path.open("xb") as output:
+            os.chmod(key_path, 0o600)
+            output.write(key.private_bytes(serialization.Encoding.PEM,
+                                          serialization.PrivateFormat.PKCS8,
+                                          serialization.NoEncryption()))
+        with cert_path.open("xb") as output:
+            output.write(certificate.public_bytes(serialization.Encoding.PEM))
+    certificate = x509.load_pem_x509_certificate(cert_path.read_bytes())
+    key = serialization.load_pem_private_key(key_path.read_bytes(), password=None)
+    if not isinstance(key, ec.EllipticCurvePrivateKey):
+        raise ValueError("Companion TLS identity must use an EC private key.")
+    public = certificate.public_key()
+    if not isinstance(public, ec.EllipticCurvePublicKey):
+        raise ValueError("Companion TLS certificate must use an EC public key.")
+    if public.public_numbers() != key.public_key().public_numbers():
+        raise ValueError("Companion TLS certificate and private key do not match.")
+    try:
+        public.verify(certificate.signature, certificate.tbs_certificate_bytes, ec.ECDSA(hashes.SHA256()))
+        names = certificate.extensions.get_extension_for_class(x509.SubjectAlternativeName).value.get_values_for_type(x509.DNSName)
+    except (InvalidSignature, x509.ExtensionNotFound) as error:
+        raise ValueError("Companion TLS certificate is invalid. Restore its original identity.") from error
+    if TLS_NAME not in names:
+        raise ValueError("Companion TLS certificate has the wrong identity.")
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if certificate.not_valid_before_utc > now:
+        raise ValueError("Companion TLS certificate is not yet valid. Check the PC clock.")
+    if certificate.not_valid_after_utc <= now:
+        raise ValueError("Companion TLS certificate has expired; replace it and pair GooPad again.")
+    return cert_path, key_path
+
+
+class SecureHTTPServer(ThreadingHTTPServer):
+    def __init__(self, address, handler, context):
+        self.context = context
+        super().__init__(address, handler)
+
+    def get_request(self):
+        client, address = super().get_request()
+        client.settimeout(5)
+        try:
+            return self.context.wrap_socket(client, server_side=True, do_handshake_on_connect=False), address
+        except OSError:
+            client.close()
+            raise
+
+    def finish_request(self, request, client_address):
+        request.do_handshake()
+        super().finish_request(request, client_address)
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], (ssl.SSLError, ConnectionError, TimeoutError)):
+            logging.warning("Companion rejected an invalid or interrupted TLS connection: %s", sys.exc_info()[1])
+        else:
+            super().handle_error(request, client_address)
+
+
+def secure_server(address, handler, cert_path, key_path):
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(cert_path, key_path)
+    return SecureHTTPServer(address, handler, context)
+
+
+def pairing_bundle(address, port, token, cert_path):
+    return json.dumps({"address": f"https://{address}:{port}", "token": token,
+                       "certificate": cert_path.read_text(encoding="ascii")})
 
 
 class MemoryStatus(ctypes.Structure):
@@ -590,20 +687,21 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
                         handlers=[logging.FileHandler(APP_DIR / "companion.log", encoding="utf-8")])
     address = lan_address()
-    print(f"GooPad companion listening on http://0.0.0.0:{args.port}")
-    print(f"Companion address: http://{address}:{args.port}")
-    print(f"Health check: http://{address}:{args.port}/health")
-    print(f"Shared token: {config['token']}")
+    print(f"GooPad companion listening on https://0.0.0.0:{args.port}")
+    print(f"Companion address: https://{address}:{args.port}")
+    print(f"Health check: https://{address}:{args.port}/health")
+    print("Use Copy secure pairing in the desktop app. Pairing tokens are not printed to logs.")
     print(f"Add actions in: {CONFIG_PATH}")
     print("Keep the token private and allow this port only on trusted/private networks.")
     try:
-        server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
-    except OSError as error:
+        cert_path, key_path = tls_identity(APP_DIR, address)
+        server = secure_server(("0.0.0.0", args.port), Handler, cert_path, key_path)
+    except (OSError, ValueError) as error:
         logging.error("Could not start Companion listener: %s", error)
         if (args.gui or getattr(sys, "frozen", False)) and not args.no_gui:
             from tkinter import messagebox
             messagebox.showerror("GooPad Companion", f"Could not listen on port {args.port}.\n"
-                                "Check whether Companion is already running.")
+                                "Check whether Companion is already running or its TLS identity is invalid.")
             return
         parser.error(f"Could not listen on port {args.port}: {error}")
     try:
@@ -625,16 +723,21 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
 
     root = tk.Tk()
     root.title("GooPad Companion")
-    root.geometry("540x510")
+    root.geometry("540x610")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=20)
     frame.pack(fill="both", expand=True)
     ttk.Label(frame, text="GooPad Companion", font=("Segoe UI", 18, "bold")).pack(anchor="w")
     ttk.Label(frame, text="Keep this app running in your logged-in Windows session.").pack(anchor="w", pady=8)
-    ttk.Button(frame, text=f"Copy PC address: {address}:{port}",
-               command=lambda: copy_text(f"{address}:{port}")).pack(fill="x", pady=4)
+    cert_path = APP_DIR / "tls-cert.pem"
+    ttk.Button(frame, text="Copy secure pairing (recommended)",
+               command=lambda: copy_text(pairing_bundle(address, port, config["token"], cert_path))).pack(fill="x", pady=4)
+    ttk.Button(frame, text=f"Copy HTTPS address: {address}:{port}",
+               command=lambda: copy_text(f"https://{address}:{port}")).pack(fill="x", pady=4)
     ttk.Button(frame, text="Copy private pairing token",
                command=lambda: copy_text(config["token"])).pack(fill="x", pady=4)
+    ttk.Button(frame, text="Copy public TLS certificate",
+               command=lambda: copy_text(cert_path.read_text(encoding="ascii"))).pack(fill="x", pady=4)
     allowed = tk.BooleanVar(value=config.get("allow_powershell", False))
 
     def copy_text(value):

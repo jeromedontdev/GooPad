@@ -1,11 +1,13 @@
 import importlib.util
 import json
+import socket
+import ssl
 import sys
 import tempfile
 import threading
 import unittest
 from pathlib import Path
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from unittest.mock import patch
 
@@ -26,10 +28,14 @@ class CompanionTests(unittest.TestCase):
         self.write_config({"token": self.token, "actions": {
             "open": {"program": "example.exe", "arguments": ["--safe"]}
         }})
-        self.server = COMPANION.ThreadingHTTPServer(("127.0.0.1", 0), COMPANION.Handler)
+        self.cert_path, self.key_path = COMPANION.tls_identity(Path(self.temp.name), "127.0.0.1")
+        self.tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        self.tls_context.load_verify_locations(cafile=self.cert_path)
+        self.server = COMPANION.secure_server(("127.0.0.1", 0), COMPANION.Handler,
+                                            self.cert_path, self.key_path)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
-        self.base = f"http://127.0.0.1:{self.server.server_port}"
+        self.base = f"https://127.0.0.1:{self.server.server_port}"
 
     def tearDown(self):
         self.server.shutdown()
@@ -47,7 +53,7 @@ class CompanionTests(unittest.TestCase):
             headers["X-GooPad-Token"] = token
         request = Request(self.base + path, data=body, headers=headers, method="POST")
         try:
-            with urlopen(request, timeout=3) as response:
+            with urlopen(request, timeout=3, context=self.tls_context) as response:
                 return response.status
         except HTTPError as error:
             return error.code
@@ -85,8 +91,60 @@ class CompanionTests(unittest.TestCase):
                 open_browser.assert_not_called()
 
     def test_health_endpoint(self):
-        with urlopen(self.base + "/health", timeout=3) as response:
+        with urlopen(self.base + "/health", timeout=3, context=self.tls_context) as response:
             self.assertEqual(response.status, 200)
+
+    def test_https_rejects_untrusted_identity_and_plain_http(self):
+        untrusted = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        with self.assertRaises(URLError):
+            urlopen(self.base + "/health", timeout=3, context=untrusted)
+        with self.assertRaises((URLError, ConnectionError)):
+            urlopen(self.base.replace("https:", "http:") + "/health", timeout=3)
+
+    def test_partial_tls_handshake_does_not_block_other_clients(self):
+        with socket.create_connection(("127.0.0.1", self.server.server_port), timeout=3):
+            with urlopen(self.base + "/health", timeout=3, context=self.tls_context) as response:
+                self.assertEqual(response.status, 200)
+
+    def test_persistent_identity_and_private_pairing_bundle(self):
+        original = self.cert_path.read_bytes()
+        cert, key = COMPANION.tls_identity(Path(self.temp.name), "192.0.2.20")
+        self.assertEqual(cert.read_bytes(), original)
+        bundle = json.loads(COMPANION.pairing_bundle("192.0.2.20", 8787, self.token, cert))
+        self.assertEqual(bundle["address"], "https://192.0.2.20:8787")
+        self.assertEqual(bundle["token"], self.token)
+        self.assertNotIn("PRIVATE KEY", bundle["certificate"])
+        with self.tls_context.wrap_socket(
+                socket.create_connection(("127.0.0.1", self.server.server_port), timeout=3),
+                server_hostname=COMPANION.TLS_NAME) as client:
+            client.sendall(b"GET /health HTTP/1.1\r\nHost: companion.goopad\r\nConnection: close\r\n\r\n")
+            self.assertIn(b"200", client.recv(1024).split(b"\r\n", 1)[0])
+
+    def test_incomplete_identity_fails_without_rotation(self):
+        original_key = self.key_path.read_bytes()
+        self.cert_path.unlink()
+        with self.assertRaises(ValueError):
+            COMPANION.tls_identity(Path(self.temp.name), "127.0.0.1")
+        self.assertEqual(self.key_path.read_bytes(), original_key)
+
+    def test_invalid_signature_is_reported_without_rotation(self):
+        original_key = self.key_path.read_bytes()
+        certificate = COMPANION.x509.load_pem_x509_certificate(self.cert_path.read_bytes())
+        damaged = bytearray(certificate.public_bytes(COMPANION.serialization.Encoding.DER))
+        damaged[-1] ^= 1
+        invalid = COMPANION.x509.load_der_x509_certificate(bytes(damaged))
+        self.cert_path.write_bytes(invalid.public_bytes(COMPANION.serialization.Encoding.PEM))
+        with self.assertRaisesRegex(ValueError, "certificate is invalid"):
+            COMPANION.tls_identity(Path(self.temp.name), "127.0.0.1")
+        self.assertEqual(self.key_path.read_bytes(), original_key)
+
+    def test_mismatched_identity_is_reported_without_rotation(self):
+        original = self.cert_path.read_bytes()
+        _, other_key = COMPANION.tls_identity(Path(self.temp.name) / "other", "127.0.0.1")
+        self.key_path.write_bytes(other_key.read_bytes())
+        with self.assertRaisesRegex(ValueError, "do not match"):
+            COMPANION.tls_identity(Path(self.temp.name), "127.0.0.1")
+        self.assertEqual(self.cert_path.read_bytes(), original)
 
     def test_sequence_is_validated_before_any_action(self):
         steps = [{"type": "hotkey", "keys": ["CTRL", "C"]},
@@ -169,17 +227,17 @@ class CompanionTests(unittest.TestCase):
 
     def test_status_requires_token_and_browser_origin_is_rejected(self):
         with self.assertRaises(HTTPError) as error:
-            urlopen(self.base + "/status", timeout=3)
+            urlopen(self.base + "/status", timeout=3, context=self.tls_context)
         self.assertEqual(error.exception.code, 401)
         request = Request(self.base + "/status", headers={"X-GooPad-Token": self.token})
-        with urlopen(request, timeout=3) as response:
+        with urlopen(request, timeout=3, context=self.tls_context) as response:
             status = json.load(response)
             self.assertFalse(status["powershell"])
             self.assertNotIn("token", status)
         request = Request(self.base + "/run", data=b"{}", headers={
             "X-GooPad-Token": self.token, "Origin": "https://example.com"})
         with self.assertRaises(HTTPError) as error:
-            urlopen(request, timeout=3)
+            urlopen(request, timeout=3, context=self.tls_context)
         self.assertEqual(error.exception.code, 403)
 
     def test_monitor_requires_token_and_reports_only_usage_metrics(self):
@@ -189,11 +247,11 @@ class CompanionTests(unittest.TestCase):
                 "gpuPercent": 25, "gpuMemoryUsedBytes": 4000, "cpuTemperatureC": None,
                 "gpuTemperatureC": 65, "hardwareStatus": "Some sensors unavailable"}) as snapshot:
             with self.assertRaises(HTTPError) as error:
-                urlopen(self.base + "/monitor", timeout=3)
+                urlopen(self.base + "/monitor", timeout=3, context=self.tls_context)
             self.assertEqual(error.exception.code, 401)
             snapshot.assert_not_called()
             request = Request(self.base + "/monitor", headers={"X-GooPad-Token": self.token})
-            with urlopen(request, timeout=3) as response:
+            with urlopen(request, timeout=3, context=self.tls_context) as response:
                 payload = json.load(response)
             self.assertEqual(payload["cpuPercent"], 37.5)
             self.assertEqual(payload["memoryPercent"], 50)
@@ -206,7 +264,7 @@ class CompanionTests(unittest.TestCase):
         with patch.object(COMPANION, "monitor_snapshot", side_effect=OSError("unavailable")):
             request = Request(self.base + "/monitor", headers={"X-GooPad-Token": self.token})
             with self.assertRaises(HTTPError) as error:
-                urlopen(request, timeout=3)
+                urlopen(request, timeout=3, context=self.tls_context)
             self.assertEqual(error.exception.code, 503)
 
     def test_tray_preferences_reject_invalid_settings(self):

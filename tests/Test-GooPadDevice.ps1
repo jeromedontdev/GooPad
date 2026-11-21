@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory)][pscredential]$Credential,
     [uri]$Companion,
     [securestring]$CompanionToken,
+    [string]$CompanionCertificate,
     [switch]$NonMutating,
     [switch]$TileVisibilityOnly
 )
@@ -10,6 +11,7 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($NonMutating -and $TileVisibilityOnly) { throw 'Tile visibility fixtures require temporary configuration writes.' }
 if ($Device.Scheme -ne 'https') { throw 'Use the HTTPS device address.' }
+if ($Companion -and $Companion.Scheme -ne 'https') { throw 'Use the verified HTTPS Companion address.' }
 $base = $Device.GetLeftPart([System.UriPartial]::Authority)
 $token = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(
     "$($Credential.UserName):$($Credential.GetNetworkCredential().Password)"))
@@ -32,9 +34,14 @@ function Expect($Response, $Status) {
 
 $original = Request '/api/config'
 Expect $original 200
+if ($Companion) {
+    if (!$CompanionToken) { throw 'Provide CompanionToken with Companion.' }
+    if (!$CompanionCertificate) { $CompanionCertificate = ($original.Content | ConvertFrom-Json).companionCertificate }
+    if (!$CompanionCertificate) { throw 'Provide the paired public CompanionCertificate.' }
+}
 $schema = (Request '/api/status').Content | ConvertFrom-Json
-if ($null -eq $schema.renderedPages) {
-    throw 'Update to GooPad 0.5.4 or later before running these validation checks; older firmware ignores new fields.'
+if ($null -eq $schema.lastAction) {
+    throw 'Update to GooPad 0.6.0 or later before running these validation checks; older firmware ignores TLS pairing fields.'
 }
 if ((Request '/').Content -notmatch 'data-k="emojiRender"') {
     throw 'Update to GooPad 0.5.5 or later before running these checks; older firmware ignores empty-tile hiding.'
@@ -64,6 +71,9 @@ $invalid = $original.Content | ConvertFrom-Json -AsHashtable
 $invalid.hideEmptyTiles = 'true'
 Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
 $invalid.Remove('hideEmptyTiles')
+$invalid.companionCertificate = 'not a certificate'
+Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
+$invalid.Remove('companionCertificate')
 $invalid.macros = @(@{
     name=''; icon=''; action='webhook'; method='GET'; url=''; body=''; secret=''
     actionMode='simple_link'; tileName=('x' * 25)
@@ -267,12 +277,13 @@ try {
     if ($Companion) {
         if (!$CompanionToken) { throw 'Provide CompanionToken with Companion.' }
         $pcToken = [PSCredential]::new('unused',$CompanionToken).GetNetworkCredential().Password
-        $check = @{url=$Companion.GetLeftPart([UriPartial]::Authority)+'/status';token=$pcToken} | ConvertTo-Json -Compress
+        $check = @{url=$Companion.GetLeftPart([UriPartial]::Authority)+'/status';token=$pcToken;certificate=$CompanionCertificate} | ConvertTo-Json -Compress
         Expect (Request '/api/companion' 'POST' $check) 200
         $test.macros[0].actionMode = 'pc_macro'; $test.macros[0].sound = 'none'
         $test.macros[0].method = 'POST'; $test.macros[0].action = 'http'
         $test.macros[0].url = $Companion.GetLeftPart([UriPartial]::Authority)+'/run'
         $test.macros[0].secret = $pcToken
+        $test.companionCertificate = $CompanionCertificate
         $test.macros[0].body = @{steps=@(1..12 | ForEach-Object {@{type='wait';value=0}})} | ConvertTo-Json -Depth 5 -Compress
         if ($test.macros[0].body.Length -le 256) { throw 'PC test must exceed the old body limit.' }
         Expect (Request '/api/config' 'POST' ($test | ConvertTo-Json -Depth 20 -Compress)) 200

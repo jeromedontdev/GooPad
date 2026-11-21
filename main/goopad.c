@@ -118,7 +118,8 @@ const char *goopad_widget_time_format(bool date, const char *key)
 
 const goopad_widget_style_t *goopad_widget_style(const char *key)
 {
-    static const char *keys[] = {"minimal", "neon", "terminal", "paper", "ocean", "sunset", "retro"};
+    static const char *keys[] = {"minimal", "neon", "terminal", "paper", "ocean", "sunset", "retro",
+                                 "midnight_glass", "cloud", "lavender", "mint", "coral", "graphite"};
     static const goopad_widget_style_t styles[] = {
         {0x0F172A, 0x0F172A, 0xF8FAFC, 0x94A3B8},
         {0x06121C, 0x102A43, 0xCFFAFE, 0x22D3EE},
@@ -127,6 +128,12 @@ const goopad_widget_style_t *goopad_widget_style(const char *key)
         {0x082F49, 0x0E7490, 0xE0F2FE, 0x38BDF8},
         {0x7C2D12, 0x9F1239, 0xFFF7ED, 0xFDBA74},
         {0x292524, 0x44403C, 0xFEF3C7, 0xF59E0B},
+        {0x273650, 0x101A2D, 0xF7FAFF, 0x8AB4FF},
+        {0xFFFFFF, 0xE7EDF5, 0x182439, 0x4779B9},
+        {0x51477B, 0x30284E, 0xF8F3FF, 0xD5BFFF},
+        {0xCFF2E6, 0x8ECFBD, 0x153D37, 0x287D70},
+        {0xFFA595, 0xDF6B74, 0x40232D, 0x8B3347},
+        {0x3A414D, 0x1B202A, 0xF5F7FA, 0xA7C6EB},
     };
     for (unsigned i = 0; key && i < sizeof(keys) / sizeof(keys[0]); i++)
         if (!strcmp(key, keys[i])) return &styles[i];
@@ -813,6 +820,8 @@ static bool validate_config(const char *json)
         cJSON *widget_graphic = cJSON_GetObjectItemCaseSensitive(item, "widgetGraphic");
         cJSON *widget_size = cJSON_GetObjectItemCaseSensitive(item, "widgetTextSize");
         cJSON *widget_accent = cJSON_GetObjectItemCaseSensitive(item, "widgetAccent");
+        cJSON *widget_gradient = cJSON_GetObjectItemCaseSensitive(item, "widgetGradient");
+        cJSON *widget_layout = cJSON_GetObjectItemCaseSensitive(item, "widgetLayout");
         bool gif = cJSON_IsString(image_format) && !strcmp(image_format->valuestring, "gif");
         if (gif) gif_count++;
         valid = cJSON_IsObject(item) && cJSON_IsString(name) && strlen(name->valuestring) <= 24 &&
@@ -830,6 +839,10 @@ static bool validate_config(const char *json)
                 (!widget_theme || (cJSON_IsString(widget_theme) &&
                                   (!strcmp(widget_theme->valuestring, "custom") || goopad_widget_style(widget_theme->valuestring)))) &&
                 (!widget_accent || valid_hex_color(widget_accent)) &&
+                (!widget_gradient || valid_hex_color(widget_gradient)) &&
+                (!widget_layout || (cJSON_IsString(widget_layout) &&
+                                  (!strcmp(widget_layout->valuestring, "classic") ||
+                                   !strcmp(widget_layout->valuestring, "panel")))) &&
                 (!widget_size || (cJSON_IsNumber(widget_size) &&
                                   (widget_size->valuedouble == 0 || widget_size->valuedouble == 12 ||
                                    widget_size->valuedouble == 14 || widget_size->valuedouble == 16 ||

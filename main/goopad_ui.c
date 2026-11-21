@@ -274,13 +274,13 @@ static void set_clock_hands(unsigned index, int hour, int minute)
 }
 
 static void create_widget_graphic(unsigned index, lv_obj_t *tile, const char *graphic,
-                                  unsigned type, uint32_t accent, int width, int height, bool caption)
+                                  unsigned type, uint32_t accent, int width, int height, bool caption, int header)
 {
     if (!strcmp(graphic, "text")) return;
     unsigned mode = !strcmp(graphic, "analog") ? 2 : !strcmp(graphic, "calendar") ? 3 :
                     !strcmp(graphic, "bar") ? 4 : !strcmp(graphic, "ring") ? 5 : 1;
     s_widget_graphic_modes[index] = mode;
-    int content_height = height - (caption ? 28 : 12);
+    int content_height = height - (caption ? 28 : 12) - header;
     if (content_height < (type == 3 ? 50 : 38)) {
         s_widget_graphic_modes[index] = 0;
         return;
@@ -303,12 +303,12 @@ static void create_widget_graphic(unsigned index, lv_obj_t *tile, const char *gr
     if (side < 16) side = 16;
     s_widget_sides[index] = side;
     s_widget_heights[index] = content_height - side - 6;
-    lv_obj_align(s_widget_labels[index], LV_ALIGN_CENTER, 0, side / 2 + 2 - (caption ? 10 : 0));
+    lv_obj_align(s_widget_labels[index], LV_ALIGN_CENTER, 0, side / 2 + 2 - (caption ? 10 : 0) + header / 2);
     if (mode == 5) {
         lv_obj_t *arc = lv_arc_create(tile);
         s_widget_graphics[index] = arc;
         lv_obj_set_size(arc, side, side);
-        lv_obj_align(arc, LV_ALIGN_TOP_MID, 0, 8);
+        lv_obj_align(arc, LV_ALIGN_TOP_MID, 0, 8 + header);
         lv_obj_set_clickable(arc, false);
         lv_obj_remove_style(arc, NULL, LV_PART_KNOB);
         lv_obj_set_style_arc_width(arc, side < 40 ? 3 : 6, LV_PART_MAIN);
@@ -322,7 +322,7 @@ static void create_widget_graphic(unsigned index, lv_obj_t *tile, const char *gr
     }
     lv_obj_t *box = graphic_box(tile, side, side, accent);
     s_widget_graphics[index] = box;
-    lv_obj_align(box, LV_ALIGN_TOP_MID, 0, 8);
+    lv_obj_align(box, LV_ALIGN_TOP_MID, 0, 8 + header);
     if (type == 1) {
         lv_obj_set_style_radius(box, LV_RADIUS_CIRCLE, 0);
         for (unsigned hand = 0; hand < 2; hand++) {
@@ -1172,19 +1172,46 @@ static void build_grid_screen(void)
                         text_color = color(style->text);
                         graphic_accent = style->accent;
                         lv_obj_set_style_border_color(tile, color(style->accent), 0);
+                    } else {
+                        cJSON *gradient = cJSON_GetObjectItemCaseSensitive(macro, "widgetGradient");
+                        if (cJSON_IsString(gradient)) {
+                            lv_obj_set_style_bg_grad_color(tile, color((unsigned)strtoul(gradient->valuestring, NULL, 16)), 0);
+                            lv_obj_set_style_bg_grad_dir(tile, LV_GRAD_DIR_VER, 0);
+                        }
+                    }
+                    cJSON *widget_layout = cJSON_GetObjectItemCaseSensitive(macro, "widgetLayout");
+                    bool panel = cJSON_IsString(widget_layout) && !strcmp(widget_layout->valuestring, "panel") &&
+                                 width >= 110 && height >= 100 && !circle && !pill && !soft;
+                    int header = panel ? 20 : 0;
+                    if (panel) {
+                        static const char *stat_titles[] = {"PC STATS", "CPU", "RAM", "RAM USED", "GPU",
+                                                             "GPU RAM", "CPU TEMP", "GPU TEMP"};
+                        const char *title = type == 1 ? "CLOCK" : type == 2 ? "DATE" : stat_titles[s_widget_stats[index]];
+                        lv_obj_t *heading = label(tile, title, 14, color(graphic_accent));
+                        lv_obj_set_style_text_font(heading, &lv_font_montserrat_10, 0);
+                        lv_obj_set_style_text_letter_space(heading, 1, 0);
+                        lv_obj_align(heading, LV_ALIGN_TOP_LEFT, 12, 9);
+                        lv_obj_t *rule = lv_obj_create(tile);
+                        lv_obj_set_size(rule, 22, 3);
+                        lv_obj_align(rule, LV_ALIGN_TOP_RIGHT, -12, 12);
+                        lv_obj_set_style_bg_color(rule, color(graphic_accent), 0);
+                        lv_obj_set_style_border_width(rule, 0, 0);
+                        lv_obj_set_style_radius(rule, LV_RADIUS_CIRCLE, 0);
+                        lv_obj_set_scrollable(rule, false);
+                        lv_obj_set_clickable(rule, false);
                     }
                     cJSON *widget_size = cJSON_GetObjectItemCaseSensitive(macro, "widgetTextSize");
                     s_widget_sizes[index] = cJSON_IsNumber(widget_size) && widget_size->valueint ? (unsigned)widget_size->valueint :
                         width < 140 || ((long_clock || long_stat) && width < 200) ? 14 : 28;
                     s_widget_widths[index] = width - 16;
-                    s_widget_heights[index] = height - (caption[0] ? 36 : 16);
+                    s_widget_heights[index] = height - (caption[0] ? 36 : 16) - header;
                     s_widget_labels[index] = label(tile, "", width < 140 || ((long_clock || long_stat) && width < 200) ? 14 : 28, text_color);
                     lv_obj_set_width(s_widget_labels[index], width - 16);
                     lv_obj_set_style_text_align(s_widget_labels[index], LV_TEXT_ALIGN_CENTER, 0);
-                    lv_obj_align(s_widget_labels[index], LV_ALIGN_CENTER, 0, icon_y);
+                    lv_obj_align(s_widget_labels[index], LV_ALIGN_CENTER, 0, icon_y + header / 2);
                     cJSON *graphic = cJSON_GetObjectItemCaseSensitive(macro, "widgetGraphic");
                     create_widget_graphic(index, tile, cJSON_IsString(graphic) ? graphic->valuestring : "text",
-                        type, graphic_accent, width, height, caption[0]);
+                        type, graphic_accent, width, height, caption[0], header);
                     if (circle && s_widget_graphic_modes[index]) {
                         s_widget_widths[index] = width * 3 / 4;
                         lv_obj_set_width(s_widget_labels[index], s_widget_widths[index]);

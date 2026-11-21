@@ -113,9 +113,13 @@ day/month/year, and short month/day; the default remains year-month-day. Date pr
 scales to the tile's dimensions. Clock/date use network time or time
 synced when the website opens; Settings includes a fixed UTC offset, initially
 matched to the browser. Update that offset after daylight-saving changes.
-Each widget has seven presets (Minimal, Neon, Terminal, Paper, Ocean, Sunset,
-Retro), or Custom to retain your own tile, text, outline and graphic-accent
-colors. Switching away from Custom preserves those colors for switching back.
+Each widget has thirteen color presets, including Midnight glass, Cloud,
+Lavender, Mint, Coral, and Graphite, or Custom to use your own tile, gradient
+end, text, outline and graphic-accent colors. Switching away from Custom
+preserves those colors for switching back. The optional **Modern card** layout
+adds a compact heading and accent to larger rounded or square tiles, and falls
+back to the classic layout on smaller tiles and other shapes to keep readings
+legible. Existing widgets retain their original appearance until changed.
 Choose text-only or an icon badge, a live analog clock, a calendar card, or a
 PC usage bar/ring. Usage graphics support CPU, RAM and GPU percentages; the
 combined PC summary graphic shows CPU usage. Missing readings dim the gauge

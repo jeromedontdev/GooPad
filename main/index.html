@@ -30,6 +30,7 @@ body.light button{background:#f1f5f9;color:#172033;border-color:#cbd5e1}body.lig
 .preview-controls{display:flex;justify-content:center;gap:10px;margin-top:12px}.preview-controls button{min-width:44px;font-size:20px;padding:4px 12px}.preview-controls button:disabled{opacity:.35;cursor:default}
 .preview button.has-graphic{justify-content:center;gap:4px}.preview .widget-graphic{width:90%;height:35%;flex:0 0 35%;min-height:0}.preview .widget-graphic svg{display:block;width:100%;height:100%}.preview .has-graphic .widget{flex-shrink:1;min-height:0}.preview button.has-bar .widget-graphic{height:8px;flex:0 0 8px;order:1}.preview button.has-bar small{order:2}
 .preview .widget[data-widget=clock]{font-size:min(calc(120cqw / var(--widget-chars,5)),40cqh,42px)}.preview .widget[data-widget=date]{font-size:min(calc(140cqw / var(--widget-chars,10)),24cqh,28px)}.preview button:not(.image-only) .widget{font-size:min(calc(135cqw / var(--widget-chars,10)),18cqh,24px)}
+.preview button.widget-panel{padding-top:var(--widget-header)}.preview .widget-heading{position:absolute;top:var(--widget-heading-top);left:var(--widget-heading-left);right:var(--widget-heading-left);display:flex;align-items:center;justify-content:space-between;gap:4px;color:var(--widget-accent);font-size:var(--widget-heading-size);font-weight:700;letter-spacing:.08em;line-height:1;white-space:nowrap;overflow:hidden}.preview .widget-heading::after{content:"";flex:0 0 16%;height:3px;border-radius:4px;background:currentColor}
 .preview .gif-cover{padding:0}.preview .gif-cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.preview .gif-cover small{position:relative;z-index:1;align-self:center;margin-top:auto;margin-bottom:8px;padding:1px 5px;border-radius:4px;background:#0009;max-width:calc(100% - 16px)}.preview button.drop-target{outline:3px dashed var(--green);outline-offset:-4px}.preview.reordering{scroll-snap-type:none}
 .upload-status:not(:empty){display:block;padding:9px 12px;border:1px solid currentColor;border-radius:8px;color:var(--green);background:#10b98118;font-size:13px;font-weight:700}.upload-status.error:not(:empty){color:#ef4444;background:#ef444418}
 footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-size:12px}a{color:#a5b4fc}body.light a{color:#4338ca}
@@ -275,11 +276,13 @@ function render(){
   <div class="field wide" data-widget-option="date"><label>Date format</label><select data-k="dateFormat"><option value="iso">Year-month-day (2026-11-20)</option><option value="mdy">Month/day/year (11/20/2026)</option><option value="dmy">Day/month/year (20/11/2026)</option><option value="month_short">Short month and day (Nov 20)</option></select></div>
   <div class="field wide" data-widget-option="pc_monitor"><label>PC statistic</label><select data-k="pcStat">${Object.entries(pcStatLabels).map(([key,label])=>`<option value="${key}">${label}</option>`).join("")}</select><span class="hint">GPU readings require supported Windows drivers. Run LibreHardwareMonitor for CPU/GPU temperatures; NVIDIA's nvidia-smi can also provide GPU temperature. Missing readings say Unavailable, never zero.</span></div>
   <div class="field" data-widget-option="pc_temperature"><label>Temperature unit</label><select data-k="temperatureUnit"><option value="C">Celsius</option><option value="F">Fahrenheit</option></select></div>
-  <div class="field" data-widget-style><label>Widget theme</label><select data-k="widgetTheme"><option value="custom">Custom (your tile colors)</option><option value="minimal">Minimal slate</option><option value="neon">Neon cyan</option><option value="terminal">Terminal green</option><option value="paper">Paper</option><option value="ocean">Ocean</option><option value="sunset">Sunset</option><option value="retro">Retro amber</option></select></div>
+  <div class="field" data-widget-style><label>Widget theme</label><select data-k="widgetTheme"><option value="custom">Custom (your tile colors)</option><option value="midnight_glass">Midnight glass</option><option value="cloud">Cloud</option><option value="lavender">Lavender</option><option value="mint">Mint</option><option value="coral">Coral</option><option value="graphite">Graphite</option><option value="minimal">Minimal slate</option><option value="neon">Neon cyan</option><option value="terminal">Terminal green</option><option value="paper">Paper</option><option value="ocean">Ocean</option><option value="sunset">Sunset</option><option value="retro">Retro amber</option></select></div>
+  <div class="field" data-widget-style><label>Widget layout</label><select data-k="widgetLayout"><option value="classic">Classic</option><option value="panel">Modern card</option></select></div>
+  <div class="field" data-widget-style><label>Custom gradient end</label><input data-k="widgetGradient" type="color" value="#${esc(m.widgetGradient||m.color||"4F46E5")}"><span class="hint">Set this to the tile color for a solid background. Used with Custom theme.</span></div>
   <div class="field" data-widget-style><label>Graphic</label><select data-k="widgetGraphic"><option value="text">Text only</option><option value="icon">Icon badge</option><option value="analog">Live analog clock</option><option value="calendar">Calendar card</option><option value="bar">Usage bar</option><option value="ring">Usage ring</option></select></div>
   <div class="field" data-widget-style><label>Widget text size (device pixels)</label><select data-k="widgetTextSize"><option value="0">Auto</option><option value="12">12</option><option value="14">14</option><option value="16">16</option><option value="20">20</option><option value="28">28</option><option value="40">40</option></select></div>
   <div class="field" data-widget-style><label>Graphic accent</label><input data-k="widgetAccent" type="color" value="#${esc(m.widgetAccent||"A5B4FC")}"></div>
-  <div class="field wide" data-widget-style><span class="hint">Presets set tile, text, outline and graphic colors. Custom restores your own colors. Text fits down automatically; tiny tiles simplify graphics when needed. Usage gauges support CPU, RAM and GPU percentages; the combined PC summary gauge shows CPU usage.</span></div>
+  <div class="field wide" data-widget-style><span class="hint">Presets set tile, text, outline and graphic colors. Custom restores your own colors and gradient. Modern cards add a heading and accent on larger rounded or square tiles; smaller tiles and other shapes use the classic layout to keep readings legible. Text fits down automatically. Usage gauges support CPU, RAM and GPU percentages; the combined PC summary gauge shows CPU usage.</span></div>
   <div class="field wide mode-field" data-mode-field="pc_macro"><label>Start with a common action</label><select data-pc-preset><option value="">Choose a starter…</option><option value="copy">Copy</option><option value="paste">Paste</option><option value="screenshot">Screenshot</option><option value="play">Media play / pause</option><option value="mute">Mute</option><option value="text">Type a text snippet</option><option value="powershell">PowerShell command</option></select><p class="hint">Uses the PC pairing in Settings. Steps run in order on that PC. Keyboard input goes to its focused app.</p><div data-pc-steps></div><button data-pc-add type="button">Add step</button><p class="hint" data-pc-summary></p></div>
   <div class="field wide mode-field" data-mode-field="simple_link"><label>Website or trigger link</label><input data-k="url" type="url" placeholder="https://example.com/your-trigger" value="${mode==="simple_link"?esc(m.url):""}"><span class="hint">Paste the link supplied by the service. Leave blank for an unconfigured tile.</span></div>
   <div class="field wide mode-field" data-mode-field="sound"><span class="hint">Choose a button sound above. No website or PC is required.</span></div>
@@ -305,6 +308,7 @@ function render(){
   card.querySelector('[data-k="pcStat"]').value=m.pcStat||"summary";
   card.querySelector('[data-k="temperatureUnit"]').value=m.temperatureUnit||"C";
   card.querySelector('[data-k="widgetTheme"]').value=m.widgetTheme||"custom";
+  card.querySelector('[data-k="widgetLayout"]').value=m.widgetLayout||"classic";
   card.querySelector('[data-k="widgetGraphic"]').value=m.widgetGraphic||"text";
   card.querySelector('[data-k="widgetTextSize"]').value=String(m.widgetTextSize||0);
   card.querySelector("[data-sound-upload]").classList.toggle("hidden",m.sound!=="file");
@@ -346,7 +350,10 @@ const widgetThemes={
  minimal:["0F172A","0F172A","F8FAFC","94A3B8"],neon:["06121C","102A43","CFFAFE","22D3EE"],
  terminal:["081A14","081A14","86EFAC","22C55E"],paper:["F8FAFC","E2E8F0","172033","EF4444"],
  ocean:["082F49","0E7490","E0F2FE","38BDF8"],sunset:["7C2D12","9F1239","FFF7ED","FDBA74"],
- retro:["292524","44403C","FEF3C7","F59E0B"]
+ retro:["292524","44403C","FEF3C7","F59E0B"],
+ midnight_glass:["273650","101A2D","F7FAFF","8AB4FF"],cloud:["FFFFFF","E7EDF5","182439","4779B9"],
+ lavender:["51477B","30284E","F8F3FF","D5BFFF"],mint:["CFF2E6","8ECFBD","153D37","287D70"],
+ coral:["FFA595","DF6B74","40232D","8B3347"],graphite:["3A414D","1B202A","F5F7FA","A7C6EB"]
 };
 function widgetGraphicAllowed(graphic,widget,stat){
  return ["text","icon"].includes(graphic)||graphic==="analog"&&widget==="clock"||
@@ -355,7 +362,7 @@ function widgetGraphicAllowed(graphic,widget,stat){
 function syncWidgetStyle(card,m){
  const widget=m.actionMode==="widget",palette=widget&&widgetThemes[m.widgetTheme];
  card.querySelectorAll("[data-widget-style]").forEach(field=>field.classList.toggle("hidden",!widget));
- for(const [key,value]of [["color",palette?.[0]||m.color],["textColor",palette?.[2]||m.textColor],["outlineColor",palette?.[3]||m.outlineColor||"A5B4FC"],["widgetAccent",palette?.[3]||m.widgetAccent||"A5B4FC"]]){
+ for(const [key,value]of [["color",palette?.[0]||m.color],["textColor",palette?.[2]||m.textColor],["outlineColor",palette?.[3]||m.outlineColor||"A5B4FC"],["widgetAccent",palette?.[3]||m.widgetAccent||"A5B4FC"],["widgetGradient",palette?.[1]||m.widgetGradient||m.color||"4F46E5"]]){
   const control=card.querySelector(`[data-k="${key}"]`);control.disabled=!!palette;control.value="#"+value
  }
  card.querySelector('[data-k="widgetGraphic"]').querySelectorAll("option").forEach(option=>option.disabled=!widgetGraphicAllowed(option.value,m.widget||"clock",m.pcStat||"summary"))
@@ -461,7 +468,9 @@ function preview(){
     if(m.actionMode==="widget"){
      const palette=widgetThemes[m.widgetTheme];
      if(palette){b.style.background=`linear-gradient(#${palette[0]},#${palette[1]})`;b.style.color="#"+palette[2];if(m.outline!==false)b.style.borderColor="#"+palette[3]}
-     const native=widgetDimensions(m,cols,rows),graphic=m.widgetGraphic||"text",fits=native.height-(m.name?28:12)>=(m.widget==="pc_monitor"?50:38);
+     else if(m.widgetGradient)b.style.background=`linear-gradient(#${m.color||"4F46E5"},#${m.widgetGradient})`;
+     const native=widgetDimensions(m,cols,rows),graphic=m.widgetGraphic||"text",panel=m.widgetLayout==="panel"&&native.width>=110&&native.height>=100&&!["circle","pill","soft"].includes(m.shape),header=panel?20:0,fits=native.height-(m.name?28:12)-header>=(m.widget==="pc_monitor"?50:38);
+     if(panel){const heading=document.createElement("span"),unit=value=>`calc(100cqw * ${value} / ${native.width})`;b.classList.add("widget-panel");b.style.setProperty("--widget-header",unit(28));b.style.setProperty("--widget-heading-top",unit(9));b.style.setProperty("--widget-heading-left",unit(12));b.style.setProperty("--widget-heading-size",unit(10));b.style.setProperty("--widget-accent","#"+(palette?.[3]||m.widgetAccent||"A5B4FC"));heading.className="widget-heading";heading.setAttribute("aria-hidden","true");heading.textContent=m.widget==="date"?"DATE":m.widget==="pc_monitor"?({summary:"PC STATS",cpu:"CPU",ram:"RAM",ram_used:"RAM USED",gpu:"GPU",gpu_memory:"GPU RAM",cpu_temp:"CPU TEMP",gpu_temp:"GPU TEMP"}[m.pcStat||"summary"]):"CLOCK";b.append(heading)}
      if(graphic!=="text"&&fits){const image=document.createElement("span");image.className="widget-graphic";image.setAttribute("aria-hidden","true");b.classList.add("has-graphic");b.classList.toggle("has-bar",graphic==="bar");b.append(image)}
      const widget=document.createElement("span");widget.className="widget";widget.dataset.widget=m.widget||"clock";b.append(widget)
     }
@@ -511,7 +520,7 @@ function fitWidgetPreview(element,m){
  const button=element.closest("button"),native=widgetDimensions(m,Number($("#cols").value),Number($("#rows").value)),lines=element.textContent.split("\n"),graphic=button.querySelector(".widget-graphic");
  const long=m.widget==="pc_monitor"&&(m.pcStat||"summary")!=="summary"||(m.widget||"clock")==="clock"&&((m.clockFormat||"24h")==="12h"||(m.clockFormat||"").endsWith("_seconds"));
  const requested=m.widgetTextSize||(native.width<140||long&&native.width<200?14:28),scale=button.clientWidth/native.width;
- let size=requested*scale,available=button.clientHeight-16-(m.name?22:0)-(graphic?(m.widgetGraphic==="bar"?14:graphic.clientHeight+6):0);
+ let size=requested*scale,available=button.clientHeight-16-(m.name?22:0)-(button.classList.contains("widget-panel")?20*scale:0)-(graphic?(m.widgetGraphic==="bar"?14:graphic.clientHeight+6):0);
  widgetMeasure.font=`${size}px ${getComputedStyle(element).fontFamily}`;
  const measured=Math.max(...lines.map(line=>widgetMeasure.measureText(line).width));
  const width=m.shape==="circle"&&graphic?Math.min(button.clientWidth-20,button.clientWidth*.75):button.clientWidth-20;

@@ -88,7 +88,8 @@ $invalid.macros[0].Remove('gifFit')
 foreach ($setting in @(
     @{clockFormat='23h'}, @{dateFormat='custom'}, @{pcStat='unknown'}, @{temperatureUnit='K'},
     @{widgetTheme='unknown'}, @{widgetGraphic='galaxy'}, @{widgetTextSize='28'},
-    @{widgetTextSize=29}, @{widgetAccent='nothex'},
+    @{widgetTextSize=29}, @{widgetAccent='nothex'}, @{widgetGradient='nothex'},
+    @{widgetLayout='unknown'}, @{widgetLayout=123},
     @{widget='clock'; widgetGraphic='calendar'},
     @{widget='pc_monitor'; pcStat='gpu_temp'; widgetGraphic='ring'}
     @{emojiRender='unknown'}, @{emojiImageKey=123}

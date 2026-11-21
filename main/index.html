@@ -27,6 +27,8 @@ body.light button{background:#f1f5f9;color:#172033;border-color:#cbd5e1}body.lig
 .studio{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:start}.stage{position:sticky;top:16px}.stage .fields{margin-bottom:18px}.stage .preview{max-width:540px;margin:auto}.tile-editor .macro{margin:0;border:0;padding:0;background:transparent}.tile-editor .macro-head{flex-wrap:wrap}.preview button{container-type:size;cursor:pointer}.preview button[aria-pressed=true]{outline:3px solid var(--accent);outline-offset:-4px}.preview button:focus-visible{outline:3px solid var(--green);outline-offset:-4px}.preview button:disabled{cursor:default;opacity:.35}.preview .widget{width:100%;max-height:100%;overflow:hidden;font-size:min(14cqw,20cqh,24px);line-height:1.15;white-space:pre-line;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.preview .widget[data-widget=clock]{font-size:min(24cqw,40cqh,42px);white-space:nowrap}.preview .widget[data-widget=date]{font-size:min(14cqw,24cqh,28px);white-space:nowrap}.upload-status.error{color:#ef4444}
 @media(max-width:940px){.studio{grid-template-columns:1fr}.stage{position:static}.stage .preview{max-width:540px}}
 .preview .widget{line-height:1.4}.preview button:not(.image-only) .widget{font-size:min(14cqw,18cqh,24px);flex-shrink:0}
+.preview-controls{display:flex;justify-content:center;gap:10px;margin-top:12px}.preview-controls button{min-width:44px;font-size:20px;padding:4px 12px}.preview-controls button:disabled{opacity:.35;cursor:default}
+.preview button.has-graphic{justify-content:center;gap:4px}.preview .widget-graphic{width:90%;height:35%;flex:0 0 35%;min-height:0}.preview .widget-graphic svg{display:block;width:100%;height:100%}.preview .has-graphic .widget{flex-shrink:1;min-height:0}.preview button.has-bar .widget-graphic{height:8px;flex:0 0 8px;order:1}.preview button.has-bar small{order:2}
 .preview .widget[data-widget=clock]{font-size:min(calc(120cqw / var(--widget-chars,5)),40cqh,42px)}.preview .widget[data-widget=date]{font-size:min(calc(140cqw / var(--widget-chars,10)),24cqh,28px)}.preview button:not(.image-only) .widget{font-size:min(calc(135cqw / var(--widget-chars,10)),18cqh,24px)}
 .preview .gif-cover{padding:0}.preview .gif-cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.preview .gif-cover small{position:relative;z-index:1;align-self:center;margin-top:auto;margin-bottom:8px;padding:1px 5px;border-radius:4px;background:#0009;max-width:calc(100% - 16px)}.preview button.drop-target{outline:3px dashed var(--green);outline-offset:-4px}.preview.reordering{scroll-snap-type:none}
 footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-size:12px}a{color:#a5b4fc}body.light a{color:#4338ca}
@@ -45,7 +47,7 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <div class="field"><label>Columns</label><select id="cols"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field"><label>Rows per page</label><select id="rows"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field wide"><label><input id="hideUnconfigured" type="checkbox"> Hide unconfigured tiles (compact the grid)</label></div>
-</div><div class="preview" id="preview" aria-label="Select a tile to edit; drag tiles to rearrange"></div><div class="preview-dots" id="previewDots" aria-label="Preview pages"></div><p class="hint">Select any tile to edit it. Drag a tile onto another to move or swap it; hold near the preview's left or right edge to change pages. Swipe between tiles or use touch to scroll pages. Hide unconfigured tiles compacts the grid; turn it off to choose empty slots.</p><button id="addPage" type="button">Add page</button><button class="primary" id="save">Save to device</button><p id="saveStatus" class="save-status" role="status" aria-live="polite"></p></section>
+</div><div class="preview" id="preview" aria-label="Select a tile to edit; drag tiles to rearrange"></div><div class="preview-dots" id="previewDots" aria-label="Preview pages"></div><div class="preview-controls"><button id="prevPage" type="button" aria-label="Previous page" title="Previous page">&larr;</button><button id="addPage" type="button" aria-label="Add page after current" title="Add page after current">+</button><button id="removePage" type="button" aria-label="Remove current page" title="Remove current page">&minus;</button><button id="nextPage" type="button" aria-label="Next page" title="Next page">&rarr;</button></div><p class="hint">Select a tile to edit it; drag tiles to move or swap. Use the arrows to navigate, or hold a dragged tile over an arrow. + adds after the current page; − removes the current page. Turn off Hide unconfigured tiles to edit pages.</p><button class="primary" id="save">Save to device</button><p id="saveStatus" class="save-status" role="status" aria-live="polite"></p></section>
 <section class="panel tile-editor"><h2>Edit tile</h2><div id="macros"></div></section>
 </div></div>
 <div id="settingsView" class="hidden"><div class="layout">
@@ -87,7 +89,6 @@ function uploadMessage(index,text,bad=false){
  target.textContent=text;target.classList.toggle("error",bad)
 }
 function emptyMacro(){return {name:"",icon:"",iconSource:"emoji",actionMode:"simple_link",action:"webhook",method:"GET",url:"",body:"",secret:"",sound:"none",color:"4F46E5"}}
-function tileTitle(macro){return macro?.tileName?.trim()||macro?.name||"Unnamed tile"}
 function ensureTile(index){while(cfg.macros.length<=index)cfg.macros.push(emptyMacro())}
 function selectTile(index){
  if(pendingUploads||faBusy)return msg("Wait for the current upload to finish before changing tiles.",true);
@@ -96,7 +97,7 @@ function selectTile(index){
 }
 function scrollToTile(index){
  const preview=$("#preview"),button=preview.querySelector(`[data-tile="${index}"]`);
- if(button)preview.scrollLeft=Array.from(preview.children).indexOf(button.closest(".preview-page"))*preview.clientWidth;
+ if(button)scrollPreviewPage(Array.from(preview.children).indexOf(button.closest(".preview-page")));
  updatePreviewDots()
 }
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -233,8 +234,7 @@ function render(){
   m.actionMode=mode;m.iconSource=m.iconFormat==="gif"?"gif":m.iconSource||(m.faIcon?"fontawesome":m.iconImage?"image":"emoji");
   if(i!==selectedTile)return;
   const card=document.createElement("article");card.className="macro";card.dataset.index=i;
-  card.innerHTML=`<div class="macro-head"><b>${esc(tileTitle(m))}</b><button class="danger" data-delete="${i}">Clear tile</button></div><div class="macro-fields">
-  <div class="field"><label>Tile name (editor only)</label><input data-k="tileName" value="${esc(m.tileName||"")}" maxlength="24" placeholder="Give this tile a name"></div>
+  card.innerHTML=`<div class="macro-head"><button class="danger" data-delete="${i}">Clear tile</button></div><div class="macro-fields">
   <div class="field"><label>Button label (optional)</label><input data-k="name" value="${esc(m.name)}" maxlength="24" placeholder="Leave blank for an image-only button"></div>
   <div class="field"><label>Visual type</label><select data-k="iconSource"><option value="emoji">Icon / emoji</option><option value="fontawesome">Font Awesome</option><option value="image">Image</option><option value="gif">Animated GIF</option></select></div>
   <div class="field wide" data-visual="emoji"><label>Icon / emoji</label><input data-k="icon" value="${esc(m.icon)}" maxlength="8"><input data-emoji-search type="search" placeholder="Search icons / emoji, e.g. music"><div class="picker" data-emoji-results></div><span class="hint" data-emoji-count></span></div>
@@ -248,10 +248,15 @@ function render(){
   <div class="field wide" data-sound-upload><label>Upload sound (WAV / MP3, at most 30 seconds)</label><input data-k="soundUpload" type="file" accept=".wav,.mp3,audio/wav,audio/mpeg"><span class="hint" data-sound-name>${esc(m.soundName||"Choose a file. Audio is converted in your browser and stored on SD.")}</span></div>
   <div class="field wide"><label>What should this button do?</label><select data-k="actionMode"><option value="simple_link">Open a link or trigger a service</option><option value="widget">Live widget (clock, date, PC monitor)</option><option value="pc_macro">Windows PC macro (guided builder)</option><option value="pc_open_url">Open a website on my Windows PC</option><option value="sound">Play a sound only</option><option value="advanced">Custom web request (Advanced)</option></select></div>
   <div class="field wide mode-field" data-mode-field="widget"><label>Widget</label><select data-k="widget"><option value="clock">Clock</option><option value="date">Date</option><option value="pc_monitor">PC stats</option></select><span class="hint">Display-only. PC stats use the pairing in Settings. Clocks use network time or time synced from this browser; set the UTC offset in Settings.</span></div>
-  <div class="field wide" data-widget-option="clock"><label>Time format</label><select data-k="clockFormat"><option value="24h">24-hour (14:30)</option><option value="12h">12-hour (02:30 PM)</option><option value="24h_seconds">24-hour with seconds (14:30:45)</option><option value="12h_seconds">12-hour with seconds (02:30:45 PM)</option></select></div>
+  <div class="field wide" data-widget-option="clock"><label>Time format</label><select data-k="clockFormat"><option value="24h">24-hour (14:30)</option><option value="12h">12-hour (02:30 PM)</option><option value="12h_plain">12-hour, no AM/PM (02:30)</option><option value="24h_seconds">24-hour with seconds (14:30:45)</option><option value="12h_seconds">12-hour with seconds (02:30:45 PM)</option><option value="12h_plain_seconds">12-hour with seconds, no AM/PM (02:30:45)</option></select></div>
   <div class="field wide" data-widget-option="date"><label>Date format</label><select data-k="dateFormat"><option value="iso">Year-month-day (2026-11-20)</option><option value="mdy">Month/day/year (11/20/2026)</option><option value="dmy">Day/month/year (20/11/2026)</option><option value="month_short">Short month and day (Nov 20)</option></select></div>
   <div class="field wide" data-widget-option="pc_monitor"><label>PC statistic</label><select data-k="pcStat">${Object.entries(pcStatLabels).map(([key,label])=>`<option value="${key}">${label}</option>`).join("")}</select><span class="hint">GPU readings require supported Windows drivers. Run LibreHardwareMonitor for CPU/GPU temperatures; NVIDIA's nvidia-smi can also provide GPU temperature. Missing readings say Unavailable, never zero.</span></div>
   <div class="field" data-widget-option="pc_temperature"><label>Temperature unit</label><select data-k="temperatureUnit"><option value="C">Celsius</option><option value="F">Fahrenheit</option></select></div>
+  <div class="field" data-widget-style><label>Widget theme</label><select data-k="widgetTheme"><option value="custom">Custom (your tile colors)</option><option value="minimal">Minimal slate</option><option value="neon">Neon cyan</option><option value="terminal">Terminal green</option><option value="paper">Paper</option><option value="ocean">Ocean</option><option value="sunset">Sunset</option><option value="retro">Retro amber</option></select></div>
+  <div class="field" data-widget-style><label>Graphic</label><select data-k="widgetGraphic"><option value="text">Text only</option><option value="icon">Icon badge</option><option value="analog">Live analog clock</option><option value="calendar">Calendar card</option><option value="bar">Usage bar</option><option value="ring">Usage ring</option></select></div>
+  <div class="field" data-widget-style><label>Widget text size (device pixels)</label><select data-k="widgetTextSize"><option value="0">Auto</option><option value="12">12</option><option value="14">14</option><option value="16">16</option><option value="20">20</option><option value="28">28</option><option value="40">40</option></select></div>
+  <div class="field" data-widget-style><label>Graphic accent</label><input data-k="widgetAccent" type="color" value="#${esc(m.widgetAccent||"A5B4FC")}"></div>
+  <div class="field wide" data-widget-style><span class="hint">Presets set tile, text, outline and graphic colors. Custom restores your own colors. Text fits down automatically; tiny tiles simplify graphics when needed. Usage gauges support CPU, RAM and GPU percentages; the combined PC summary gauge shows CPU usage.</span></div>
   <div class="field wide mode-field" data-mode-field="pc_macro"><label>Start with a common action</label><select data-pc-preset><option value="">Choose a starter…</option><option value="copy">Copy</option><option value="paste">Paste</option><option value="screenshot">Screenshot</option><option value="play">Media play / pause</option><option value="mute">Mute</option><option value="text">Type a text snippet</option><option value="powershell">PowerShell command</option></select><p class="hint">Uses the PC pairing in Settings. Steps run in order on that PC. Keyboard input goes to its focused app.</p><div data-pc-steps></div><button data-pc-add type="button">Add step</button><p class="hint" data-pc-summary></p></div>
   <div class="field wide mode-field" data-mode-field="simple_link"><label>Website or trigger link</label><input data-k="url" type="url" placeholder="https://example.com/your-trigger" value="${mode==="simple_link"?esc(m.url):""}"><span class="hint">Paste the link supplied by the service. Leave blank for an unconfigured tile.</span></div>
   <div class="field wide mode-field" data-mode-field="sound"><span class="hint">Choose a button sound above. No website or PC is required.</span></div>
@@ -270,13 +275,16 @@ function render(){
   card.querySelector('[data-k="dateFormat"]').value=m.dateFormat||"iso";
   card.querySelector('[data-k="pcStat"]').value=m.pcStat||"summary";
   card.querySelector('[data-k="temperatureUnit"]').value=m.temperatureUnit||"C";
+  card.querySelector('[data-k="widgetTheme"]').value=m.widgetTheme||"custom";
+  card.querySelector('[data-k="widgetGraphic"]').value=m.widgetGraphic||"text";
+  card.querySelector('[data-k="widgetTextSize"]').value=String(m.widgetTextSize||0);
   card.querySelector("[data-sound-upload]").classList.toggle("hidden",m.sound!=="file");
   card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==m.iconSource));
   updateModeFields(card,mode);
   renderPcSteps(card,m);
   card.querySelectorAll("[data-k]").forEach(el=>{
    if(el.type==="file"){el.addEventListener("change",()=>el.dataset.k==="soundUpload"?uploadSound(el,m):uploadMacroIcon(el,i,m));return}
-   const update=()=>{const key=el.dataset.k;if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}if(key==="iconSource"){card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==el.value))}if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="simple_link"){m.url="";card.querySelectorAll('[data-k="url"]').forEach(input=>input.value="")}m[key]=el.type==="checkbox"?el.checked:el.type==="color"?el.value.slice(1).toUpperCase():el.value;if(key==="tileName"||key==="name")card.querySelector(".macro-head b").textContent=tileTitle(m);if(key==="sound")card.querySelector("[data-sound-upload]").classList.toggle("hidden",el.value!=="file");if(["actionMode","widget","pcStat"].includes(key))updateModeFields(card,m.actionMode);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()};
+   const update=()=>{const key=el.dataset.k;if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}if(key==="iconSource"){card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==el.value))}if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="simple_link"){m.url="";card.querySelectorAll('[data-k="url"]').forEach(input=>input.value="")}m[key]=key==="widgetTextSize"?Number(el.value):el.type==="checkbox"?el.checked:el.type==="color"?el.value.slice(1).toUpperCase():el.value;if(key==="sound")card.querySelector("[data-sound-upload]").classList.toggle("hidden",el.value!=="file");if(["actionMode","widget","pcStat"].includes(key)){if(!widgetGraphicAllowed(m.widgetGraphic||"text",m.widget||"clock",m.pcStat||"summary")){m.widgetGraphic="text";card.querySelector('[data-k="widgetGraphic"]').value="text"}updateModeFields(card,m.actionMode)}syncWidgetStyle(card,m);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()};
    el.addEventListener("input",update);el.addEventListener("change",update);
   });
   card.querySelector("[data-fa]").onclick=()=>openFaPicker(i);
@@ -301,6 +309,25 @@ function updateModeFields(card,mode){
   field.classList.toggle("hidden",!widget||(field.dataset.widgetOption==="pc_temperature"
    ? selected!=="pc_monitor"||!["cpu_temp","gpu_temp"].includes(stat) : field.dataset.widgetOption!==selected))
  })
+ syncWidgetStyle(card,cfg.macros[Number(card.dataset.index)])
+}
+const widgetThemes={
+ minimal:["0F172A","0F172A","F8FAFC","94A3B8"],neon:["06121C","102A43","CFFAFE","22D3EE"],
+ terminal:["081A14","081A14","86EFAC","22C55E"],paper:["F8FAFC","E2E8F0","172033","EF4444"],
+ ocean:["082F49","0E7490","E0F2FE","38BDF8"],sunset:["7C2D12","9F1239","FFF7ED","FDBA74"],
+ retro:["292524","44403C","FEF3C7","F59E0B"]
+};
+function widgetGraphicAllowed(graphic,widget,stat){
+ return ["text","icon"].includes(graphic)||graphic==="analog"&&widget==="clock"||
+  graphic==="calendar"&&widget==="date"||["bar","ring"].includes(graphic)&&widget==="pc_monitor"&&["summary","cpu","ram","gpu"].includes(stat)
+}
+function syncWidgetStyle(card,m){
+ const widget=m.actionMode==="widget",palette=widget&&widgetThemes[m.widgetTheme];
+ card.querySelectorAll("[data-widget-style]").forEach(field=>field.classList.toggle("hidden",!widget));
+ for(const [key,value]of [["color",palette?.[0]||m.color],["textColor",palette?.[2]||m.textColor],["outlineColor",palette?.[3]||m.outlineColor||"A5B4FC"],["widgetAccent",palette?.[3]||m.widgetAccent||"A5B4FC"]]){
+  const control=card.querySelector(`[data-k="${key}"]`);control.disabled=!!palette;control.value="#"+value
+ }
+ card.querySelector('[data-k="widgetGraphic"]').querySelectorAll("option").forEach(option=>option.disabled=!widgetGraphicAllowed(option.value,m.widget||"clock",m.pcStat||"summary"))
 }
 const pcKeyNames=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ",..."0123456789",...Array.from({length:24},(_,i)=>"F"+(i+1)),"ENTER","TAB","ESC","SPACE","BACKSPACE","DELETE","INSERT","HOME","END","PAGEUP","PAGEDOWN","LEFT","RIGHT","UP","DOWN","PRINTSCREEN"];
 const pcTypes={hotkey:"Press a hotkey",media:"Send a media key",text:"Type text",wait:"Wait",open:"Open website",powershell:"Run PowerShell (local permission required)",action:"Launch an approved PC app"};
@@ -372,27 +399,37 @@ function preparePcMacro(m,index){
  if(new TextEncoder().encode(m.body).length>3072)throw Error(`Button ${index+1}: shorten the PC sequence (maximum 3072 bytes).`);
 }
 function drawEmojiResults(card){const query=card.querySelector("[data-emoji-search]").value.trim().toLowerCase(),matches=presets.filter(([name,icon])=>!query||name.toLowerCase().includes(query)||icon.includes(query)),results=card.querySelector("[data-emoji-results]");results.replaceChildren();matches.slice(0,24).forEach(([name,icon])=>{const button=document.createElement("button");button.type="button";button.textContent=icon;button.title=name;button.onclick=()=>{const input=card.querySelector('[data-k="icon"]');input.value=icon;input.dispatchEvent(new Event("input"))};results.append(button)});card.querySelector("[data-emoji-count]").textContent=`${matches.length} matches${matches.length>24?"; refine your search":""}`}
-function updatePreviewDots(){const p=$("#preview"),page=Math.round(p.scrollLeft/Math.max(1,p.clientWidth));$("#previewDots").querySelectorAll("span").forEach((dot,index)=>dot.setAttribute("aria-current",String(index===page)))}
+function previewStride(){const p=$("#preview");return p.children.length>1?p.children[1].offsetLeft-p.children[0].offsetLeft:p.clientWidth}
+function currentPreviewPage(){return Math.round($("#preview").scrollLeft/Math.max(1,previewStride()))}
+function scrollPreviewPage(index){const p=$("#preview");p.scrollLeft=Math.max(0,Math.min(p.children.length-1,index))*previewStride();updatePreviewDots()}
+function updatePreviewDots(){const p=$("#preview"),page=currentPreviewPage();$("#previewDots").querySelectorAll("span").forEach((dot,index)=>dot.setAttribute("aria-current",String(index===page)));$("#prevPage").disabled=page<=0;$("#nextPage").disabled=page>=p.children.length-1}
+function storedPageCount(cap){const needed=Math.max(1,Math.ceil(cfg.macros.length/cap));return Math.max(needed,Math.min(Math.ceil(32/cap),cfg.pageCount||Math.max(2,needed)))}
 function macroConfigured(m){return !!m&&(m.actionMode==="widget"||!!m.iconImage||!!String(m.url||"").trim()||!!m.sound&&m.sound!=="none")}
 function preview(){
  $("#count").textContent=`(${cfg.macros.filter(macroConfigured).length}/32 configured)`;
- const p=$("#preview"),dots=$("#previewDots"),previousPage=Math.round(p.scrollLeft/Math.max(1,p.clientWidth));p.replaceChildren();dots.replaceChildren();p.style.background="#"+(themeBackgrounds[cfg.theme]||cfg.background||"111827");
+ const p=$("#preview"),dots=$("#previewDots"),previousPage=currentPreviewPage();p.replaceChildren();dots.replaceChildren();p.style.background="#"+(themeBackgrounds[cfg.theme]||cfg.background||"111827");
  if(cfg.theme==="custom"&&cfg.backgroundPreview){p.style.backgroundImage=`url("${cfg.backgroundPreview}")`;p.style.backgroundSize="100% auto";p.style.backgroundPosition="center 57.1429%"}
  const cols=Number($("#cols").value)||3,rows=Number($("#rows").value)||3,cap=cols*rows,hide=$("#hideUnconfigured").checked;
- const macros=cfg.macros.map((macro,index)=>({macro,index})).filter(({macro})=>!hide||macroConfigured(macro)),count=Math.max(hide?1:2,Math.ceil(macros.length/cap));
- $("#addPage").disabled=Math.max(2,Math.ceil(cfg.macros.length/cap))*cap>=32;
+ const macros=cfg.macros.map((macro,index)=>({macro,index})).filter(({macro})=>!hide||macroConfigured(macro)),count=hide?Math.max(1,Math.ceil(macros.length/cap)):storedPageCount(cap);
+ $("#addPage").disabled=hide||count>=Math.ceil(32/cap);$("#removePage").disabled=hide||count<=1;
  for(let pageIndex=0;pageIndex<count;pageIndex++){
   const page=document.createElement("div");page.className="preview-page";page.style.setProperty("--cols",cols);page.style.setProperty("--rows",rows);
   for(let slot=0;slot<cap;slot++){
    const entry=macros[pageIndex*cap+slot],m=entry?.macro,index=entry?.index??pageIndex*cap+slot;if(hide&&!m)continue;
    const cell=document.createElement("div"),b=document.createElement("button");cell.className="preview-cell";
    b.dataset.shape=m?.shape||"rounded";b.style.border=m?.outline===false?"0":"2px solid #"+(m?.outlineColor||({ocean:"67E8F9",forest:"6EE7B7",light:"334155"}[cfg.theme]||"A5B4FC"));
-   b.type="button";b.dataset.tile=index;b.setAttribute("aria-label",tileTitle(m));b.title=tileTitle(m);b.setAttribute("aria-pressed",String(index===selectedTile));b.disabled=index>=32;b.draggable=index<32;b.onclick=()=>selectTile(index);
+   b.type="button";b.dataset.tile=index;b.setAttribute("aria-label",m?.name||m?.widget||"Edit tile");b.setAttribute("aria-pressed",String(index===selectedTile));b.disabled=index>=32;b.draggable=index<32;b.onclick=()=>selectTile(index);
    b.classList.toggle("gif-cover",m?.iconFormat==="gif"&&m.gifFit==="cover"&&m.actionMode!=="widget");
    if(!macroConfigured(m)){b.style.background="#1f2937"}
    else{
     b.style.background="#"+(m.color||"4F46E5");b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.classList.toggle("image-only",!m.name);
-    if(m.actionMode==="widget"){const widget=document.createElement("span");widget.className="widget";widget.dataset.widget=m.widget||"clock";b.append(widget)}
+    if(m.actionMode==="widget"){
+     const palette=widgetThemes[m.widgetTheme];
+     if(palette){b.style.background=`linear-gradient(#${palette[0]},#${palette[1]})`;b.style.color="#"+palette[2];if(m.outline!==false)b.style.borderColor="#"+palette[3]}
+     const native=widgetDimensions(m,cols,rows),graphic=m.widgetGraphic||"text",fits=native.height-(m.name?28:12)>=(m.widget==="pc_monitor"?50:38);
+     if(graphic!=="text"&&fits){const image=document.createElement("span");image.className="widget-graphic";image.setAttribute("aria-hidden","true");b.classList.add("has-graphic");b.classList.toggle("has-bar",graphic==="bar");b.append(image)}
+     const widget=document.createElement("span");widget.className="widget";widget.dataset.widget=m.widget||"clock";b.append(widget)
+    }
     else if(m.imagePreview){const img=document.createElement("img");img.src=m.imagePreview;img.alt="";img.draggable=false;b.append(img)}
     else{const icon=document.createElement("span");icon.className="ico";icon.textContent=m.iconSource!=="emoji"&&m.iconSource?m.iconImage?"…":"":m.icon||"";b.append(icon)}
     if(m.name){const name=document.createElement("small");name.textContent=m.name;b.append(name)}
@@ -401,7 +438,7 @@ function preview(){
   }
   p.append(page);const dot=document.createElement("span");dot.setAttribute("role","img");dot.setAttribute("aria-label",`Preview page ${pageIndex+1}`);dots.append(dot);
  }
- p.scrollLeft=Math.min(previousPage,count-1)*p.clientWidth;updatePreviewDots();updateWidgetPreview()
+ scrollPreviewPage(Math.min(previousPage,count-1));updateWidgetPreview()
 }
 let pcMonitorPreview="CPU --%\nRAM --%",pcStatsPreview={},pcStatsFPreview={};
 function widgetTimeText(m,time){
@@ -412,7 +449,39 @@ function widgetTimeText(m,time){
    m.dateFormat==="month_short"?`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][time.getUTCMonth()]} ${day}`:iso
  }
  const format=m.clockFormat||"24h",twelve=format.startsWith("12h");
- return `${String(twelve?hours%12||12:hours).padStart(2,"0")}:${minutes}${format.endsWith("_seconds")?":"+seconds:""}${twelve?hours<12?" AM":" PM":""}`
+ return `${String(twelve?hours%12||12:hours).padStart(2,"0")}:${minutes}${format.endsWith("_seconds")?":"+seconds:""}${twelve&&!format.includes("_plain")?hours<12?" AM":" PM":""}`
+}
+function widgetDimensions(m,cols,rows){
+ let width=Math.floor((460-(cols-1)*8)/cols),height=Math.floor((376-(rows-1)*8)/rows);
+ if(m.shape==="circle")width=height=Math.min(width,height);
+ if(m.shape==="pill")height=Math.floor(height*3/4);
+ return {width,height}
+}
+function widgetGraphicSvg(m,time,text){
+ const graphic=m.widgetGraphic||"text",accent="#"+(widgetThemes[m.widgetTheme]?.[3]||m.widgetAccent||"A5B4FC");
+ const usage=(m.pcStat||"summary")==="summary"?text.split("\n")[0]:text,match=usage.match(/(?:^|\s)(\d+(?:\.\d+)?)%/),value=match?Math.min(100,Math.max(0,Number(match[1]))):0;
+ let drawing;
+ if(graphic==="bar")drawing=`<rect x="3" y="5" width="94" height="8" rx="4" opacity=".2" fill="currentColor"/><rect x="3" y="5" width="${94*value/100}" height="8" rx="4" fill="currentColor"/>`;
+ else if(graphic==="ring")drawing=`<circle cx="50" cy="50" r="40" pathLength="100" stroke-dasharray="75 100" opacity=".2"/><circle cx="50" cy="50" r="40" pathLength="100" stroke-dasharray="${value*.75} 100"/>`;
+ else if(m.widget==="date")drawing=`<rect x="15" y="15" width="70" height="75" rx="8"/><path d="M15 34H85M32 8V25M68 8V25"/><text x="50" y="70" text-anchor="middle" font-size="32" stroke="none" fill="currentColor">${graphic==="calendar"?String(time.getUTCDate()).padStart(2,"0"):"#"}</text>`;
+ else if(m.widget==="pc_monitor")drawing=`<rect x="15" y="15" width="70" height="70" rx="8"/><path d="M33 33V67M50 33V67M67 33V67"/>`;
+ else{
+  const hour=graphic==="analog"?time.getUTCHours():10,minute=graphic==="analog"?time.getUTCMinutes():10;
+  drawing=`<circle cx="50" cy="50" r="43"/><path d="M50 50V25" transform="rotate(${hour%12*30+minute*.5} 50 50)"/><path d="M50 50V14" transform="rotate(${minute*6} 50 50)"/>`
+ }
+ return `<svg viewBox="0 0 100 ${graphic==="bar"?16:100}" style="color:${esc(accent)};${["bar","ring"].includes(graphic)&&!match?"opacity:.3":""}" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round">${graphic==="ring"?`<g transform="rotate(135 50 50)">${drawing}</g>`:drawing}</svg>`
+}
+const widgetMeasure=document.createElement("canvas").getContext("2d");
+function fitWidgetPreview(element,m){
+ const button=element.closest("button"),native=widgetDimensions(m,Number($("#cols").value),Number($("#rows").value)),lines=element.textContent.split("\n"),graphic=button.querySelector(".widget-graphic");
+ const long=m.widget==="pc_monitor"&&(m.pcStat||"summary")!=="summary"||(m.widget||"clock")==="clock"&&((m.clockFormat||"24h")==="12h"||(m.clockFormat||"").endsWith("_seconds"));
+ const requested=m.widgetTextSize||(native.width<140||long&&native.width<200?14:28),scale=button.clientWidth/native.width;
+ let size=requested*scale,available=button.clientHeight-16-(m.name?22:0)-(graphic?(m.widgetGraphic==="bar"?14:graphic.clientHeight+6):0);
+ widgetMeasure.font=`${size}px ${getComputedStyle(element).fontFamily}`;
+ const measured=Math.max(...lines.map(line=>widgetMeasure.measureText(line).width));
+ const width=m.shape==="circle"&&graphic?Math.min(button.clientWidth-20,button.clientWidth*.75):button.clientWidth-20;
+ size*=Math.min(1,width/Math.max(1,measured),Math.max(1,available)/(lines.length*size*1.4));
+ element.style.fontSize=Math.max(1,size)+"px";element.style.lineHeight="1.4"
 }
 function updateWidgetPreview(){
  const offset=Number($("#timeOffset").value);
@@ -422,6 +491,9 @@ function updateWidgetPreview(){
   const macro=cfg.macros[Number(element.closest("[data-tile]").dataset.tile)],stat=macro.pcStat||"summary";
   element.textContent=element.dataset.widget==="pc_monitor"?(macro.temperatureUnit==="F"&&pcStatsFPreview[stat]||pcStatsPreview[stat]||(stat==="summary"?pcMonitorPreview:"PC sampling")):widgetTimeText(macro,time);
   element.style.setProperty("--widget-chars",Math.max(...element.textContent.split("\n").map(line=>line.length)))
+  const graphic=element.closest("button").querySelector(".widget-graphic");
+  if(graphic)graphic.innerHTML=widgetGraphicSvg(macro,time,element.textContent);
+  fitWidgetPreview(element,macro)
  })
 }
 setInterval(updateWidgetPreview,1000);
@@ -547,7 +619,6 @@ function parseWebUrl(value,label){
  return parsed.href
 }
 function prepareMacroAction(m,index){
- if(m.tileName&&new TextEncoder().encode(m.tileName).length>24)throw Error(`Button ${index+1}: tile name must fit within 24 UTF-8 bytes. Shorten its name.`);
  if(m.actionMode==="widget"){
   m.widget=m.widget||"clock";m.sound="none";m.method="GET";m.action="http";m.body="";
   if(m.widget==="pc_monitor"){const connection=pcConnection(cfg.companionAddress,cfg.companionToken);m.url=connection.origin+"/monitor";m.secret=connection.token}
@@ -584,11 +655,24 @@ function prepareMacroAction(m,index){
  }else throw Error(`Button ${index+1}: choose an action type.`);
 }
 $("#addPage").onclick=()=>{
- const cap=Number($("#cols").value)*Number($("#rows").value),index=Math.max(2,Math.ceil(cfg.macros.length/cap))*cap;
- if(index>=32)return msg("Maximum 32 tile positions.",true);
- if(pendingUploads||faBusy)return msg("Wait for the upload to finish.",true);
- $("#hideUnconfigured").checked=false;selectTile(index);scrollToTile(index)
+ if(pendingUploads||faBusy||$("#preview").classList.contains("reordering"))return msg("Finish the current upload or tile move first.",true);
+ if($("#hideUnconfigured").checked)return msg("Turn off Hide unconfigured tiles to edit pages.",true);
+ const cap=Number($("#cols").value)*Number($("#rows").value),count=storedPageCount(cap),page=currentPreviewPage(),position=(page+1)*cap;
+ if(count>=Math.ceil(32/cap))return msg("Maximum 32 tile positions.",true);
+ const tiles=Array.from({length:Math.min(32,count*cap)},(_,i)=>cfg.macros[i]||emptyMacro());
+ tiles.splice(position,0,...Array.from({length:cap},emptyMacro));
+ if(tiles.slice(32).some(m=>macroConfigured(m)||m.name||m.icon))return msg("Adding here would push configured tiles beyond 32 positions. Clear space on the final page first.",true);
+ cfg.macros=tiles.slice(0,32);cfg.pageCount=count+1;selectedTile=position;render();scrollPreviewPage(page+1)
 };
+$("#removePage").onclick=()=>{
+ if(pendingUploads||faBusy||$("#preview").classList.contains("reordering"))return msg("Finish the current upload or tile move first.",true);
+ if($("#hideUnconfigured").checked)return msg("Turn off Hide unconfigured tiles to edit pages.",true);
+ const cap=Number($("#cols").value)*Number($("#rows").value),count=storedPageCount(cap),page=currentPreviewPage(),start=page*cap;
+ if(count<=1)return;
+ if(cfg.macros.slice(start,start+cap).some(m=>macroConfigured(m)||m.name||m.icon)&&!confirm("Remove this page and its tiles? Other pages shift forward. This takes effect when you save."))return;
+ cfg.macros.splice(start,cap);cfg.pageCount=count-1;selectedTile=-1;render();scrollPreviewPage(Math.min(page,count-2))
+};
+$("#prevPage").onclick=()=>scrollPreviewPage(currentPreviewPage()-1);$("#nextPage").onclick=()=>scrollPreviewPage(currentPreviewPage()+1);
 $("#save").onclick=async()=>{
  if(pendingUploads){$("#saveStatus").textContent="Wait for the upload to finish before saving.";return}
  cfg.cols=Number($("#cols").value);cfg.rows=Number($("#rows").value);cfg.background=$("#background").value.slice(1).toUpperCase();cfg.theme=$("#deviceTheme").value;
@@ -599,7 +683,7 @@ $("#save").onclick=async()=>{
   if(!Number.isInteger(cfg.timeOffsetMinutes)||cfg.timeOffsetMinutes < -840||cfg.timeOffsetMinutes > 840)throw Error("Choose a UTC offset between -840 and 840 minutes.");
   await new Promise(resolve=>requestAnimationFrame(resolve));cfg.macros.forEach(prepareMacroAction);
   await upgradeLegacyFaIcons();
-  const {backgroundPreview,...settings}=cfg,stored={...settings,macros:cfg.macros.map(({imagePreview,pcSteps,...macro})=>macro)},body=JSON.stringify(stored);
+  const {backgroundPreview,...settings}=cfg,stored={...settings,macros:cfg.macros.map(({imagePreview,pcSteps,tileName,...macro})=>macro)},body=JSON.stringify(stored);
   if(new TextEncoder().encode(body).length>12000)throw Error("Configuration exceeds 12 KB. Shorten PC sequences or reduce the number of macros.");
   await api("/api/config",{method:"POST",body});status.textContent="Saved to device.";preview()
  }
@@ -642,7 +726,7 @@ $("#changePassword").onclick=async()=>{
  catch(error){msg("Could not change password: "+error.message,true)}
  finally{button.disabled=false}
 };
-["cols","rows"].forEach(id=>$("#"+id).onchange=render);
+["cols","rows"].forEach(id=>$("#"+id).onchange=()=>{cfg.pageCount=storedPageCount(Number($("#cols").value)*Number($("#rows").value));render()});
 $("#preview").addEventListener("scroll",updatePreviewDots,{passive:true});
 $("#preview").addEventListener("scrollend",updatePreviewDots);
 {
@@ -667,9 +751,9 @@ $("#preview").addEventListener("scrollend",updatePreviewDots);
  previewElement.addEventListener("click",event=>{if(suppressClick){event.preventDefault();event.stopPropagation();suppressClick=false}},true);
 }
 {
- const previewElement=$("#preview");let movingTile=-1,edgeTimer=null,edgeDirection=0;
+ const previewElement=$("#preview");let movingTile=-1,edgeTimer=null,edgeDirection=0,navigationTimer=null;
  const stopReordering=()=>{
-  movingTile=-1;clearInterval(edgeTimer);edgeTimer=null;edgeDirection=0;
+  movingTile=-1;clearInterval(edgeTimer);clearInterval(navigationTimer);edgeTimer=null;navigationTimer=null;edgeDirection=0;
   previewElement.classList.remove("reordering");
   previewElement.querySelectorAll(".drop-target").forEach(tile=>tile.classList.remove("drop-target"))
  };
@@ -688,8 +772,7 @@ $("#preview").addEventListener("scrollend",updatePreviewDots);
   if(direction!==edgeDirection){
    clearInterval(edgeTimer);edgeTimer=null;edgeDirection=direction;
    if(direction)edgeTimer=setInterval(()=>{
-    const width=previewElement.clientWidth,page=Math.round(previewElement.scrollLeft/width);
-    previewElement.scrollLeft=Math.max(0,Math.min(previewElement.children.length-1,page+direction))*width;updatePreviewDots()
+    scrollPreviewPage(currentPreviewPage()+direction)
    },650)
   }
  });
@@ -708,6 +791,13 @@ $("#preview").addEventListener("scrollend",updatePreviewDots);
   selectedTile=target;render();scrollToTile(target)
  });
  previewElement.addEventListener("dragend",stopReordering);
+ for(const [id,direction]of [["prevPage",-1],["nextPage",1]]){
+  const arrow=$("#"+id);
+  arrow.addEventListener("dragenter",()=>{if(movingTile<0)return;clearInterval(navigationTimer);navigationTimer=setInterval(()=>scrollPreviewPage(currentPreviewPage()+direction),600)});
+  arrow.addEventListener("dragover",event=>{if(movingTile>=0)event.preventDefault()});
+  arrow.addEventListener("dragleave",()=>{clearInterval(navigationTimer);navigationTimer=null});
+  arrow.addEventListener("drop",event=>{if(movingTile>=0){event.preventDefault();stopReordering()}})
+ }
 }
 $("#faSearch").oninput=()=>{clearTimeout(faSearchTimer);faSearchVersion++;$("#faResults").replaceChildren();faSearchTimer=setTimeout(drawFaResults,180)};$("#faClose").onclick=()=>{if(!faBusy)$("#faDialog").close()};
 $("#hideUnconfigured").onchange=preview;$("#timeOffset").oninput=updateWidgetPreview;

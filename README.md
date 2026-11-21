@@ -37,13 +37,18 @@ Choose **Icon / emoji**, **Font Awesome**, **Image**, or **Animated GIF** from i
 dropdown. Blank labels stay blank; the visual is enlarged and centered.
 The live preview is the editor's centerpiece: select any tile, including an
 empty slot, to edit it. Only that tile's controls are shown. You can configure
-positions in any order. **Tile name** names a tile in the editor without adding
-text to its visual; **Button label** remains optional on-screen text.
+positions in any order. **Button label** is optional on-screen text; tiles have
+no separate editor name.
 **Clear tile** leaves other positions untouched. Drag a preview tile onto an
 empty position to move it, or onto another tile to swap them. Hold a dragged
-tile near the preview's left/right edge to change pages. Mouse swiping starts
+tile over a navigation arrow, or near the preview's left/right edge, to change pages. Mouse swiping starts
 in the space between tiles; touch scrolling remains available.
-**Add page** reveals more positions, up to 32 total.
+The preview-only arrows navigate without dragging. **+** inserts a page after
+the current page; **−** removes the current page, confirming if it contains
+tiles. Other pages shift with their contents. At least one page remains, with
+up to 32 positions total; insertion is rejected if it would discard configured
+tiles beyond that limit. Turn off **Hide unconfigured tiles** to edit pages.
+Page changes apply when you save.
 **Save to device** is below the live preview.
 Save progress, confirmation, and errors appear only there. **Save appearance**
 returns to the preview so its result is visible. **About & help** includes
@@ -85,12 +90,23 @@ does not include the assets.
 
 Choose **Live widget** for a live clock, date, or **PC stats**.
 Widgets are display-only on the device; select them in the editor to configure
-them. Time format offers 12/24-hour displays, with optional seconds; the default
+them. Time format offers 12/24-hour displays, with optional seconds and optional
+AM/PM for 12-hour clocks; the default
 remains 24-hour without seconds. Date format offers year-month-day, month/day/year,
 day/month/year, and short month/day; the default remains year-month-day. Date preview text
 scales to the tile's dimensions. Clock/date use network time or time
 synced when the website opens; Settings includes a fixed UTC offset, initially
 matched to the browser. Update that offset after daylight-saving changes.
+Each widget has seven presets (Minimal, Neon, Terminal, Paper, Ocean, Sunset,
+Retro), or Custom to retain your own tile, text, outline and graphic-accent
+colors. Switching away from Custom preserves those colors for switching back.
+Choose text-only or an icon badge, a live analog clock, a calendar card, or a
+PC usage bar/ring. Usage graphics support CPU, RAM and GPU percentages; the
+combined PC summary graphic shows CPU usage. Missing readings dim the gauge
+and show an unavailable message rather than a fabricated zero reading.
+Text size supports Auto or 12, 14, 16, 20, 28 and 40 device pixels, fitting down
+to keep readings inside the tile. Tiny tiles simplify graphics to text when
+necessary. Device graphics use lightweight LVGL vectors, not uploaded assets.
 PC stats use the paired Companion. Choose CPU/RAM combined, CPU usage,
 RAM percentage or used GiB, GPU usage, dedicated GPU RAM used, CPU temperature,
 or GPU temperature per tile. Temperature tiles support Celsius/Fahrenheit.
@@ -124,7 +140,8 @@ Choose **GIF size → Fill whole tile** to zoom proportionally and crop to the
 tile shape, with any button label overlaid. **Fit inside tile** preserves the
 existing centered-icon sizing. This changes display size, not upload limits.
 TLS allocations use PSRAM to avoid exhausting internal RAM when browsers
-open multiple HTTPS connections.
+open multiple HTTPS connections. The HTTPS session pool is bounded at six
+connections, leaving socket capacity for server control and outbound commands.
 Unconfigured device tiles have no plus sign and cannot be tapped.
 **Hide unconfigured tiles** compacts
 configured actions and widgets without changing their action assignments.
@@ -303,6 +320,13 @@ uploaded WAV playback and rapid sound taps, then restores configuration
 and power settings and deletes the test sound even if a check fails.
 Add `-NonMutating` to check HTTPS, authentication, icon catalog and rejection
 of invalid tile settings without replacing the layout or changing power controls.
+These checks require firmware 0.5.4 or later and refuse older schemas before
+sending invalid-input tests that older firmware might otherwise accept.
+Browser editor regressions are in [tests/test_editor.js](tests/test_editor.js).
+Open the local [editor](main/index.html), load that script as a classic script,
+and call `runGooPadEditorTests()` in its console. It uses synthetic layouts and
+mocked saves, refuses device URLs, and checks page editing, drag-hover navigation,
+widget controls and actual text bounds across all grids, shapes and text sizes.
 
 To create a full-flash image and an app-only OTA image:
 

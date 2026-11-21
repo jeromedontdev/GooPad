@@ -30,6 +30,10 @@ function Expect($Response, $Status) {
 
 $original = Request '/api/config'
 Expect $original 200
+$schema = (Request '/api/status').Content | ConvertFrom-Json
+if ($null -eq $schema.renderedPages) {
+    throw 'Update to GooPad 0.5.4 or later before running these validation checks; older firmware ignores new fields.'
+}
 $parallelStatus = 1..12 | ForEach-Object -Parallel {
     $response = Invoke-WebRequest -Uri "$using:base/api/status" -Headers $using:headers `
         -SkipCertificateCheck -DisableKeepAlive -TimeoutSec 30
@@ -64,13 +68,31 @@ $invalid.macros[0].gifFit = 'stretch'
 Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
 $invalid.macros[0].Remove('gifFit')
 foreach ($setting in @(
-    @{clockFormat='23h'}, @{dateFormat='custom'}, @{pcStat='unknown'}, @{temperatureUnit='K'}
+    @{clockFormat='23h'}, @{dateFormat='custom'}, @{pcStat='unknown'}, @{temperatureUnit='K'},
+    @{widgetTheme='unknown'}, @{widgetGraphic='galaxy'}, @{widgetTextSize='28'},
+    @{widgetTextSize=29}, @{widgetAccent='nothex'},
+    @{widget='clock'; widgetGraphic='calendar'},
+    @{widget='pc_monitor'; pcStat='gpu_temp'; widgetGraphic='ring'}
 )) {
     foreach ($key in $setting.Keys) { $invalid.macros[0][$key] = $setting[$key] }
     Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
     foreach ($key in $setting.Keys) { $invalid.macros[0].Remove($key) }
 }
+$capacity = [int]$invalid.cols * [int]$invalid.rows
+foreach ($pages in @(0, -1, 1.5, ([math]::Ceiling(32 / $capacity) + 1))) {
+    $invalid.pageCount = $pages
+    Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
+}
+$oneTile = $invalid.macros[0]
+$invalid.pageCount = 1
+$invalid.macros = @(0..$capacity | ForEach-Object { $oneTile.Clone() })
+Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
+$invalid.macros = @($oneTile)
+$invalid.Remove('pageCount')
 $stats = (Request '/api/status').Content | ConvertFrom-Json
+if ($stats.renderedPages -lt 1 -or $stats.renderedPages -gt [math]::Ceiling(32 / ([int]$invalid.cols * [int]$invalid.rows))) {
+    throw 'Invalid native rendered-page count.'
+}
 foreach ($key in @('summary','cpu','ram','ram_used','gpu','gpu_memory','cpu_temp','gpu_temp')) {
     if (!$stats.pcStats.$key -or $stats.pcStats.$key.Length -gt 64) { throw "Missing PC stat: $key" }
 }
@@ -79,7 +101,7 @@ foreach ($key in @('cpu_temp','gpu_temp')) {
 }
 if ((Request '/api/config').Content -ne $original.Content) { throw 'Rejected tile settings changed configuration.' }
 if ($NonMutating) {
-    'PASS: concurrent HTTPS, authentication, catalog, tile/widget settings validation and PC stats schema; configuration unchanged.'
+    'PASS: concurrent HTTPS, authentication, catalog, tile/widget styling and page validation, PC stats schema; configuration unchanged.'
     return
 }
 

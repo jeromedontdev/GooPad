@@ -1179,6 +1179,32 @@ static esp_err_t backup_handler(httpd_req_t *req)
     if (!g_app.sd.mounted) {
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No SD card mounted");
     }
+    if (req->method == HTTP_GET) {
+        FILE *backup = fopen(BSP_SD_MOUNT_POINT "/goopad-config.json", "rb");
+        if (!backup) return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "No configuration backup on SD");
+        struct stat info;
+        if (fstat(fileno(backup), &info) != 0 || info.st_size < 1 || info.st_size > CONFIG_MAX_BYTES) {
+            fclose(backup);
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid SD backup size");
+        }
+        char *data = heap_caps_malloc(info.st_size + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        bool ok = data && fread(data, 1, info.st_size, backup) == (size_t)info.st_size;
+        fclose(backup);
+        if (!ok) {
+            free(data);
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not read SD backup");
+        }
+        data[info.st_size] = '\0';
+        if (!validate_config(data)) {
+            free(data);
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid SD backup configuration");
+        }
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+        esp_err_t result = httpd_resp_send(req, data, info.st_size);
+        free(data);
+        return result;
+    }
     FILE *file = fopen(BSP_SD_MOUNT_POINT "/goopad-config.json", "w");
     if (!file) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "SD write failed");
     xSemaphoreTake(s_config_lock, portMAX_DELAY);
@@ -1401,6 +1427,13 @@ static esp_err_t companion_status_handler(httpd_req_t *req)
                  cJSON_IsString(token) && strlen(token->valuestring) >= 32 &&
                  strlen(token->valuestring) <= 64 && !strchr(token->valuestring, '\r') &&
                  !strchr(token->valuestring, '\n');
+    const char *endpoint = valid ? strrchr(url->valuestring, '/') : NULL;
+    if (endpoint && !strcmp(endpoint, "/monitor")) {
+        cJSON_Delete(root);
+        free(body);
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+            "Reload the GooPad website to use cached PC monitoring. Save pairing and widget changes first.");
+    }
     companion_reply_t reply = {.data = heap_caps_calloc(1, 2049, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)};
     esp_http_client_config_t config = {
         .url = valid ? url->valuestring : NULL, .timeout_ms = 4000,
@@ -1585,7 +1618,7 @@ static esp_err_t start_server(void)
 {
     if (s_server) return ESP_OK;
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
-    config.httpd.max_uri_handlers = 20;
+    config.httpd.max_uri_handlers = 21;
     config.httpd.core_id = 1;
     esp_err_t err = goopad_tls_configure(&config, s_ip_address);
     if (err == ESP_OK) err = httpd_ssl_start(&s_server, &config);
@@ -1598,6 +1631,7 @@ static esp_err_t start_server(void)
         {.uri = "/api/trigger", .method = HTTP_POST, .handler = trigger_handler},
         {.uri = "/api/wifi/join", .method = HTTP_POST, .handler = wifi_join_handler},
         {.uri = "/api/backup", .method = HTTP_POST, .handler = backup_handler},
+        {.uri = "/api/backup", .method = HTTP_GET, .handler = backup_handler},
         {.uri = "/api/status", .method = HTTP_GET, .handler = status_handler},
         {.uri = "/api/ota", .method = HTTP_POST, .handler = ota_upload_handler},
         {.uri = "/api/ota/sd", .method = HTTP_POST, .handler = ota_sd_handler},

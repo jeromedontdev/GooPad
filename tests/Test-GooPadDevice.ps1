@@ -14,13 +14,13 @@ $headers = @{ Authorization = "Basic $token" }
 function Request($Path, $Method = 'GET', $Body = $null, $Headers = $headers, $ContentType = 'application/json') {
     $options = @{
         Uri = "$base$Path"; Method = $Method; Headers = $Headers
-        SkipCertificateCheck = $true; SkipHttpErrorCheck = $true; TimeoutSec = 30
+        SkipCertificateCheck = $true; SkipHttpErrorCheck = $true; TimeoutSec = 30; DisableKeepAlive = $true
     }
     if ($null -ne $Body) { $options.Body = $Body; $options.ContentType = $ContentType }
     if ($Body -is [byte[]]) { $options.TimeoutSec = 180 }
     try { Invoke-WebRequest @options }
     catch [System.OperationCanceledException], [System.Net.Http.HttpRequestException] {
-        throw "Request $Method $Path failed: $($_.Exception.Message)"
+        throw "Request $Method $Path failed: $($_.Exception.Message)`n$($_.ScriptStackTrace)"
     }
 }
 function Expect($Response, $Status) {
@@ -29,6 +29,17 @@ function Expect($Response, $Status) {
 
 $original = Request '/api/config'
 Expect $original 200
+$parallelStatus = 1..12 | ForEach-Object -Parallel {
+    $response = Invoke-WebRequest -Uri "$using:base/api/status" -Headers $using:headers `
+        -SkipCertificateCheck -DisableKeepAlive -TimeoutSec 30
+    if ($response.StatusCode -ne 200) { throw 'Concurrent HTTPS status request failed.' }
+    $response.StatusCode
+} -ThrottleLimit 3
+if ($parallelStatus.Count -ne 12) { throw 'Concurrent HTTPS requests were interrupted.' }
+$legacyMonitor = @{url='http://192.0.2.1:8787/monitor';token=('x' * 32)} | ConvertTo-Json -Compress
+$timer = [Diagnostics.Stopwatch]::StartNew()
+Expect (Request '/api/companion' 'POST' $legacyMonitor) 400
+if ($timer.Elapsed.TotalSeconds -gt 2) { throw 'Legacy PC polling still blocks the upload server.' }
 $unauthorized = Request '/api/config' 'POST' '{}' @{}
 Expect $unauthorized 401
 if ($unauthorized.Content -ne 'Authentication required') { throw 'Unauthorized handler appended data.' }
@@ -45,6 +56,8 @@ $soundKey = 'i' + ([guid]::NewGuid().ToString('N').Substring(0,16))
 $soundUploaded = $false
 $backgroundKey = 'i' + ([guid]::NewGuid().ToString('N').Substring(0,16))
 $backgroundUploaded = $false
+$gifKey = 'i' + ([guid]::NewGuid().ToString('N').Substring(0,16))
+$gifUploaded = $false
 $test.macros = @(
     foreach ($shape in @('rounded', 'square', 'circle', 'pill', 'soft')) {
         @{
@@ -147,6 +160,22 @@ try {
         if ($result.busy -or $result.message -ne 'PC macro completed.') { throw 'Device-to-PC sequence did not finish.' }
         $pcToken = $null
     }
+    $gif = [Convert]::FromBase64String('R0lGODlhIAAgAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQACgAAACwAAAAAIAAgAAAINQABCBxIsKDBgwgTKlzIsKHDhxAjSpxIsaLFixgzatzIsaPHjyBDihxJsqTJkyhTqlzJUmRAACH5BAEKAAEALAAAAAAgACAAgQAA/wAAAAAAAAAAAAg1AAEIHEiwoMGDCBMqXMiwocOHECNKnEixosWLGDNq3Mixo8ePIEOKHEmypMmTKFOqXMlSZEAAOw==')
+    Expect (Request "/api/icon?key=$gifKey" 'POST' $gif $headers 'image/gif') 200
+    $gifUploaded = $true
+    $test.macros = @(@{
+        name=''; icon=''; action='http'; method='GET'; url=''; body=''; secret=''
+        actionMode='simple_link'; iconSource='gif'; iconFormat='gif'; iconSize=160; iconImage=$gifKey
+    })
+    Expect (Request '/api/config' 'POST' ($test | ConvertTo-Json -Depth 20 -Compress)) 200
+    Start-Sleep -Seconds 2
+    $animation = (Request '/api/status').Content | ConvertFrom-Json
+    if ($animation.gifs -ne 1) { throw 'Saved GIF did not decode into a tile.' }
+    Start-Sleep -Seconds 1
+    if (((Request '/api/status').Content | ConvertFrom-Json).gifLoops -le $animation.gifLoops) {
+        throw 'Saved GIF is not animating.'
+    }
+    Expect (Request "/api/icon?key=$gifKey" 'DELETE') 409
 } finally {
     Expect (Request '/api/config' 'POST' $original.Content) 200
     Expect (Request '/api/controls' 'POST' (@{brightness=$controls.brightness;volume=$controls.volume} | ConvertTo-Json -Compress)) 200
@@ -157,6 +186,7 @@ try {
         Expect (Request "/api/sound?key=$soundKey" 'DELETE') 200
     }
     if ($backgroundUploaded) { Expect (Request "/api/background?key=$backgroundKey" 'DELETE') 200 }
+    if ($gifUploaded) { Expect (Request "/api/icon?key=$gifKey" 'DELETE') 200 }
 }
 if ((Request '/api/config').Content -ne $original.Content) { throw 'Original configuration was not restored.' }
-'PASS: HTTPS, grids/shapes, power caps, WAV/tap protection, 480x480 background, optional device-to-PC sequence, state restoration and asset cleanup.'
+'PASS: concurrent HTTPS, grids/shapes, power caps, WAV/tap protection, 480x480 background, GIF decoding/playback, optional device-to-PC sequence, state restoration and asset cleanup.'

@@ -35,6 +35,11 @@ a stable bookmark.
 Each tile supports an optional label, color, visual, and a plain-language action.
 Choose **Icon / emoji**, **Font Awesome**, **Image**, or **Animated GIF** from its visual-type
 dropdown. Blank labels stay blank; the visual is enlarged and centered.
+The live preview is the editor's centerpiece: select any tile, including an
+empty slot, to edit it. Only that tile's controls are shown. You can configure
+positions in any order. **Clear tile** leaves other positions untouched;
+**Move / swap** relocates a tile or swaps it with an occupied position.
+**Add page** reveals more positions, up to 32 total.
 **Save to device** is below the live preview.
 Save progress, confirmation, and errors appear only there. **Save appearance**
 returns to the preview so its result is visible. **About & help** includes
@@ -75,19 +80,33 @@ requires saving. Images are stored separately on SD, so a config-only backup
 does not include the assets.
 
 Choose **Live widget** for a live clock, date, or PC CPU/RAM monitor.
-Widgets are display-only, not buttons. Clock/date use network time or time
+Widgets are display-only on the device; select them in the editor to configure
+them. The clock shows hours and minutes, without seconds. Date preview text
+scales to the tile's dimensions. Clock/date use network time or time
 synced when the website opens; Settings includes a fixed UTC offset, initially
 matched to the browser. Update that offset after daylight-saving changes.
 PC monitoring uses the paired Companion and refreshes every five seconds.
+The web preview reads the device's cached result without blocking its web
+server on a second PC request. Save pairing/widget changes to update that result.
+After updating firmware, reload open editor tabs: older direct monitor-proxy
+requests return a reload message rather than tying up the upload server.
 It requires the same LAN reachability as PC commands and shows an explicit
 unavailable/sampling message when no reading is available.
 
 Animated GIFs require SD and are limited to 160×160 pixels, 128 KB, 240 frames,
 and four GIF tiles per layout. Device frame delays are clamped to at least
 100 ms (10 fps); animations pause on hidden pages and behind the Info panel.
-The browser preview may animate faster than the device. Unconfigured tiles
-have no plus sign and cannot be tapped. **Hide unconfigured tiles** compacts
+The browser preview may animate faster than the device. Resize or compress
+larger GIFs before uploading. Upload progress and errors appear beside the
+GIF file chooser; saving a GIF without a successfully uploaded asset is rejected.
+TLS allocations use PSRAM to avoid exhausting internal RAM when browsers
+open multiple HTTPS connections.
+Unconfigured device tiles have no plus sign and cannot be tapped.
+**Hide unconfigured tiles** compacts
 configured actions and widgets without changing their action assignments.
+Turn it off in the editor to access empty positions.
+An existing SD configuration backup can be downloaded with an authenticated
+`GET /api/backup`. This is read-only and never replaces the backup.
 
 Each button can play a click, beep, chime, or alert through the board's I2S
 speaker, either alongside its web action or with **Play a sound only**.

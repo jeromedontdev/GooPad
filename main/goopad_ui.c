@@ -105,7 +105,7 @@ static void update_widgets(void)
             char text[64];
             if (s_widget_types[i] == 3) goopad_monitor_text(text, sizeof(text));
             else if (!synced) strlcpy(text, "Sync time\nin the website", sizeof(text));
-            else strftime(text, sizeof(text), s_widget_types[i] == 1 ? "%H:%M:%S" : "%Y-%m-%d", &now);
+            else strftime(text, sizeof(text), s_widget_types[i] == 1 ? "%H:%M" : "%Y-%m-%d", &now);
             if (strcmp(lv_label_get_text(s_widget_labels[i]), text))
                 lv_label_set_text(s_widget_labels[i], text);
         }
@@ -985,6 +985,19 @@ static void build_grid_screen(void)
                     } else {
                         ESP_LOGW(TAG, "could not load icon for macro %d", index);
                     }
+                }
+                cJSON *visual_source = cJSON_GetObjectItemCaseSensitive(macro, "iconSource");
+                if (!image_drawn && (cJSON_IsString(custom_image) ||
+                    (cJSON_IsString(visual_source) && strcmp(visual_source->valuestring, "emoji")))) {
+                    bool gif_missing = (cJSON_IsString(image_format) && !strcmp(image_format->valuestring, "gif")) ||
+                                       (cJSON_IsString(visual_source) && !strcmp(visual_source->valuestring, "gif"));
+                    lv_obj_t *notice = label(tile, gif_missing ? "GIF unavailable" : "Image unavailable",
+                                             14, text_color);
+                    lv_obj_set_width(notice, width - 16);
+                    lv_obj_set_style_text_align(notice, LV_TEXT_ALIGN_CENTER, 0);
+                    lv_obj_align(notice, LV_ALIGN_CENTER, 0, icon_y);
+                    ESP_LOGW(TAG, "Tile %d image unavailable; upload it in the website", index);
+                    image_drawn = true;
                 }
                 if (!image_drawn) {
                     const char *drawn_icon = symbol_for_icon(glyph);

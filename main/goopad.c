@@ -72,6 +72,38 @@ static portMUX_TYPE s_action_lock = portMUX_INITIALIZER_UNLOCKED;
 static unsigned s_action_count;
 static portMUX_TYPE s_monitor_lock = portMUX_INITIALIZER_UNLOCKED;
 static char s_monitor_text[64] = "Set PC pairing";
+static double s_monitor_values[GOOPAD_PC_STAT_COUNT];
+static bool s_monitor_valid[GOOPAD_PC_STAT_COUNT];
+static bool s_monitor_sampling;
+static const char *s_pc_stat_keys[GOOPAD_PC_STAT_COUNT] = {
+    "summary", "cpu", "ram", "ram_used", "gpu", "gpu_memory", "cpu_temp", "gpu_temp"
+};
+
+int goopad_pc_stat_index(const char *key)
+{
+    for (unsigned i = 0; key && i < GOOPAD_PC_STAT_COUNT; i++)
+        if (!strcmp(key, s_pc_stat_keys[i])) return (int)i;
+    return -1;
+}
+
+const char *goopad_pc_stat_key(unsigned index)
+{
+    return index < GOOPAD_PC_STAT_COUNT ? s_pc_stat_keys[index] : NULL;
+}
+
+const char *goopad_widget_time_format(bool date, const char *key)
+{
+    static const char *keys[2][4] = {
+        {"24h", "12h", "24h_seconds", "12h_seconds"}, {"iso", "mdy", "dmy", "month_short"}
+    };
+    static const char *formats[2][4] = {
+        {"%H:%M", "%I:%M %p", "%H:%M:%S", "%I:%M:%S %p"},
+        {"%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%b %d"}
+    };
+    for (unsigned i = 0; key && i < 4; i++)
+        if (!strcmp(key, keys[date][i])) return formats[date][i];
+    return NULL;
+}
 
 #define WIFI_CONNECT_MAX_ATTEMPTS 5
 
@@ -739,12 +771,24 @@ static bool validate_config(const char *json)
         cJSON *outline = cJSON_GetObjectItemCaseSensitive(item, "outline");
         cJSON *outline_color = cJSON_GetObjectItemCaseSensitive(item, "outlineColor");
         cJSON *widget = cJSON_GetObjectItemCaseSensitive(item, "widget");
+        cJSON *clock_format = cJSON_GetObjectItemCaseSensitive(item, "clockFormat");
+        cJSON *date_format = cJSON_GetObjectItemCaseSensitive(item, "dateFormat");
+        cJSON *pc_stat = cJSON_GetObjectItemCaseSensitive(item, "pcStat");
+        cJSON *temperature_unit = cJSON_GetObjectItemCaseSensitive(item, "temperatureUnit");
         bool gif = cJSON_IsString(image_format) && !strcmp(image_format->valuestring, "gif");
         if (gif) gif_count++;
         valid = cJSON_IsObject(item) && cJSON_IsString(name) && strlen(name->valuestring) <= 24 &&
                 (!tile_name || (cJSON_IsString(tile_name) && strlen(tile_name->valuestring) <= 24)) &&
                 (!gif_fit || (cJSON_IsString(gif_fit) &&
                              (!strcmp(gif_fit->valuestring, "contain") || !strcmp(gif_fit->valuestring, "cover")))) &&
+                (!clock_format || (cJSON_IsString(clock_format) &&
+                                   goopad_widget_time_format(false, clock_format->valuestring))) &&
+                (!date_format || (cJSON_IsString(date_format) &&
+                                  goopad_widget_time_format(true, date_format->valuestring))) &&
+                (!pc_stat || (cJSON_IsString(pc_stat) && goopad_pc_stat_index(pc_stat->valuestring) >= 0)) &&
+                (!temperature_unit || (cJSON_IsString(temperature_unit) &&
+                                       (!strcmp(temperature_unit->valuestring, "C") ||
+                                        !strcmp(temperature_unit->valuestring, "F")))) &&
                 cJSON_IsString(icon) && strlen(icon->valuestring) <= 8 &&
                 cJSON_IsString(url) &&
                 (valid_url(url->valuestring) ||
@@ -1385,6 +1429,16 @@ static esp_err_t status_handler(httpd_req_t *req)
     char monitor[64];
     goopad_monitor_text(monitor, sizeof(monitor));
     cJSON_AddStringToObject(root, "pcMonitor", monitor);
+    cJSON *stats = cJSON_AddObjectToObject(root, "pcStats");
+    cJSON *fahrenheit = cJSON_AddObjectToObject(root, "pcStatsF");
+    for (unsigned i = 0; i < GOOPAD_PC_STAT_COUNT; i++) {
+        goopad_pc_stat_text(i, false, monitor, sizeof(monitor));
+        cJSON_AddStringToObject(stats, goopad_pc_stat_key(i), monitor);
+        if (i >= 6) {
+            goopad_pc_stat_text(i, true, monitor, sizeof(monitor));
+            cJSON_AddStringToObject(fahrenheit, goopad_pc_stat_key(i), monitor);
+        }
+    }
     cJSON_AddBoolToObject(root, "audioBusy", hw_audio_busy());
     cJSON_AddNumberToObject(root, "brightness", board_backlight_get());
     cJSON_AddNumberToObject(root, "backlightDuty", board_backlight_duty());
@@ -1477,9 +1531,39 @@ static esp_err_t companion_status_handler(httpd_req_t *req)
 
 void goopad_monitor_text(char *out, size_t capacity)
 {
+    goopad_pc_stat_text(0, false, out, capacity);
+}
+
+void goopad_pc_stat_text(unsigned index, bool fahrenheit, char *out, size_t capacity)
+{
+    static const char *labels[GOOPAD_PC_STAT_COUNT] = {
+        "", "CPU", "RAM", "RAM used", "GPU", "GPU RAM", "CPU temp", "GPU temp"
+    };
+    if (index >= GOOPAD_PC_STAT_COUNT) {
+        strlcpy(out, "Invalid PC stat", capacity);
+        return;
+    }
+    double values[GOOPAD_PC_STAT_COUNT];
+    bool valid[GOOPAD_PC_STAT_COUNT], sampling;
+    char status[64];
     portENTER_CRITICAL(&s_monitor_lock);
-    strlcpy(out, s_monitor_text, capacity);
+    strlcpy(status, s_monitor_text, sizeof(status));
+    memcpy(values, s_monitor_values, sizeof(values));
+    memcpy(valid, s_monitor_valid, sizeof(valid));
+    sampling = s_monitor_sampling;
     portEXIT_CRITICAL(&s_monitor_lock);
+    if (status[0]) strlcpy(out, status, capacity);
+    else if (!index) {
+        if (valid[1]) snprintf(out, capacity, "CPU %.0f%%\nRAM %.0f%%", values[1], values[2]);
+        else snprintf(out, capacity, "CPU %s\nRAM %.0f%%", sampling ? "sampling" : "unavailable", values[2]);
+    } else if (!valid[index]) {
+        snprintf(out, capacity, "%s\n%s", labels[index], index == 1 && sampling ? "Sampling" : "Unavailable");
+    } else if (index >= 6) {
+        snprintf(out, capacity, "%s\n%.0f %s", labels[index],
+                 fahrenheit ? values[index] * 9 / 5 + 32 : values[index], fahrenheit ? "F" : "C");
+    } else if (index == 3 || index == 5) {
+        snprintf(out, capacity, "%s\n%.1f GiB", labels[index], values[index] / (1024.0 * 1024 * 1024));
+    } else snprintf(out, capacity, "%s\n%.0f%%", labels[index], values[index]);
 }
 
 static void monitor_task(void *arg)
@@ -1510,6 +1594,8 @@ static void monitor_task(void *arg)
             }
         }
         char text[64] = "Set PC pairing";
+        double values[GOOPAD_PC_STAT_COUNT] = {0};
+        bool valid[GOOPAD_PC_STAT_COUNT] = {false}, sampling = false;
         if (!root) strlcpy(text, "Monitor config error", sizeof(text));
         if (target) {
             cJSON *url = cJSON_GetObjectItemCaseSensitive(target, "url");
@@ -1530,25 +1616,40 @@ static void monitor_task(void *arg)
                     int status = esp_http_client_get_status_code(client);
                     esp_http_client_cleanup(client);
                     cJSON *snapshot = err == ESP_OK && status == 200 && !reply.overflow ? cJSON_Parse(data) : NULL;
-                    cJSON *cpu = snapshot ? cJSON_GetObjectItemCaseSensitive(snapshot, "cpuPercent") : NULL;
                     cJSON *memory = snapshot ? cJSON_GetObjectItemCaseSensitive(snapshot, "memoryPercent") : NULL;
                     if (cJSON_IsNumber(memory) && memory->valuedouble >= 0 && memory->valuedouble <= 100) {
-                        if (cJSON_IsNumber(cpu) && cpu->valuedouble >= 0 && cpu->valuedouble <= 100)
-                            snprintf(text, sizeof(text), "CPU %.0f%%\nRAM %.0f%%", cpu->valuedouble, memory->valuedouble);
-                        else if (cJSON_IsNull(cpu))
-                            snprintf(text, sizeof(text), "CPU sampling\nRAM %.0f%%", memory->valuedouble);
-                        else strlcpy(text, "Invalid PC data", sizeof(text));
+                        static const char *fields[GOOPAD_PC_STAT_COUNT] = {
+                            "", "cpuPercent", "memoryPercent", "memoryUsedBytes", "gpuPercent",
+                            "gpuMemoryUsedBytes", "cpuTemperatureC", "gpuTemperatureC"
+                        };
+                        text[0] = '\0';
+                        for (unsigned i = 1; i < GOOPAD_PC_STAT_COUNT; i++) {
+                            cJSON *value = cJSON_GetObjectItemCaseSensitive(snapshot, fields[i]);
+                            double lower = i >= 6 ? -50 : 0;
+                            double upper = i >= 6 ? 200 : i == 3 || i == 5 ? 1e15 : 100;
+                            valid[i] = cJSON_IsNumber(value) && value->valuedouble >= lower && value->valuedouble <= upper;
+                            if (valid[i]) values[i] = value->valuedouble;
+                            if (value && !cJSON_IsNull(value) && !valid[i])
+                                strlcpy(text, "Invalid PC data", sizeof(text));
+                            if (i == 1) sampling = cJSON_IsNull(value);
+                        }
                     }
+                    else if (snapshot) strlcpy(text, "Invalid PC data", sizeof(text));
                     cJSON_Delete(snapshot);
                 }
             }
         }
         char previous[64];
-        goopad_monitor_text(previous, sizeof(previous));
+        portENTER_CRITICAL(&s_monitor_lock);
+        strlcpy(previous, s_monitor_text, sizeof(previous));
+        portEXIT_CRITICAL(&s_monitor_lock);
         if (strcmp(previous, text) && (strstr(text, "error") || strstr(text, "unavailable") || strstr(text, "Invalid")))
             ESP_LOGW(TAG, "%s", text);
         portENTER_CRITICAL(&s_monitor_lock);
         strlcpy(s_monitor_text, text, sizeof(s_monitor_text));
+        memcpy(s_monitor_values, values, sizeof(values));
+        memcpy(s_monitor_valid, valid, sizeof(valid));
+        s_monitor_sampling = sampling;
         portEXIT_CRITICAL(&s_monitor_lock);
         cJSON_Delete(root);
         vTaskDelay(pdMS_TO_TICKS(5000));

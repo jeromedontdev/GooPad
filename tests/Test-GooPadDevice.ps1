@@ -62,9 +62,24 @@ Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compr
 $invalid.macros[0].tileName = 'Test tile'
 $invalid.macros[0].gifFit = 'stretch'
 Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
+$invalid.macros[0].Remove('gifFit')
+foreach ($setting in @(
+    @{clockFormat='23h'}, @{dateFormat='custom'}, @{pcStat='unknown'}, @{temperatureUnit='K'}
+)) {
+    foreach ($key in $setting.Keys) { $invalid.macros[0][$key] = $setting[$key] }
+    Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
+    foreach ($key in $setting.Keys) { $invalid.macros[0].Remove($key) }
+}
+$stats = (Request '/api/status').Content | ConvertFrom-Json
+foreach ($key in @('summary','cpu','ram','ram_used','gpu','gpu_memory','cpu_temp','gpu_temp')) {
+    if (!$stats.pcStats.$key -or $stats.pcStats.$key.Length -gt 64) { throw "Missing PC stat: $key" }
+}
+foreach ($key in @('cpu_temp','gpu_temp')) {
+    if (!$stats.pcStatsF.$key) { throw "Missing Fahrenheit PC stat: $key" }
+}
 if ((Request '/api/config').Content -ne $original.Content) { throw 'Rejected tile settings changed configuration.' }
 if ($NonMutating) {
-    'PASS: concurrent HTTPS, authentication, catalog, tile-name/GIF-fit validation; configuration unchanged.'
+    'PASS: concurrent HTTPS, authentication, catalog, tile/widget settings validation and PC stats schema; configuration unchanged.'
     return
 }
 

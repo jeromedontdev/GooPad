@@ -8,6 +8,7 @@ import hmac
 import ipaddress
 import json
 import logging
+import math
 import os
 import queue
 import secrets
@@ -31,6 +32,44 @@ RUN_LOCK = threading.Lock()
 LAST_RESULT = "No PC macro has run yet."
 MONITOR_LOCK = threading.Lock()
 MONITOR_PREVIOUS = None
+HARDWARE_LOCK = threading.Lock()
+HARDWARE_BUSY = False
+HARDWARE_LAST = 0.0
+HARDWARE_FIELDS = ("gpuPercent", "gpuMemoryUsedBytes", "cpuTemperatureC", "gpuTemperatureC")
+HARDWARE_CACHE = {**dict.fromkeys(HARDWARE_FIELDS), "hardwareStatus": "Sampling PC sensors"}
+HARDWARE_SCRIPT = r"""
+$ErrorActionPreference = 'Stop'
+$result = @{gpuPercent=$null; gpuMemoryUsedBytes=$null; cpuTemperatureC=$null; gpuTemperatureC=$null}
+try {
+    $engines = @(Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine)
+    $memory = @(Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory)
+    if ($memory.Count) {
+        $result.gpuMemoryUsedBytes = ($memory | Measure-Object DedicatedUsage -Sum).Sum
+        $result.gpuPercent = 0
+    }
+    if ($engines.Count) {
+        $usage = $engines | Group-Object { $_.Name -replace '^pid_\d+_', '' } | ForEach-Object {
+            ($_.Group | Measure-Object UtilizationPercentage -Sum).Sum
+        }
+        $result.gpuPercent = [Math]::Min(100, ($usage | Measure-Object -Maximum).Maximum)
+    }
+} catch [Microsoft.Management.Infrastructure.CimException] { $result.gpuError = 'GPU counters unavailable' }
+foreach ($namespace in @('root\LibreHardwareMonitor', 'root\OpenHardwareMonitor')) {
+    try {
+        $sensors = @(Get-CimInstance -Namespace $namespace -ClassName Sensor -Filter "SensorType='Temperature'")
+        $cpu = @($sensors | Where-Object Parent -match '^/(intelcpu|amdcpu|cpu)/')
+        $gpu = @($sensors | Where-Object Parent -match '^/[^/]*gpu/')
+        $package = @($cpu | Where-Object Name -eq 'CPU Package')
+        $core = @($gpu | Where-Object Name -eq 'GPU Core')
+        if ($package.Count) { $cpu = $package }
+        if ($core.Count) { $gpu = $core }
+        if ($cpu.Count) { $result.cpuTemperatureC = ($cpu | Measure-Object Value -Maximum).Maximum }
+        if ($gpu.Count) { $result.gpuTemperatureC = ($gpu | Measure-Object Value -Maximum).Maximum }
+        if ($sensors.Count) { break }
+    } catch [Microsoft.Management.Infrastructure.CimException] { $result.sensorError = 'Temperature provider unavailable' }
+}
+$result | ConvertTo-Json -Compress
+"""
 MODIFIERS = {"CTRL": 0x11, "SHIFT": 0x10, "ALT": 0x12, "WIN": 0x5B}
 KEYS = {
     **{chr(value): value for value in range(ord("A"), ord("Z") + 1)},
@@ -104,6 +143,80 @@ class MemoryStatus(ctypes.Structure):
                 ("total_virtual", ctypes.c_ulonglong), ("available_virtual", ctypes.c_ulonglong),
                 ("available_extended", ctypes.c_ulonglong)]
 
+def hardware_metrics(payload):
+    if not isinstance(payload, dict) or any(key not in payload for key in HARDWARE_FIELDS):
+        raise ValueError("Invalid PC sensor response")
+    result = {}
+    for key in HARDWARE_FIELDS:
+        value = payload[key]
+        limits = (0, 100) if key == "gpuPercent" else (0, 1e15) if key == "gpuMemoryUsedBytes" else (-50, 200)
+        if value is not None and (type(value) not in (int, float) or not math.isfinite(value)
+                                  or not limits[0] <= value <= limits[1]):
+            raise ValueError(f"Invalid PC sensor value: {key}")
+        result[key] = value
+    return result
+
+
+def query_hardware():
+    powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    process = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command", HARDWARE_SCRIPT],
+                             capture_output=True, text=True, timeout=6, shell=False,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if process.returncode:
+        raise OSError("Windows hardware counter query failed")
+    payload = json.loads(process.stdout)
+    result = hardware_metrics(payload)
+    for key in ("gpuError", "sensorError"):
+        if key in payload:
+            logging.debug("PC sensor availability: %s", payload[key])
+    nvidia = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "nvidia-smi.exe"
+    if result["gpuTemperatureC"] is None and nvidia.is_file():
+        try:
+            reading = subprocess.run([str(nvidia), "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"],
+                                     capture_output=True, text=True, timeout=2, shell=False,
+                                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            if reading.returncode:
+                raise OSError("NVIDIA temperature query failed")
+            temperatures = [float(line) for line in reading.stdout.splitlines() if line.strip()]
+            if not temperatures:
+                raise ValueError("NVIDIA returned no temperature")
+            result["gpuTemperatureC"] = max(temperatures)
+            result = hardware_metrics(result)
+        except (OSError, subprocess.TimeoutExpired, ValueError) as error:
+            result["gpuTemperatureC"] = None
+            logging.warning("GPU temperature unavailable: %s", error)
+    return result
+
+
+def refresh_hardware():
+    global HARDWARE_CACHE, HARDWARE_BUSY
+    result = {**dict.fromkeys(HARDWARE_FIELDS), "hardwareStatus": "PC sensor query failed"}
+    try:
+        result = query_hardware()
+        result["hardwareStatus"] = ("Some sensors unavailable; temperatures may require LibreHardwareMonitor"
+                                    if any(value is None for value in result.values()) else "PC sensors available")
+    except (OSError, subprocess.TimeoutExpired, ValueError) as error:
+        logging.warning("PC sensor query failed: %s", error)
+    finally:
+        with HARDWARE_LOCK:
+            HARDWARE_CACHE = result
+            HARDWARE_BUSY = False
+
+
+def hardware_snapshot():
+    global HARDWARE_BUSY, HARDWARE_LAST
+    with HARDWARE_LOCK:
+        if not HARDWARE_BUSY and time.monotonic() - HARDWARE_LAST >= 10:
+            HARDWARE_BUSY = True
+            HARDWARE_LAST = time.monotonic()
+            try:
+                threading.Thread(target=refresh_hardware, name="GooPad-PC-sensors", daemon=True).start()
+            except RuntimeError:
+                HARDWARE_BUSY = False
+                logging.exception("Could not start PC sensor collector")
+                raise
+        return dict(HARDWARE_CACHE)
+
 
 def monitor_snapshot():
     global MONITOR_PREVIOUS
@@ -130,7 +243,7 @@ def monitor_snapshot():
         MONITOR_PREVIOUS = current
     return {"cpuPercent": cpu, "memoryPercent": memory.load,
             "memoryUsedBytes": memory.total_physical - memory.available_physical,
-            "memoryTotalBytes": memory.total_physical}
+            "memoryTotalBytes": memory.total_physical, **hardware_snapshot()}
 
 
 def send_input(vk=0, scan=0, flags=0):
@@ -336,7 +449,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.authenticated_config() is not None:
                 try:
                     self.respond(200, "PC monitor", **monitor_snapshot())
-                except OSError as error:
+                except (OSError, RuntimeError) as error:
                     logging.error("PC monitor unavailable: %s", error)
                     self.respond(503, "PC monitor is unavailable")
             return

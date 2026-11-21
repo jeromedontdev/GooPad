@@ -83,19 +83,36 @@ stored image; switching back to Custom restores it. Removing it from the layout
 requires saving. Images are stored separately on SD, so a config-only backup
 does not include the assets.
 
-Choose **Live widget** for a live clock, date, or PC CPU/RAM monitor.
+Choose **Live widget** for a live clock, date, or **PC stats**.
 Widgets are display-only on the device; select them in the editor to configure
-them. The clock shows hours and minutes, without seconds. Date preview text
+them. Time format offers 12/24-hour displays, with optional seconds; the default
+remains 24-hour without seconds. Date format offers year-month-day, month/day/year,
+day/month/year, and short month/day; the default remains year-month-day. Date preview text
 scales to the tile's dimensions. Clock/date use network time or time
 synced when the website opens; Settings includes a fixed UTC offset, initially
 matched to the browser. Update that offset after daylight-saving changes.
-PC monitoring uses the paired Companion and refreshes every five seconds.
+PC stats use the paired Companion. Choose CPU/RAM combined, CPU usage,
+RAM percentage or used GiB, GPU usage, dedicated GPU RAM used, CPU temperature,
+or GPU temperature per tile. Temperature tiles support Celsius/Fahrenheit.
+CPU/RAM refresh every five seconds; cached GPU/sensor readings update about
+every ten seconds, without blocking incoming PC commands.
 The web preview reads the device's cached result without blocking its web
 server on a second PC request. Save pairing/widget changes to update that result.
 After updating firmware, reload open editor tabs: older direct monitor-proxy
 requests return a reload message rather than tying up the upload server.
 It requires the same LAN reachability as PC commands and shows an explicit
 unavailable/sampling message when no reading is available.
+GPU usage is the busiest Windows GPU engine (summed across its processes);
+dedicated GPU memory sums adapters, not shared system RAM. GPU counters require
+supported Windows drivers. NVIDIA GPU temperature uses the driver's
+`nvidia-smi.exe` when available. For CPU temperatures and other GPU temperature
+sensors, optionally run the official
+[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases)
+Windows Forms app alongside Companion, keeping its WMI sensor provider available.
+Some sensors require **that sensor app** to run as administrator; keep GooPad
+Companion running as your normal user. No remote web server is needed.
+Unsupported sensors display **Unavailable**, not a fake zero; CPU package/GPU
+core readings are preferred, with the highest matching temperature used if needed.
 
 Animated GIFs require SD and are limited to 160×160 pixels, 128 KB, 240 frames,
 and four GIF tiles per layout. Device frame delays are clamped to at least

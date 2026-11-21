@@ -52,6 +52,9 @@ static int s_gif_pages[MAX_MACROS];
 static bool s_gif_paused[MAX_MACROS];
 static lv_obj_t *s_widget_labels[MAX_MACROS];
 static unsigned s_widget_types[MAX_MACROS];
+static const char *s_widget_formats[MAX_MACROS];
+static unsigned s_widget_stats[MAX_MACROS];
+static bool s_widget_fahrenheit[MAX_MACROS];
 static int s_time_offset;
 static bool s_grid_shown;
 static bool s_loading_shown;
@@ -70,6 +73,9 @@ static void clear_dynamic_assets(void)
         s_gif_objects[i] = NULL;
         s_widget_labels[i] = NULL;
         s_widget_types[i] = 0;
+        s_widget_formats[i] = NULL;
+        s_widget_stats[i] = 0;
+        s_widget_fahrenheit[i] = false;
         s_gif_paused[i] = true;
     }
 }
@@ -103,9 +109,10 @@ static void update_widgets(void)
     for (unsigned i = 0; i < MAX_MACROS; i++) {
         if (s_widget_labels[i]) {
             char text[64];
-            if (s_widget_types[i] == 3) goopad_monitor_text(text, sizeof(text));
+            if (s_widget_types[i] == 3)
+                goopad_pc_stat_text(s_widget_stats[i], s_widget_fahrenheit[i], text, sizeof(text));
             else if (!synced) strlcpy(text, "Sync time\nin the website", sizeof(text));
-            else strftime(text, sizeof(text), s_widget_types[i] == 1 ? "%H:%M" : "%Y-%m-%d", &now);
+            else strftime(text, sizeof(text), s_widget_formats[i], &now);
             if (strcmp(lv_label_get_text(s_widget_labels[i]), text))
                 lv_label_set_text(s_widget_labels[i], text);
         }
@@ -914,7 +921,21 @@ static void build_grid_screen(void)
                     unsigned type = cJSON_IsString(widget) && !strcmp(widget->valuestring, "pc_monitor") ? 3 :
                                     cJSON_IsString(widget) && !strcmp(widget->valuestring, "date") ? 2 : 1;
                     s_widget_types[index] = type;
-                    s_widget_labels[index] = label(tile, "", width < 140 ? 14 : 28, text_color);
+                    cJSON *format = cJSON_GetObjectItemCaseSensitive(macro, type == 2 ? "dateFormat" : "clockFormat");
+                    s_widget_formats[index] = goopad_widget_time_format(type == 2,
+                        cJSON_IsString(format) ? format->valuestring : type == 2 ? "iso" : "24h");
+                    if (!s_widget_formats[index]) {
+                        ESP_LOGW(TAG, "Invalid time format on tile %d; using default", index);
+                        s_widget_formats[index] = type == 2 ? "%Y-%m-%d" : "%H:%M";
+                    }
+                    cJSON *stat = cJSON_GetObjectItemCaseSensitive(macro, "pcStat");
+                    int stat_index = goopad_pc_stat_index(cJSON_IsString(stat) ? stat->valuestring : "summary");
+                    s_widget_stats[index] = stat_index >= 0 ? (unsigned)stat_index : 0;
+                    cJSON *unit = cJSON_GetObjectItemCaseSensitive(macro, "temperatureUnit");
+                    s_widget_fahrenheit[index] = cJSON_IsString(unit) && !strcmp(unit->valuestring, "F");
+                    bool long_clock = type == 1 && strcmp(s_widget_formats[index], "%H:%M");
+                    bool long_stat = type == 3 && s_widget_stats[index] != 0;
+                    s_widget_labels[index] = label(tile, "", width < 140 || ((long_clock || long_stat) && width < 200) ? 14 : 28, text_color);
                     lv_obj_set_width(s_widget_labels[index], width - 16);
                     lv_obj_set_style_text_align(s_widget_labels[index], LV_TEXT_ALIGN_CENTER, 0);
                     lv_obj_align(s_widget_labels[index], LV_ALIGN_CENTER, 0, icon_y);

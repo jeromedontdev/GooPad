@@ -159,6 +159,11 @@ const char *goopad_initial_password(void);
 esp_err_t goopad_set_controls(int brightness, int volume);
 void goopad_get_address(char *out, size_t capacity);
 void goopad_monitor_text(char *out, size_t capacity);
+#define GOOPAD_PC_STAT_COUNT 8
+int goopad_pc_stat_index(const char *key);
+const char *goopad_pc_stat_key(unsigned index);
+void goopad_pc_stat_text(unsigned index, bool fahrenheit, char *out, size_t capacity);
+const char *goopad_widget_time_format(bool date, const char *key);
 bool goopad_prepare_gif(uint8_t *data, size_t *size, size_t capacity);
 
 /* hw_*.c */

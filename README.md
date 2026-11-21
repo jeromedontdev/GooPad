@@ -37,8 +37,12 @@ Choose **Icon / emoji**, **Font Awesome**, **Image**, or **Animated GIF** from i
 dropdown. Blank labels stay blank; the visual is enlarged and centered.
 The live preview is the editor's centerpiece: select any tile, including an
 empty slot, to edit it. Only that tile's controls are shown. You can configure
-positions in any order. **Clear tile** leaves other positions untouched;
-**Move / swap** relocates a tile or swaps it with an occupied position.
+positions in any order. **Tile name** names a tile in the editor without adding
+text to its visual; **Button label** remains optional on-screen text.
+**Clear tile** leaves other positions untouched. Drag a preview tile onto an
+empty position to move it, or onto another tile to swap them. Hold a dragged
+tile near the preview's left/right edge to change pages. Mouse swiping starts
+in the space between tiles; touch scrolling remains available.
 **Add page** reveals more positions, up to 32 total.
 **Save to device** is below the live preview.
 Save progress, confirmation, and errors appear only there. **Save appearance**
@@ -99,6 +103,9 @@ and four GIF tiles per layout. Device frame delays are clamped to at least
 The browser preview may animate faster than the device. Resize or compress
 larger GIFs before uploading. Upload progress and errors appear beside the
 GIF file chooser; saving a GIF without a successfully uploaded asset is rejected.
+Choose **GIF size → Fill whole tile** to zoom proportionally and crop to the
+tile shape, with any button label overlaid. **Fit inside tile** preserves the
+existing centered-icon sizing. This changes display size, not upload limits.
 TLS allocations use PSRAM to avoid exhausting internal RAM when browsers
 open multiple HTTPS connections.
 Unconfigured device tiles have no plus sign and cannot be tapped.
@@ -277,6 +284,8 @@ For authenticated hardware regression checks (PowerShell 7), run
 This temporarily exercises nine grid sizes, five shapes, power clamps,
 uploaded WAV playback and rapid sound taps, then restores configuration
 and power settings and deletes the test sound even if a check fails.
+Add `-NonMutating` to check HTTPS, authentication, icon catalog and rejection
+of invalid tile settings without replacing the layout or changing power controls.
 
 To create a full-flash image and an app-only OTA image:
 

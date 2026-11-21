@@ -715,6 +715,7 @@ static bool validate_config(const char *json)
                               offset->valueint >= -840 && offset->valueint <= 840));
     for (cJSON *item = valid ? macros->child : NULL; item; item = item->next) {
         cJSON *name = cJSON_GetObjectItemCaseSensitive(item, "name");
+        cJSON *tile_name = cJSON_GetObjectItemCaseSensitive(item, "tileName");
         cJSON *url = cJSON_GetObjectItemCaseSensitive(item, "url");
         cJSON *method = cJSON_GetObjectItemCaseSensitive(item, "method");
         cJSON *action = cJSON_GetObjectItemCaseSensitive(item, "action");
@@ -730,6 +731,7 @@ static bool validate_config(const char *json)
         cJSON *text_color = cJSON_GetObjectItemCaseSensitive(item, "textColor");
         cJSON *tile_color = cJSON_GetObjectItemCaseSensitive(item, "color");
         cJSON *image_format = cJSON_GetObjectItemCaseSensitive(item, "iconFormat");
+        cJSON *gif_fit = cJSON_GetObjectItemCaseSensitive(item, "gifFit");
         cJSON *sound = cJSON_GetObjectItemCaseSensitive(item, "sound");
         cJSON *sound_file = cJSON_GetObjectItemCaseSensitive(item, "soundFile");
         cJSON *sound_name = cJSON_GetObjectItemCaseSensitive(item, "soundName");
@@ -740,6 +742,9 @@ static bool validate_config(const char *json)
         bool gif = cJSON_IsString(image_format) && !strcmp(image_format->valuestring, "gif");
         if (gif) gif_count++;
         valid = cJSON_IsObject(item) && cJSON_IsString(name) && strlen(name->valuestring) <= 24 &&
+                (!tile_name || (cJSON_IsString(tile_name) && strlen(tile_name->valuestring) <= 24)) &&
+                (!gif_fit || (cJSON_IsString(gif_fit) &&
+                             (!strcmp(gif_fit->valuestring, "contain") || !strcmp(gif_fit->valuestring, "cover")))) &&
                 cJSON_IsString(icon) && strlen(icon->valuestring) <= 8 &&
                 cJSON_IsString(url) &&
                 (valid_url(url->valuestring) ||

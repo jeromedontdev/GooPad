@@ -945,8 +945,17 @@ static void build_grid_screen(void)
                             if (image_drawn) {
                                 g_app.gif_count++;
                                 lv_obj_add_event_cb(gif, gif_loop_cb, LV_EVENT_READY, NULL);
-                                lv_image_set_scale(gif, icon_size * 256 / (w > h ? w : h));
-                                lv_obj_align(gif, LV_ALIGN_CENTER, 0, icon_y);
+                                cJSON *gif_fit = cJSON_GetObjectItemCaseSensitive(macro, "gifFit");
+                                bool fill = cJSON_IsString(gif_fit) && !strcmp(gif_fit->valuestring, "cover");
+                                int scale = icon_size * 256 / (w > h ? w : h);
+                                if (fill) {
+                                    int scale_x = (width * 256 + w - 1) / w;
+                                    int scale_y = (height * 256 + h - 1) / h;
+                                    scale = scale_x > scale_y ? scale_x : scale_y;
+                                    lv_obj_set_style_border_post(tile, true, 0);
+                                }
+                                lv_image_set_scale(gif, scale);
+                                lv_obj_align(gif, LV_ALIGN_CENTER, 0, fill ? 0 : icon_y);
                                 s_gif_objects[index] = gif;
                                 s_gif_pages[index] = page;
                                 lv_gif_pause(gif);

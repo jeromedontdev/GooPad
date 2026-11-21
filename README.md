@@ -200,9 +200,10 @@ Download **GooPadCompanion-Windows.zip** from the site's **About & help** tab or
 Extract it and run `GooPadCompanion.exe` as a normal Windows user. No Python
 installation is needed for that app. Closing quits and minimizing uses the
 taskbar by default. You can independently change either button to **Hide in tray**;
-the receiver keeps running while hidden. Its two Copy buttons provide the PC address and a private
-pairing token. Paste these under website **Settings > Windows companion**, check
-the connection, then save. The last-result check also shows errors and whether
+the receiver keeps running while hidden. Choose **Copy secure pairing**, paste
+the code under website **Settings > Windows companion**, and select **Apply secure pairing**.
+This imports the HTTPS address, private token and public certificate. Check
+the HTTPS connection, then save. The last-result check also shows errors and whether
 PowerShell is enabled. Allow TCP port 8787 only on a trusted Private network.
 
 Choose **Windows PC macro (guided builder)** on a tile. Starters include Copy,
@@ -249,17 +250,34 @@ normal Windows user. No administrator prompt or Windows service is needed.
 The app does not run before sign-in or after sign-out. Windows service support
 is intentionally not included.
 
-The device talks to Companion over token-authenticated **HTTP on the LAN**;
-unlike the editor link, this link is not encrypted. Never port-forward it or
-use an untrusted Wi-Fi network.
+The device talks to Companion over token-authenticated **verified HTTPS** on
+port 8787. Each installation has a unique persistent certificate and private key.
+GooPad trusts the public certificate copied directly from your PC and verifies
+the fixed identity `companion.goopad`, even when connecting by IP.
+Neither endpoint falls back to plaintext HTTP. Never port-forward either app.
+Keep the pairing code private; never copy a private key into GooPad.
+Certificates and keys remain in `%LOCALAPPDATA%\GooPad`; back them up together
+with Companion configuration. An incomplete, invalid or expired identity fails
+explicitly rather than silently replacing an already paired identity.
 
-`companion\Start-GooPadCompanion.cmd` starts a standard-library Python
+**Upgrading from 0.5.x:** replace Companion, import its secure pairing code,
+check the connection and save Settings, then save your PC macros to regenerate
+their HTTPS URLs. Legacy HTTP macros remain stored but are blocked from sending
+tokens until migrated. Advanced `/hook/` actions targeting the paired Companion
+also use its trusted certificate. Public HTTPS webhooks use the public CA bundle.
+**Test saved action** actually runs the saved macro after confirmation.
+Live preview reports running, HTTP success/rejection, or transport/TLS failure;
+HTTP 204 is a successful webhook response.
+Firmware enables certificate validity-date checks and cross-signed CA-bundle
+verification, including the public chain used by Discord webhooks.
+
+`companion\Start-GooPadCompanion.cmd` starts a Python
 webhook receiver on the Windows PC. On first run it creates
 `%LOCALAPPDATA%\GooPad\companion.json` with a random shared token. Add an
 action entry that maps a short ID to a program and argument list, then set a
-GooPad macro URL to `http://<pc-ip>:8787/hook/<id>` and copy the token into
+GooPad macro URL to `https://<pc-ip>:8787/hook/<id>` and copy the token into
 that macro's companion-token field. For the simple **Open a website on my
-Windows PC** action, use the displayed Companion address and token; no JSON
+Windows PC** action, use secure pairing in Settings; no JSON
 or action entry is needed. The companion opens only HTTP(S) links in the
 default browser. Requests are token-checked and private-LAN only. Configured
 program actions launch only explicitly allowed programs with `shell=False`.
@@ -335,7 +353,7 @@ Add `-NonMutating` to check HTTPS, authentication, icon catalog and rejection
 of invalid tile settings without replacing the layout or changing power controls.
 Add `-TileVisibilityOnly` instead to run the focused native empty-tile fixtures
 with snapshot restoration and built-in emoji checks, without the broader audio/power/asset tests.
-These checks require firmware 0.5.5 or later and refuse older schemas before
+These checks require firmware 0.6.0 or later and refuse older schemas before
 sending invalid-input tests that older firmware might otherwise accept.
 Browser editor regressions are in [tests/test_editor.js](tests/test_editor.js).
 Open the local [editor](main/index.html), load that script as a classic script,

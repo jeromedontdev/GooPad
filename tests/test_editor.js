@@ -5,8 +5,9 @@ globalThis.runGooPadEditorTests = async function () {
  let checks = 0, layouts = 0;
  const check = (value, message) => { checks++; if (!value) throw Error(message) };
  const make = i => ({...emptyMacro(), name:"W"+i, actionMode:"widget", widget:"clock"});
+ const certificate="-----BEGIN CERTIFICATE-----\nAA==\n-----END CERTIFICATE-----";
  const reset = settings => {
-  cfg = {...original, cols:3, rows:2, pageCount:3, hideUnconfigured:false, hideEmptyTiles:false, macros:Array.from({length:18}, (_,i)=>make(i)), ...settings};
+  cfg = {...original, cols:3, rows:2, pageCount:3, hideUnconfigured:false, hideEmptyTiles:false, companionAddress:"",companionToken:"",companionCertificate:undefined, macros:Array.from({length:18}, (_,i)=>make(i)), ...settings};
   selectedTile = -1; setForm(); scrollPreviewPage(0);
  };
  const change = (key, value) => {
@@ -66,20 +67,39 @@ globalThis.runGooPadEditorTests = async function () {
   document.querySelector("#hideEmptyTiles").checked=false; preview();
   check(document.querySelector('[data-tile="3"]').style.background!=="transparent", "Turning hiding off restores empty boxes");
   const website={...emptyMacro(),actionMode:"pc_open_url",pcTarget:"https://example.com/test"};
-  reset({pageCount:1,macros:[website],companionAddress:"192.0.2.20",companionToken:"x".repeat(32)});selectTile(0);
+  reset({pageCount:1,macros:[website],companionAddress:"192.0.2.20",companionToken:"x".repeat(32),companionCertificate:certificate});selectTile(0);
   const websiteFields=document.querySelector('[data-mode-field="pc_open_url"]');
   check(!websiteFields.querySelector('[data-k="pcAddress"],[data-k="secret"]') && !!websiteFields.querySelector('[data-k="pcTarget"]'), "Website editor asks only for website");
   check(macroConfigured(website), "Draft website remains visible before save");
   prepareMacroAction(website,0);
-  check(website.url==="http://192.0.2.20:8787/open" && website.secret===cfg.companionToken && website.method==="POST" && JSON.parse(website.body).url===website.pcTarget, "Website uses Settings pairing and default port");
+  check(website.url==="https://192.0.2.20:8787/open" && website.secret===cfg.companionToken && website.method==="POST" && JSON.parse(website.body).url===website.pcTarget, "Website uses verified HTTPS pairing and default port");
   website.pcAddress="192.0.2.30:8787";website.secret="y".repeat(32);
   prepareMacroAction(website,0);
-  check(website.url==="http://192.0.2.20:8787/open" && website.secret===cfg.companionToken, "Settings override legacy website pairing");
+  check(website.url==="https://192.0.2.20:8787/open" && website.secret===cfg.companionToken, "Settings override legacy website pairing");
   cfg.companionAddress="";cfg.companionToken="";website.secret="y".repeat(32);prepareMacroAction(website,0);
-  check(website.url==="http://192.0.2.30:8787/open" && website.secret==="y".repeat(32), "Legacy website keeps working without shared pairing");
+  check(website.url==="https://192.0.2.30:8787/open" && website.secret==="y".repeat(32), "Legacy website address uses HTTPS with the paired certificate");
   delete website.pcAddress;website.secret="";
   let rejected=false;try{prepareMacroAction(website,0)}catch{rejected=true}
   check(rejected, "Missing pairing must fail explicitly");
+  for(const [address,cert] of [["http://192.0.2.20:8787",certificate],["192.0.2.20",""],["192.0.2.20",certificate+"\n-----BEGIN PRIVATE KEY-----"]]){
+   let rejected=false;try{pcConnection(address,"x".repeat(32),cert)}catch{rejected=true}
+   check(rejected,"HTTP or invalid/private TLS material cannot be paired");
+  }
+  document.querySelector("#companionPairing").value=JSON.stringify({address:"https://192.0.2.20:8787",token:"x".repeat(32),certificate});
+  document.querySelector("#applyPairing").click();
+  check(document.querySelector("#companionAddress").value==="https://192.0.2.20:8787" && document.querySelector("#companionCertificate").value===certificate && document.querySelector("#companionPairing").value==="", "Secure bundle populates settings and clears private pasted code");
+  let secureSaved;
+  globalThis.fetch=async(url,options)=>url==="/api/config"
+   ? (secureSaved=JSON.parse(options.body),new Response("{}",{status:200,headers:{"Content-Type":"application/json"}}))
+   : fetchOriginal(url,options);
+  await document.querySelector("#save").onclick();
+  check(secureSaved?.companionCertificate===certificate && secureSaved.companionAddress==="https://192.0.2.20:8787" && secureSaved.macros[0].url==="https://192.0.2.20:8787/open","Save persists certificate and canonical HTTPS macro");
+  globalThis.confirm=()=>false;
+  let triggered=false;
+  globalThis.fetch=async(url,options)=>url==="/api/trigger"?(triggered=true,new Response("{}")):fetchOriginal(url,options);
+  await document.querySelector("[data-test-action]").onclick();
+  check(!triggered,"Cancel prevents real saved action execution");
+  globalThis.confirm=confirmOriginal;globalThis.fetch=fetchOriginal;
   reset({pageCount:1,macros:[{...emptyMacro(),icon:"⚙",sound:"chime"}]});selectTile(0);
   let emojiUploads=0,emojiPayload;
   globalThis.fetch=async (url,options)=>{
@@ -123,6 +143,7 @@ globalThis.runGooPadEditorTests = async function () {
   change("widget","pc_monitor"); change("pcStat","gpu"); change("widgetGraphic","ring"); change("pcStat","gpu_temp");
   check(cfg.macros[0].widgetGraphic==="text", "Temperature is not a percentage gauge");
   change("widget","clock");
+  check(document.querySelector("[data-test-action]").disabled,"Display-only widgets cannot test actions");
   let stored;
   globalThis.fetch = async (url, options) => url==="/api/config"
    ? (stored=JSON.parse(options.body), new Response("{}",{status:200,headers:{"Content-Type":"application/json"}}))

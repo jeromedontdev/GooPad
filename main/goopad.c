@@ -20,6 +20,7 @@
 #include "nvs_flash.h"
 #include "cJSON.h"
 #include "mbedtls/base64.h"
+#include "mbedtls/x509_crt.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -30,6 +31,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <time.h>
 
 static const char *TAG = "goopad";
 static const char *NVS_NS = "goopad";
@@ -40,6 +42,8 @@ static const char *NVS_NS = "goopad";
 #define LARGE_ICON_BYTES (160 * 160 * 3)
 #define BACKGROUND_BYTES (480 * 480 * 2)
 #define MACRO_BODY_BYTES 3072
+#define COMPANION_CERT_BYTES 2048
+#define COMPANION_TLS_NAME "companion.goopad"
 #define SOUND_MAX_BYTES (44 + BSP_I2S_SAMPLE_RATE * 2 * 30)
 #define GIF_MAX_BYTES (128 * 1024)
 
@@ -70,6 +74,13 @@ static char s_ip_address[16];
 static SemaphoreHandle_t s_config_lock;
 static portMUX_TYPE s_action_lock = portMUX_INITIALIZER_UNLOCKED;
 static unsigned s_action_count;
+static unsigned s_action_serial;
+static int s_last_action_index = -1;
+static int s_last_action_status;
+static int s_last_action_tls_error;
+static bool s_last_action_running;
+static bool s_last_action_success;
+static char s_last_action_message[160];
 static portMUX_TYPE s_monitor_lock = portMUX_INITIALIZER_UNLOCKED;
 static char s_monitor_text[64] = "Set PC pairing";
 static double s_monitor_values[GOOPAD_PC_STAT_COUNT];
@@ -636,6 +647,50 @@ static bool valid_url(const char *url)
            !strchr(url, '@');
 }
 
+static bool valid_companion_certificate(const cJSON *item)
+{
+    if (!cJSON_IsString(item)) return false;
+    const char *pem = item->valuestring;
+    const char *footer = strstr(pem, "-----END CERTIFICATE-----");
+    if (strlen(pem) >= COMPANION_CERT_BYTES ||
+        strncmp(pem, "-----BEGIN CERTIFICATE-----", 27) || !footer) return false;
+    for (const char *p = footer + strlen("-----END CERTIFICATE-----"); *p; p++) {
+        if (*p != '\r' && *p != '\n' && *p != ' ' && *p != '\t') return false;
+    }
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    bool valid = mbedtls_x509_crt_parse(&cert, (const unsigned char *)pem, strlen(pem) + 1) == 0 &&
+                 cert.next == NULL && mbedtls_x509_crt_get_ca_istrue(&cert);
+    mbedtls_x509_crt_free(&cert);
+    return valid;
+}
+
+static bool pc_action_mode(const cJSON *mode)
+{
+    return cJSON_IsString(mode) &&
+           (!strcmp(mode->valuestring, "pc_macro") || !strcmp(mode->valuestring, "pc_open_url"));
+}
+
+static bool companion_target(const cJSON *root, const char *url)
+{
+    const cJSON *address = cJSON_GetObjectItemCaseSensitive(root, "companionAddress");
+    if (!cJSON_IsString(address)) return false;
+    const char *expected = address->valuestring;
+    if (!strncmp(expected, "https://", 8)) expected += 8;
+    else if (!strncmp(expected, "http://", 7)) expected += 7;
+    const char *actual = url + (!strncmp(url, "https://", 8) ? 8 : 7);
+    size_t size = strcspn(actual, "/");
+    return size == strcspn(expected, "/") && !strncmp(actual, expected, size);
+}
+
+static void client_tls(esp_http_client_config_t *config, const char *certificate)
+{
+    config->cert_pem = certificate;
+    config->common_name = certificate ? COMPANION_TLS_NAME : NULL;
+    config->crt_bundle_attach = certificate ? NULL : esp_crt_bundle_attach;
+    config->disable_auto_redirect = true;
+}
+
 static bool valid_icon_key(const char *key)
 {
     if (!key || strlen(key) != 17 || key[0] != 'i') return false;
@@ -757,6 +812,7 @@ static bool validate_config(const char *json)
     cJSON *background_image = cJSON_GetObjectItemCaseSensitive(root, "backgroundImage");
     cJSON *hide = cJSON_GetObjectItemCaseSensitive(root, "hideUnconfigured");
     cJSON *hide_empty = cJSON_GetObjectItemCaseSensitive(root, "hideEmptyTiles");
+    cJSON *companion_cert = cJSON_GetObjectItemCaseSensitive(root, "companionCertificate");
     cJSON *offset = cJSON_GetObjectItemCaseSensitive(root, "timeOffsetMinutes");
     cJSON *pages = cJSON_GetObjectItemCaseSensitive(root, "pageCount");
     unsigned gif_count = 0;
@@ -778,6 +834,7 @@ static bool validate_config(const char *json)
                                         valid_icon_key(background_image->valuestring))) &&
                  (!hide || cJSON_IsBool(hide)) &&
                  (!hide_empty || cJSON_IsBool(hide_empty)) &&
+                 (!companion_cert || valid_companion_certificate(companion_cert)) &&
                  (!offset || (cJSON_IsNumber(offset) && offset->valuedouble == offset->valueint &&
                               offset->valueint >= -840 && offset->valueint <= 840));
     for (cJSON *item = valid ? macros->child : NULL; item; item = item->next) {
@@ -1103,7 +1160,27 @@ typedef struct {
     char method[5];
     char body[MACRO_BODY_BYTES + 1];
     char secret[65];
+    char certificate[COMPANION_CERT_BYTES];
+    unsigned serial;
+    unsigned index;
 } macro_action_t;
+
+static void action_result(const macro_action_t *action, int status, esp_err_t error, int tls_error)
+{
+    portENTER_CRITICAL(&s_action_lock);
+    if (action->serial == s_action_serial) {
+        s_last_action_status = status;
+        s_last_action_tls_error = tls_error;
+        s_last_action_running = false;
+        s_last_action_success = error == ESP_OK && status >= 200 && status < 300;
+        if (error != ESP_OK) snprintf(s_last_action_message, sizeof(s_last_action_message),
+            "Tile %u: request failed (%s; TLS %d).", action->index + 1, esp_err_to_name(error), tls_error);
+        else snprintf(s_last_action_message, sizeof(s_last_action_message),
+            "Tile %u: %s (HTTP %d).", action->index + 1,
+            s_last_action_success ? (status == 202 ? "accepted" : "completed") : "request rejected", status);
+    }
+    portEXIT_CRITICAL(&s_action_lock);
+}
 
 static void action_finished(void)
 {
@@ -1118,11 +1195,12 @@ static void macro_task(void *arg)
     esp_http_client_config_t cfg = {
         .url = macro->url,
         .timeout_ms = 10000,
-        .crt_bundle_attach = esp_crt_bundle_attach,
     };
+    client_tls(&cfg, macro->certificate[0] ? macro->certificate : NULL);
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (!client) {
         ESP_LOGE(TAG, "HTTP client allocation failed");
+        action_result(macro, 0, ESP_ERR_NO_MEM, 0);
         free(macro);
         action_finished();
         vTaskDelete(NULL);
@@ -1138,9 +1216,15 @@ static void macro_task(void *arg)
         esp_http_client_set_header(client, "X-GooPad-Token", macro->secret);
     }
     esp_err_t err = esp_http_client_perform(client);
+    int status = esp_http_client_get_status_code(client);
+    int tls_error = 0, tls_flags = 0;
+    if (err != ESP_OK) {
+        esp_http_client_get_and_clear_last_tls_error(client, &tls_error, &tls_flags);
+    }
+    action_result(macro, status, err, tls_error);
     if (err == ESP_OK) {
-        ESP_LOGI(TAG, "macro request completed, status=%d",
-                 esp_http_client_get_status_code(client));
+        if (status >= 200 && status < 300) ESP_LOGI(TAG, "macro request completed, status=%d", status);
+        else ESP_LOGW(TAG, "macro request rejected, status=%d", status);
     } else {
         ESP_LOGW(TAG, "macro request failed: %s", esp_err_to_name(err));
     }
@@ -1162,6 +1246,7 @@ esp_err_t goopad_trigger(unsigned index)
     cJSON *secret = item ? cJSON_GetObjectItemCaseSensitive(item, "secret") : NULL;
     cJSON *sound = item ? cJSON_GetObjectItemCaseSensitive(item, "sound") : NULL;
     cJSON *mode = item ? cJSON_GetObjectItemCaseSensitive(item, "actionMode") : NULL;
+    cJSON *certificate = cJSON_GetObjectItemCaseSensitive(root, "companionCertificate");
     if (cJSON_IsString(mode) && !strcmp(mode->valuestring, "widget")) {
         cJSON_Delete(root);
         xSemaphoreGive(s_config_lock);
@@ -1190,6 +1275,15 @@ esp_err_t goopad_trigger(unsigned index)
         ESP_LOGW(TAG, "macro %u is not configured", index);
         return sound_err != ESP_OK ? sound_err : ESP_ERR_INVALID_ARG;
     }
+    bool companion = pc_action_mode(mode) || companion_target(root, url->valuestring);
+    if ((companion && (strncmp(url->valuestring, "https://", 8) ||
+                                 !valid_companion_certificate(certificate))) ||
+        (secret->valuestring[0] && strncmp(url->valuestring, "https://", 8))) {
+        cJSON_Delete(root);
+        xSemaphoreGive(s_config_lock);
+        ESP_LOGW(TAG, "Refusing insecure or unpaired PC action");
+        return ESP_ERR_INVALID_VERSION;
+    }
     portENTER_CRITICAL(&s_action_lock);
     bool busy = s_action_count >= 2;
     if (!busy) s_action_count++;
@@ -1211,9 +1305,20 @@ esp_err_t goopad_trigger(unsigned index)
     strlcpy(action->method, method->valuestring, sizeof(action->method));
     strlcpy(action->body, body->valuestring, sizeof(action->body));
     strlcpy(action->secret, secret->valuestring, sizeof(action->secret));
+    if (companion) strlcpy(action->certificate, certificate->valuestring, sizeof(action->certificate));
+    action->index = index;
+    portENTER_CRITICAL(&s_action_lock);
+    action->serial = ++s_action_serial;
+    s_last_action_index = (int)index;
+    s_last_action_status = s_last_action_tls_error = 0;
+    s_last_action_running = true;
+    s_last_action_success = false;
+    snprintf(s_last_action_message, sizeof(s_last_action_message), "Tile %u: running saved action...", index + 1);
+    portEXIT_CRITICAL(&s_action_lock);
     cJSON_Delete(root);
     xSemaphoreGive(s_config_lock);
     if (xTaskCreate(macro_task, "macro_http", 6144, action, 4, NULL) != pdPASS) {
+        action_result(action, 0, ESP_ERR_NO_MEM, 0);
         free(action);
         action_finished();
         ESP_LOGE(TAG, "could not start macro task");
@@ -1247,6 +1352,8 @@ static esp_err_t trigger_handler(httpd_req_t *req)
         httpd_resp_set_status(req, "429 Too Many Requests");
         return httpd_resp_sendstr(req, "An action is already running; try again shortly");
     }
+    if (err == ESP_ERR_INVALID_VERSION) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+        "Pair the updated HTTPS Companion in Settings. Tokens cannot be sent over HTTP.");
     if (err != ESP_OK) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, esp_err_to_name(err));
     return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
@@ -1482,6 +1589,24 @@ static esp_err_t status_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "renderedPages", g_app.rendered_pages);
     cJSON_AddNumberToObject(root, "emptyTiles", g_app.empty_tiles);
     cJSON_AddNumberToObject(root, "symbolFallbacks", g_app.symbol_fallbacks);
+    char action_message[160];
+    int action_index, action_status, action_tls_error;
+    bool action_running, action_success;
+    portENTER_CRITICAL(&s_action_lock);
+    strlcpy(action_message, s_last_action_message, sizeof(action_message));
+    action_index = s_last_action_index;
+    action_status = s_last_action_status;
+    action_tls_error = s_last_action_tls_error;
+    action_running = s_last_action_running;
+    action_success = s_last_action_success;
+    portEXIT_CRITICAL(&s_action_lock);
+    cJSON *last_action = cJSON_AddObjectToObject(root, "lastAction");
+    cJSON_AddNumberToObject(last_action, "index", action_index);
+    cJSON_AddNumberToObject(last_action, "httpStatus", action_status);
+    cJSON_AddNumberToObject(last_action, "tlsError", action_tls_error);
+    cJSON_AddBoolToObject(last_action, "running", action_running);
+    cJSON_AddBoolToObject(last_action, "success", action_success);
+    cJSON_AddStringToObject(last_action, "message", action_message);
     cJSON_AddNumberToObject(root, "widgets", g_app.widget_count);
     cJSON_AddNumberToObject(root, "gifs", g_app.gif_count);
     cJSON_AddNumberToObject(root, "gifLoops", g_app.gif_loops);
@@ -1541,6 +1666,7 @@ static esp_err_t companion_status_handler(httpd_req_t *req)
     cJSON *root = cJSON_Parse(body);
     cJSON *url = root ? cJSON_GetObjectItemCaseSensitive(root, "url") : NULL;
     cJSON *token = root ? cJSON_GetObjectItemCaseSensitive(root, "token") : NULL;
+    cJSON *certificate = root ? cJSON_GetObjectItemCaseSensitive(root, "certificate") : NULL;
     bool valid = cJSON_IsString(url) && valid_url(url->valuestring) &&
                  cJSON_IsString(token) && strlen(token->valuestring) >= 32 &&
                  strlen(token->valuestring) <= 64 && !strchr(token->valuestring, '\r') &&
@@ -1552,13 +1678,15 @@ static esp_err_t companion_status_handler(httpd_req_t *req)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
             "Reload the GooPad website to use cached PC monitoring. Save pairing and widget changes first.");
     }
+    valid = valid && !strncmp(url->valuestring, "https://", 8) &&
+            valid_companion_certificate(certificate);
     companion_reply_t reply = {.data = heap_caps_calloc(1, 2049, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)};
     esp_http_client_config_t config = {
         .url = valid ? url->valuestring : NULL, .timeout_ms = 4000,
-        .crt_bundle_attach = esp_crt_bundle_attach,
         .disable_auto_redirect = true,
         .event_handler = companion_response, .user_data = &reply,
     };
+    client_tls(&config, valid ? certificate->valuestring : NULL);
     esp_http_client_handle_t client = valid && reply.data ? esp_http_client_init(&config) : NULL;
     esp_err_t err = ESP_FAIL;
     int status = 0;
@@ -1574,7 +1702,8 @@ static esp_err_t companion_status_handler(httpd_req_t *req)
     cJSON_Delete(root);
     free(body);
     esp_err_t result;
-    if (!valid) result = httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Check the PC address and pairing token");
+    if (!valid) result = httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+        "Use HTTPS and Copy secure pairing from the updated Companion, including its public certificate.");
     else if (!ok) {
         ESP_LOGW(TAG, "Companion check failed: %s, HTTP %d", esp_err_to_name(err), status);
         result = httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, status == 401 ?
@@ -1670,15 +1799,19 @@ static void monitor_task(void *arg)
         if (target) {
             cJSON *url = cJSON_GetObjectItemCaseSensitive(target, "url");
             cJSON *secret = cJSON_GetObjectItemCaseSensitive(target, "secret");
-            strlcpy(text, "PC unavailable", sizeof(text));
-            if (s_connected && cJSON_IsString(url) && cJSON_IsString(secret)) {
+            cJSON *certificate = cJSON_GetObjectItemCaseSensitive(root, "companionCertificate");
+            bool paired = cJSON_IsString(url) && !strncmp(url->valuestring, "https://", 8) &&
+                          cJSON_IsString(secret) && valid_companion_certificate(certificate);
+            strlcpy(text, paired ? "PC unavailable" : "Pair HTTPS Companion", sizeof(text));
+            if (s_connected && paired) {
                 memset(data, 0, 2049);
                 companion_reply_t reply = {.data = data};
                 esp_http_client_config_t config = {
                     .url = url->valuestring, .timeout_ms = 3000,
-                    .crt_bundle_attach = esp_crt_bundle_attach, .disable_auto_redirect = true,
+                    .disable_auto_redirect = true,
                     .event_handler = companion_response, .user_data = &reply,
                 };
+                client_tls(&config, certificate->valuestring);
                 esp_http_client_handle_t client = esp_http_client_init(&config);
                 if (client) {
                     esp_http_client_set_header(client, "X-GooPad-Token", secret->valuestring);

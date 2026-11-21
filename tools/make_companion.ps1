@@ -19,7 +19,7 @@ Copy-Item (Join-Path $root 'companion\GooPadCompanion.py'), `
     (Join-Path $root 'README.md') -Destination $package
 $thirdParty = Join-Path $package 'third-party'
 New-Item -ItemType Directory -Force $thirdParty | Out-Null
-$trayVersion = python -c "from importlib.metadata import distribution; from pathlib import Path; import shutil,sys; target=Path(sys.argv[1]); [(shutil.copyfile(d.locate_file(f),target/(name+'-LICENSE')) ) for name in ['Pillow','six'] for d in [distribution(name)] for f in d.files if Path(str(f)).name=='LICENSE']; print(distribution('pystray').version)" $thirdParty
+$trayVersion = python -c "from importlib.metadata import distribution; from pathlib import Path; import shutil,sys; target=Path(sys.argv[1]); [(shutil.copyfile(d.locate_file(f),target/(name+'-'+Path(str(f)).name)) ) for name in ['Pillow','six','cryptography','cffi','pycparser'] for d in [distribution(name)] for f in d.files if Path(str(f)).name.startswith('LICENSE')]; print(distribution('pystray').version)" $thirdParty
 if ($LASTEXITCODE -ne 0) { throw 'Could not package dependency licenses.' }
 $trayVersion = $trayVersion.Trim()
 Invoke-WebRequest "https://github.com/moses-palmer/pystray/archive/refs/tags/v$trayVersion.zip" `

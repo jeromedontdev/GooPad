@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory)][uri]$Device,
     [Parameter(Mandatory)][pscredential]$Credential,
     [uri]$Companion,
-    [securestring]$CompanionToken
+    [securestring]$CompanionToken,
+    [switch]$NonMutating
 )
 
 $ErrorActionPreference = 'Stop'
@@ -48,6 +49,23 @@ $catalog = Request '/api/icons'
 Expect $catalog 200
 if (!(($catalog.Content | ConvertFrom-Json).icons | Where-Object name -eq 'server')) {
     throw 'Font Awesome catalog is invalid or missing fa-server.'
+}
+
+$invalid = $original.Content | ConvertFrom-Json -AsHashtable
+$invalid.macros = @(@{
+    name=''; icon=''; action='webhook'; method='GET'; url=''; body=''; secret=''
+    actionMode='simple_link'; tileName=('x' * 25)
+})
+Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
+$invalid.macros[0].tileName = 123
+Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
+$invalid.macros[0].tileName = 'Test tile'
+$invalid.macros[0].gifFit = 'stretch'
+Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
+if ((Request '/api/config').Content -ne $original.Content) { throw 'Rejected tile settings changed configuration.' }
+if ($NonMutating) {
+    'PASS: concurrent HTTPS, authentication, catalog, tile-name/GIF-fit validation; configuration unchanged.'
+    return
 }
 
 $test = $original.Content | ConvertFrom-Json -AsHashtable
@@ -166,8 +184,13 @@ try {
     $test.macros = @(@{
         name=''; icon=''; action='http'; method='GET'; url=''; body=''; secret=''
         actionMode='simple_link'; iconSource='gif'; iconFormat='gif'; iconSize=160; iconImage=$gifKey
+        tileName='Animated tile'; gifFit='cover'
     })
     Expect (Request '/api/config' 'POST' ($test | ConvertTo-Json -Depth 20 -Compress)) 200
+    $savedGif = (Request '/api/config').Content | ConvertFrom-Json
+    if ($savedGif.macros[0].tileName -ne 'Animated tile' -or $savedGif.macros[0].gifFit -ne 'cover') {
+        throw 'Tile name or GIF fill mode was not persisted.'
+    }
     Start-Sleep -Seconds 2
     $animation = (Request '/api/status').Content | ConvertFrom-Json
     if ($animation.gifs -ne 1) { throw 'Saved GIF did not decode into a tile.' }

@@ -24,9 +24,10 @@ body.light button{background:#f1f5f9;color:#172033;border-color:#cbd5e1}body.lig
 .preview{aspect-ratio:480/396}.preview-page{grid-template-rows:repeat(var(--rows),minmax(0,1fr))}.preview-cell{min-width:0;min-height:0;display:grid;place-items:center;container-type:size}.preview button{width:100%;height:100%;min-height:0;position:relative;padding:8px}.preview button[data-shape=circle]{width:min(100cqw,100cqh);height:min(100cqw,100cqh);border-radius:50%}.preview button[data-shape=square]{border-radius:4px}.preview button[data-shape=pill]{height:75%;border-radius:999px}.preview button[data-shape=soft]{border-radius:32%}.preview .ico{font-size:min(55cqw,55cqh);line-height:1}.preview img{width:75%;height:calc(100% - 20px);object-fit:contain}.preview .image-only img{height:85%;width:85%}.preview small{flex-shrink:0}.preview button:hover{filter:none}
 #save{display:block;margin:12px auto 0}#saveStatus{text-align:center;min-height:24px;margin:8px 0 0}.save-status{color:var(--green)}.save-status.error{color:#ef4444}button[aria-busy=true]::before{content:"";display:inline-block;width:13px;height:13px;margin-right:8px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}input[type=checkbox]{width:auto}.preview button{border:2px solid transparent}
 .pc-step{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0}.step-head{display:flex;gap:6px;align-items:center;margin-bottom:8px}.step-head select{flex:1;min-width:0}.step-head button{padding:5px 9px}.key-modifiers{display:flex;gap:12px;flex-wrap:wrap}.key-modifiers label{display:flex;gap:4px;align-items:center}.about{display:grid;gap:18px}.about details{margin:12px 0}.about summary{cursor:pointer;font-weight:650}.about code{overflow-wrap:anywhere}.background-sample{width:120px;height:120px;object-fit:cover;border-radius:10px}.status:empty{display:none}
-.studio{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:start}.stage{position:sticky;top:16px}.stage .fields{margin-bottom:18px}.stage .preview{max-width:540px;margin:auto}.tile-editor .macro{margin:0;border:0;padding:0;background:transparent}.tile-editor .macro-head{flex-wrap:wrap}.tile-location{width:100%;margin:0}.move-tile{display:flex;gap:8px;margin-top:18px}.move-tile select{min-width:0}.move-tile button{white-space:nowrap}.preview button{container-type:size;cursor:pointer}.preview button[aria-pressed=true]{outline:3px solid var(--accent);outline-offset:-4px}.preview button:focus-visible{outline:3px solid var(--green);outline-offset:-4px}.preview button:disabled{cursor:default;opacity:.35}.preview .widget{width:100%;max-height:100%;overflow:hidden;font-size:min(14cqw,20cqh,24px);line-height:1.15;white-space:pre-line;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.preview .widget[data-widget=clock]{font-size:min(24cqw,40cqh,42px);white-space:nowrap}.preview .widget[data-widget=date]{font-size:min(14cqw,24cqh,28px);white-space:nowrap}.upload-status.error{color:#ef4444}
+.studio{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:start}.stage{position:sticky;top:16px}.stage .fields{margin-bottom:18px}.stage .preview{max-width:540px;margin:auto}.tile-editor .macro{margin:0;border:0;padding:0;background:transparent}.tile-editor .macro-head{flex-wrap:wrap}.preview button{container-type:size;cursor:pointer}.preview button[aria-pressed=true]{outline:3px solid var(--accent);outline-offset:-4px}.preview button:focus-visible{outline:3px solid var(--green);outline-offset:-4px}.preview button:disabled{cursor:default;opacity:.35}.preview .widget{width:100%;max-height:100%;overflow:hidden;font-size:min(14cqw,20cqh,24px);line-height:1.15;white-space:pre-line;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.preview .widget[data-widget=clock]{font-size:min(24cqw,40cqh,42px);white-space:nowrap}.preview .widget[data-widget=date]{font-size:min(14cqw,24cqh,28px);white-space:nowrap}.upload-status.error{color:#ef4444}
 @media(max-width:940px){.studio{grid-template-columns:1fr}.stage{position:static}.stage .preview{max-width:540px}}
 .preview .widget{line-height:1.4}.preview button:not(.image-only) .widget{font-size:min(14cqw,18cqh,24px);flex-shrink:0}
+.preview .gif-cover{padding:0}.preview .gif-cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.preview .gif-cover small{position:relative;z-index:1;align-self:center;margin-top:auto;margin-bottom:8px;padding:1px 5px;border-radius:4px;background:#0009;max-width:calc(100% - 16px)}.preview button.drop-target{outline:3px dashed var(--green);outline-offset:-4px}.preview.reordering{scroll-snap-type:none}
 footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-size:12px}a{color:#a5b4fc}body.light a{color:#4338ca}
 @media(max-width:780px){.layout{grid-template-columns:1fr}.side{grid-row:1}.fields,.macro-fields{grid-template-columns:1fr}.macro-fields .wide{grid-column:auto}.preview{grid-template-columns:repeat(3,1fr)}}
 </style>
@@ -43,7 +44,7 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <div class="field"><label>Columns</label><select id="cols"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field"><label>Rows per page</label><select id="rows"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field wide"><label><input id="hideUnconfigured" type="checkbox"> Hide unconfigured tiles (compact the grid)</label></div>
-</div><div class="preview" id="preview" aria-label="Select a tile to edit; swipe horizontally between pages"></div><div class="preview-dots" id="previewDots" aria-label="Preview pages"></div><p class="hint">Select any tile to edit it, including empty slots. Swipe horizontally between pages. Hide unconfigured tiles compacts the preview and device without changing stored positions; turn it off to choose empty slots.</p><button id="addPage" type="button">Add page</button><button class="primary" id="save">Save to device</button><p id="saveStatus" class="save-status" role="status" aria-live="polite"></p></section>
+</div><div class="preview" id="preview" aria-label="Select a tile to edit; drag tiles to rearrange"></div><div class="preview-dots" id="previewDots" aria-label="Preview pages"></div><p class="hint">Select any tile to edit it. Drag a tile onto another to move or swap it; hold near the preview's left or right edge to change pages. Swipe between tiles or use touch to scroll pages. Hide unconfigured tiles compacts the grid; turn it off to choose empty slots.</p><button id="addPage" type="button">Add page</button><button class="primary" id="save">Save to device</button><p id="saveStatus" class="save-status" role="status" aria-live="polite"></p></section>
 <section class="panel tile-editor"><h2>Edit tile</h2><div id="macros"></div></section>
 </div></div>
 <div id="settingsView" class="hidden"><div class="layout">
@@ -84,7 +85,7 @@ function uploadMessage(index,text,bad=false){
  target.textContent=text;target.classList.toggle("error",bad)
 }
 function emptyMacro(){return {name:"",icon:"",iconSource:"emoji",actionMode:"simple_link",action:"webhook",method:"GET",url:"",body:"",secret:"",sound:"none",color:"4F46E5"}}
-function tileLocation(index){const cols=Number($("#cols").value),cap=cols*Number($("#rows").value);return `Page ${Math.floor(index/cap)+1} · row ${Math.floor(index%cap/cols)+1} · column ${index%cols+1}`}
+function tileTitle(macro){return macro?.tileName?.trim()||macro?.name||"Unnamed tile"}
 function ensureTile(index){while(cfg.macros.length<=index)cfg.macros.push(emptyMacro())}
 function selectTile(index){
  if(pendingUploads||faBusy)return msg("Wait for the current upload to finish before changing tiles.",true);
@@ -230,13 +231,15 @@ function render(){
   m.actionMode=mode;m.iconSource=m.iconFormat==="gif"?"gif":m.iconSource||(m.faIcon?"fontawesome":m.iconImage?"image":"emoji");
   if(i!==selectedTile)return;
   const card=document.createElement("article");card.className="macro";card.dataset.index=i;
-  card.innerHTML=`<div class="macro-head"><b>Tile ${i+1}${m.name?" · "+esc(m.name):""}</b><button class="danger" data-delete="${i}">Clear tile</button><p class="hint tile-location">${tileLocation(i)}</p></div><div class="macro-fields">
+  card.innerHTML=`<div class="macro-head"><b>${esc(tileTitle(m))}</b><button class="danger" data-delete="${i}">Clear tile</button></div><div class="macro-fields">
+  <div class="field"><label>Tile name (editor only)</label><input data-k="tileName" value="${esc(m.tileName||"")}" maxlength="24" placeholder="Give this tile a name"></div>
   <div class="field"><label>Button label (optional)</label><input data-k="name" value="${esc(m.name)}" maxlength="24" placeholder="Leave blank for an image-only button"></div>
   <div class="field"><label>Visual type</label><select data-k="iconSource"><option value="emoji">Icon / emoji</option><option value="fontawesome">Font Awesome</option><option value="image">Image</option><option value="gif">Animated GIF</option></select></div>
   <div class="field wide" data-visual="emoji"><label>Icon / emoji</label><input data-k="icon" value="${esc(m.icon)}" maxlength="8"><input data-emoji-search type="search" placeholder="Search icons / emoji, e.g. music"><div class="picker" data-emoji-results></div><span class="hint" data-emoji-count></span></div>
   <div class="field wide" data-visual="fontawesome"><label>Font Awesome code</label><div class="icon-code-row"><input data-fa-code value="${esc(m.faCode||"")}" placeholder="fa-server or fa-brands fa-github"><button type="button" data-fa-apply>Use code</button><button type="button" data-fa="${i}">Search</button></div><span class="hint" data-fa-label>${m.faIcon?"Selected: "+esc(m.faIcon):"Enter a code or search. SD card required."}</span></div>
   <div class="field wide" data-visual="image"><label>Image (transparent PNG recommended; SD card required)</label><input data-k="imageUpload" type="file" accept="image/*"><span class="hint upload-status" data-upload-status role="status"></span></div>
   <div class="field wide" data-visual="gif"><label>Animated GIF (SD card required)</label><input data-k="gifUpload" type="file" accept=".gif,image/gif"><span class="hint">Up to 160×160, 128 KB, 240 frames; four GIF tiles per layout. Resize larger GIFs first. Animations pause on hidden pages and run at most 10 fps.</span><span class="hint upload-status" data-upload-status role="status">${m.iconFormat==="gif"&&m.iconImage?"Saved GIF selected.":""}</span></div>
+  <div class="field wide" data-visual="gif"><label>GIF size</label><select data-k="gifFit"><option value="contain">Fit inside tile</option><option value="cover">Fill whole tile (zoom and crop)</option></select><span class="hint">Fill keeps the GIF's proportions and crops its edges to your tile shape. The button label stays on top.</span></div>
   <div class="field"><label>Tile shape</label><select data-k="shape"><option value="rounded">Rounded</option><option value="square">Square</option><option value="circle">Circle</option><option value="pill">Pill</option><option value="soft">Soft corners</option></select></div><div class="field"><label>Tile color</label><input data-k="color" type="color" value="#${m.color}"></div><div class="field"><label>Font color</label><input data-k="textColor" type="color" value="#${m.textColor}"></div>
   <div class="field"><label><input data-k="outline" type="checkbox" ${m.outline!==false?"checked":""}> Show outline</label><input data-k="outlineColor" type="color" value="#${esc(m.outlineColor||"A5B4FC")}"></div>
   <div class="field"><label>Button sound (device speaker)</label><select data-k="sound"><option value="none">None</option><option value="click">Click</option><option value="beep">Beep</option><option value="chime">Chime</option><option value="alert">Alert</option><option value="file">Uploaded WAV / MP3</option></select></div>
@@ -249,23 +252,13 @@ function render(){
   <div class="field wide mode-field" data-mode-field="pc_open_url"><label>Windows PC address</label><input data-k="pcAddress" value="${esc(m.pcAddress||"")}" maxlength="160" placeholder="192.168.1.50:8787"><label>Website to open on the PC</label><input data-k="pcTarget" type="url" value="${esc(m.pcTarget||"")}" maxlength="179" placeholder="https://example.com"><label>Companion shared token</label><input data-k="secret" value="${esc(m.secret||"")}" maxlength="64" autocomplete="off"><span class="hint">Copy the Companion address and token here.</span></div>
   <div class="field wide mode-field" data-mode-field="advanced"><label>Request type</label><select data-k="action"><option value="webhook">Webhook</option><option value="http">HTTP command</option></select><label>Target URL</label><input data-k="url" type="url" value="${esc(m.url)}"><label>Method</label><select data-k="method"><option>GET</option><option>POST</option></select><label>JSON body (POST)</label><textarea data-k="body" rows="2">${esc(m.body)}</textarea><label>Request token (optional)</label><input data-k="secret" value="${esc(m.secret||"")}" maxlength="64" autocomplete="off"></div></div>`;
   root.append(card);
-  const move=document.createElement("div");move.className="move-tile";
-  move.innerHTML=`<select aria-label="Destination tile">${Array.from({length:32},(_,target)=>`<option value="${target}">${tileLocation(target)}</option>`).join("")}</select><button type="button">Move / swap</button>`;
-  move.querySelector("select").value=i;
-  move.querySelector("button").onclick=()=>{
-   if(pendingUploads||faBusy)return msg("Wait for the upload to finish.",true);
-   const target=Number(move.querySelector("select").value);if(target===i)return;
-   if(macroConfigured(cfg.macros[target])&&!confirm("Swap these two configured tiles?"))return;
-   ensureTile(target);[cfg.macros[i],cfg.macros[target]]=[cfg.macros[target],cfg.macros[i]];selectedTile=target;render();
-   scrollToTile(target)
-  };
-  card.append(move);
   card.querySelector('[data-k="actionMode"]').value=mode;
   card.querySelector('[data-k="action"]').value=m.action||"webhook";
   card.querySelector('[data-k="method"]').value=m.method||"POST";
   card.querySelector('[data-k="shape"]').value=m.shape;
   card.querySelector('[data-k="sound"]').value=m.sound||"none";
   card.querySelector('[data-k="iconSource"]').value=m.iconSource;
+  card.querySelector('[data-k="gifFit"]').value=m.gifFit||"contain";
   card.querySelector('[data-k="widget"]').value=m.widget||"clock";
   card.querySelector("[data-sound-upload]").classList.toggle("hidden",m.sound!=="file");
   card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==m.iconSource));
@@ -273,7 +266,7 @@ function render(){
   renderPcSteps(card,m);
   card.querySelectorAll("[data-k]").forEach(el=>{
    if(el.type==="file"){el.addEventListener("change",()=>el.dataset.k==="soundUpload"?uploadSound(el,m):uploadMacroIcon(el,i,m));return}
-   const update=()=>{const key=el.dataset.k;if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}if(key==="iconSource"){card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==el.value))}if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="simple_link"){m.url="";card.querySelectorAll('[data-k="url"]').forEach(input=>input.value="")}m[key]=el.type==="checkbox"?el.checked:el.type==="color"?el.value.slice(1).toUpperCase():el.value;if(key==="sound")card.querySelector("[data-sound-upload]").classList.toggle("hidden",el.value!=="file");if(key==="actionMode")updateModeFields(card,el.value);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()};
+   const update=()=>{const key=el.dataset.k;if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}if(key==="iconSource"){card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==el.value))}if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="simple_link"){m.url="";card.querySelectorAll('[data-k="url"]').forEach(input=>input.value="")}m[key]=el.type==="checkbox"?el.checked:el.type==="color"?el.value.slice(1).toUpperCase():el.value;if(key==="tileName"||key==="name")card.querySelector(".macro-head b").textContent=tileTitle(m);if(key==="sound")card.querySelector("[data-sound-upload]").classList.toggle("hidden",el.value!=="file");if(key==="actionMode")updateModeFields(card,el.value);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()};
    el.addEventListener("input",update);el.addEventListener("change",update);
   });
   card.querySelector("[data-fa]").onclick=()=>openFaPicker(i);
@@ -379,12 +372,13 @@ function preview(){
    const entry=macros[pageIndex*cap+slot],m=entry?.macro,index=entry?.index??pageIndex*cap+slot;if(hide&&!m)continue;
    const cell=document.createElement("div"),b=document.createElement("button");cell.className="preview-cell";
    b.dataset.shape=m?.shape||"rounded";b.style.border=m?.outline===false?"0":"2px solid #"+(m?.outlineColor||({ocean:"67E8F9",forest:"6EE7B7",light:"334155"}[cfg.theme]||"A5B4FC"));
-   b.type="button";b.dataset.tile=index;b.setAttribute("aria-label",`${tileLocation(index)}: ${m?.name||(!macroConfigured(m)?"Empty tile":m.widget||"Configured tile")}`);b.setAttribute("aria-pressed",String(index===selectedTile));b.disabled=index>=32;b.onclick=()=>selectTile(index);
+   b.type="button";b.dataset.tile=index;b.setAttribute("aria-label",tileTitle(m));b.title=tileTitle(m);b.setAttribute("aria-pressed",String(index===selectedTile));b.disabled=index>=32;b.draggable=index<32;b.onclick=()=>selectTile(index);
+   b.classList.toggle("gif-cover",m?.iconFormat==="gif"&&m.gifFit==="cover"&&m.actionMode!=="widget");
    if(!macroConfigured(m)){b.style.background="#1f2937"}
    else{
     b.style.background="#"+(m.color||"4F46E5");b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.classList.toggle("image-only",!m.name);
     if(m.actionMode==="widget"){const widget=document.createElement("span");widget.className="widget";widget.dataset.widget=m.widget||"clock";b.append(widget)}
-    else if(m.imagePreview){const img=document.createElement("img");img.src=m.imagePreview;img.alt="";b.append(img)}
+    else if(m.imagePreview){const img=document.createElement("img");img.src=m.imagePreview;img.alt="";img.draggable=false;b.append(img)}
     else{const icon=document.createElement("span");icon.className="ico";icon.textContent=m.iconSource!=="emoji"&&m.iconSource?m.iconImage?"…":"":m.icon||"";b.append(icon)}
     if(m.name){const name=document.createElement("small");name.textContent=m.name;b.append(name)}
    }
@@ -521,6 +515,7 @@ function parseWebUrl(value,label){
  return parsed.href
 }
 function prepareMacroAction(m,index){
+ if(m.tileName&&new TextEncoder().encode(m.tileName).length>24)throw Error(`Button ${index+1}: tile name must fit within 24 UTF-8 bytes. Shorten its name.`);
  if(m.actionMode==="widget"){
   m.widget=m.widget||"clock";m.sound="none";m.method="GET";m.action="http";m.body="";
   if(m.widget==="pc_monitor"){const connection=pcConnection(cfg.companionAddress,cfg.companionToken);m.url=connection.origin+"/monitor";m.secret=connection.token}
@@ -621,7 +616,7 @@ $("#preview").addEventListener("scrollend",updatePreviewDots);
 {
  const previewElement=$("#preview");let drag=null,suppressClick=false;
  previewElement.addEventListener("pointerdown",event=>{
-  if(event.pointerType!=="mouse"||event.button!==0)return;
+  if(event.pointerType!=="mouse"||event.button!==0||event.target.closest("[data-tile]"))return;
   drag={id:event.pointerId,x:event.clientX,scrollLeft:previewElement.scrollLeft,moved:false};
  });
  previewElement.addEventListener("pointermove",event=>{
@@ -638,6 +633,49 @@ $("#preview").addEventListener("scrollend",updatePreviewDots);
  previewElement.addEventListener("pointerup",stopDrag);
  previewElement.addEventListener("pointercancel",stopDrag);
  previewElement.addEventListener("click",event=>{if(suppressClick){event.preventDefault();event.stopPropagation();suppressClick=false}},true);
+}
+{
+ const previewElement=$("#preview");let movingTile=-1,edgeTimer=null,edgeDirection=0;
+ const stopReordering=()=>{
+  movingTile=-1;clearInterval(edgeTimer);edgeTimer=null;edgeDirection=0;
+  previewElement.classList.remove("reordering");
+  previewElement.querySelectorAll(".drop-target").forEach(tile=>tile.classList.remove("drop-target"))
+ };
+ previewElement.addEventListener("dragstart",event=>{
+  const tile=event.target.closest("[data-tile]");
+  if(!tile||tile.disabled||previewElement.classList.contains("dragging")||pendingUploads||faBusy){event.preventDefault();if(pendingUploads||faBusy)msg("Wait for the upload to finish before moving tiles.",true);return}
+  movingTile=Number(tile.dataset.tile);event.dataTransfer.effectAllowed="move";
+  event.dataTransfer.setData("text/plain",String(movingTile));previewElement.classList.add("reordering")
+ });
+ previewElement.addEventListener("dragover",event=>{
+  if(movingTile<0)return;
+  event.preventDefault();event.dataTransfer.dropEffect="move";
+  previewElement.querySelectorAll(".drop-target").forEach(tile=>tile.classList.remove("drop-target"));
+  const tile=event.target.closest("[data-tile]");if(tile&&!tile.disabled&&Number(tile.dataset.tile)!==movingTile)tile.classList.add("drop-target");
+  const bounds=previewElement.getBoundingClientRect(),direction=event.clientX<bounds.left+30?-1:event.clientX>bounds.right-30?1:0;
+  if(direction!==edgeDirection){
+   clearInterval(edgeTimer);edgeTimer=null;edgeDirection=direction;
+   if(direction)edgeTimer=setInterval(()=>{
+    const width=previewElement.clientWidth,page=Math.round(previewElement.scrollLeft/width);
+    previewElement.scrollLeft=Math.max(0,Math.min(previewElement.children.length-1,page+direction))*width;updatePreviewDots()
+   },650)
+  }
+ });
+ previewElement.addEventListener("dragleave",event=>{
+  if(previewElement.contains(event.relatedTarget))return;
+  clearInterval(edgeTimer);edgeTimer=null;edgeDirection=0;
+  previewElement.querySelectorAll(".drop-target").forEach(tile=>tile.classList.remove("drop-target"))
+ });
+ previewElement.addEventListener("drop",event=>{
+  if(movingTile<0)return;
+  event.preventDefault();const tile=event.target.closest("[data-tile]"),source=movingTile;stopReordering();
+  if(!tile||tile.disabled)return;
+  if(pendingUploads||faBusy)return msg("Wait for the upload to finish before moving tiles.",true);
+  const target=Number(tile.dataset.tile);if(target===source)return;
+  ensureTile(source);ensureTile(target);[cfg.macros[source],cfg.macros[target]]=[cfg.macros[target],cfg.macros[source]];
+  selectedTile=target;render();scrollToTile(target)
+ });
+ previewElement.addEventListener("dragend",stopReordering);
 }
 $("#faSearch").oninput=()=>{clearTimeout(faSearchTimer);faSearchVersion++;$("#faResults").replaceChildren();faSearchTimer=setTimeout(drawFaResults,180)};$("#faClose").onclick=()=>{if(!faBusy)$("#faDialog").close()};
 $("#hideUnconfigured").onchange=preview;$("#timeOffset").oninput=updateWidgetPreview;

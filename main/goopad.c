@@ -489,66 +489,6 @@ void goopad_get_config(char *out, size_t capacity)
     }
 }
 
-esp_err_t goopad_set_theme(const char *theme)
-{
-    if (!theme || (strcmp(theme, "midnight") && strcmp(theme, "ocean") &&
-                   strcmp(theme, "forest") && strcmp(theme, "light") &&
-                   strcmp(theme, "custom"))) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    if (xSemaphoreTake(s_config_lock, portMAX_DELAY) != pdTRUE) {
-        return ESP_ERR_TIMEOUT;
-    }
-    cJSON *root = cJSON_Parse(s_config);
-    cJSON *theme_item = root ? cJSON_GetObjectItemCaseSensitive(root, "theme") : NULL;
-    if (cJSON_IsString(theme_item)) {
-        if (!cJSON_SetValuestring(theme_item, theme)) {
-            cJSON_Delete(root);
-            xSemaphoreGive(s_config_lock);
-            return ESP_ERR_NO_MEM;
-        }
-    } else if (root) {
-        if (!cJSON_AddStringToObject(root, "theme", theme)) {
-            cJSON_Delete(root);
-            xSemaphoreGive(s_config_lock);
-            return ESP_ERR_NO_MEM;
-        }
-    }
-    if (root && strcmp(theme, "custom")) {
-        const char *background = !strcmp(theme, "ocean") ? "0B1B2A" :
-            !strcmp(theme, "forest") ? "10251D" : !strcmp(theme, "light") ? "F1F5F9" : "111827";
-        cJSON *bg = cJSON_GetObjectItemCaseSensitive(root, "background");
-        bool ok = cJSON_IsString(bg) ? cJSON_SetValuestring(bg, background) != NULL :
-                                       cJSON_AddStringToObject(root, "background", background) != NULL;
-        if (!ok) {
-            cJSON_Delete(root);
-            xSemaphoreGive(s_config_lock);
-            return ESP_ERR_NO_MEM;
-        }
-    }
-    char *updated = root ? cJSON_PrintUnformatted(root) : NULL;
-    cJSON_Delete(root);
-    bool too_large = updated && strlen(updated) > CONFIG_MAX_BYTES;
-    if (!updated || too_large) {
-        free(updated);
-        xSemaphoreGive(s_config_lock);
-        return too_large ? ESP_ERR_INVALID_SIZE : ESP_ERR_NO_MEM;
-    }
-
-    nvs_handle_t nvs;
-    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &nvs);
-    if (err == ESP_OK) {
-        err = nvs_set_blob(nvs, "config", updated, strlen(updated) + 1);
-        if (err == ESP_OK) err = nvs_commit(nvs);
-        nvs_close(nvs);
-    }
-    if (err == ESP_OK) strlcpy(s_config, updated, CONFIG_MAX_BYTES + 1);
-    free(updated);
-    xSemaphoreGive(s_config_lock);
-    return err;
-}
-
 const char *goopad_initial_password(void)
 {
     return s_initial_key[0] ? s_initial_key : NULL;

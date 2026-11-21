@@ -18,6 +18,7 @@ globalThis.runGooPadEditorTests = async function () {
   for (const page of [0,1,2]) {
    reset({}); scrollPreviewPage(page); document.querySelector("#addPage").click();
    check(cfg.pageCount === 4 && currentPreviewPage() === page+1, "Insertion/selection after current page");
+   check(selectedTile===-1 && !document.querySelector('[data-k="actionMode"]'), "New page leaves every tile unselected");
    check(cfg.macros[(page+1)*6].name === "", "Inserted page starts empty");
    if (page<2) check(cfg.macros[(page+2)*6].name === "W"+((page+1)*6), "Insertion preserves later slots");
    document.querySelector("#removePage").click();
@@ -87,7 +88,14 @@ globalThis.runGooPadEditorTests = async function () {
   }
   document.querySelector("#companionPairing").value=JSON.stringify({address:"https://192.0.2.20:8787",token:"x".repeat(32),certificate});
   document.querySelector("#applyPairing").click();
-  check(document.querySelector("#companionAddress").value==="https://192.0.2.20:8787" && document.querySelector("#companionCertificate").value===certificate && document.querySelector("#companionPairing").value==="", "Secure bundle populates settings and clears private pasted code");
+  check(cfg.companionAddress==="https://192.0.2.20:8787" && cfg.companionCertificate===certificate && document.querySelector("#companionPairing").value==="", "Secure bundle updates draft pairing and clears private pasted code");
+  check(!document.querySelector("#companionAddress,#companionToken,#companionCertificate"), "Pairing has no manual address, token or certificate controls");
+  const pairedDraft=JSON.stringify(cfg);
+  document.querySelector("#companionPairing").value=JSON.stringify({address:"http://192.0.2.20:8787",token:"x".repeat(32),certificate});
+  document.querySelector("#applyPairing").click();
+  check(JSON.stringify(cfg)===pairedDraft,"Invalid secure code preserves existing pairing");
+  document.querySelector("#companionPairing").value="";
+  setForm();
   let secureSaved;
   globalThis.fetch=async(url,options)=>url==="/api/config"
    ? (secureSaved=JSON.parse(options.body),new Response("{}",{status:200,headers:{"Content-Type":"application/json"}}))

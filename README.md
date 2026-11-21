@@ -44,7 +44,7 @@ empty position to move it, or onto another tile to swap them. Hold a dragged
 tile over a navigation arrow, or near the preview's left/right edge, to change pages. Mouse swiping starts
 in the space between tiles; touch scrolling remains available.
 The preview-only arrows navigate without dragging. **+** inserts a page after
-the current page; **−** removes the current page, confirming if it contains
+the current page and leaves all tiles unselected; **−** removes the current page, confirming if it contains
 tiles. Other pages shift with their contents. At least one page remains, with
 up to 32 positions total; insertion is rejected if it would discard configured
 tiles beyond that limit. Turn off **Compact configured tiles** to edit pages.
@@ -85,8 +85,11 @@ Font Awesome selections and uploaded images are converted to
 160×160 RGB565 with an 8-bit alpha plane and saved under
 `/goopad` on the SD card; a card is required to use them. The **Settings** page
 contains preset themes plus Custom background controls, website appearance, backups, firmware
-updates, and admin-password changes. The device's information panel also has
-theme, display-brightness, sound-volume, and SD firmware-update controls. Brightness
+updates, and admin-password changes. Swipe downward from the top edge of the
+device to slide open its information menu; the old information icon is removed.
+Start within the top 32 pixels and pull down at least 64 pixels.
+The menu's Settings has display-brightness, sound-volume, and SD firmware-update
+controls. Appearance and themes are configured only from the website. Brightness
 and volume changes take effect immediately; **Save settings** persists them.
 The display has Midnight, Ocean, Forest,
 and Light palettes, custom background colors, and per-macro font colors and
@@ -205,6 +208,10 @@ the code under website **Settings > Windows companion**, and select **Apply secu
 This imports the HTTPS address, private token and public certificate. Check
 the HTTPS connection, then save. The last-result check also shows errors and whether
 PowerShell is enabled. Allow TCP port 8787 only on a trusted Private network.
+Secure pairing is the only pairing UI: there are no separate address/token/
+certificate fields or Copy buttons. Existing saved pairing is retained when
+saving unrelated appearance changes. The Companion executable, window,
+taskbar and tray share the original GooPad grid icon.
 
 Choose **Windows PC macro (guided builder)** on a tile. Starters include Copy,
 Paste, Screenshot, Play/Pause and Mute. Add/reorder/remove up to 12 steps:

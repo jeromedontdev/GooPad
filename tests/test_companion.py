@@ -94,6 +94,34 @@ class CompanionTests(unittest.TestCase):
         with urlopen(self.base + "/health", timeout=3, context=self.tls_context) as response:
             self.assertEqual(response.status, 200)
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows desktop UI")
+    def test_desktop_offers_only_secure_pairing_and_controls_fit(self):
+        import tkinter as tk
+        from tkinter import ttk
+        from unittest.mock import Mock
+
+        def inspect_panel(root):
+            try:
+                root.update_idletasks()
+                def descendants(widget):
+                    for child in widget.winfo_children():
+                        yield child
+                        yield from descendants(child)
+                widgets = list(descendants(root))
+                buttons = [widget for widget in widgets if isinstance(widget, ttk.Button)]
+                self.assertEqual([button.cget("text") for button in buttons
+                                  if button.cget("text").startswith("Copy")], ["Copy secure pairing"])
+                for button in buttons:
+                    self.assertLessEqual(button.winfo_rooty() + button.winfo_height(),
+                                         root.winfo_rooty() + root.winfo_height())
+            finally:
+                root.destroy()
+
+        with patch.object(tk.Tk, "mainloop", inspect_panel), patch("pystray.Icon"), \
+                patch.object(COMPANION.windows_startup, "startup_enabled", return_value=False):
+            COMPANION.desktop_panel(Mock(), {"token":self.token,"actions":{}},
+                                    "127.0.0.1", 8787)
+
     def test_https_rejects_untrusted_identity_and_plain_http(self):
         untrusted = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         with self.assertRaises(URLError):

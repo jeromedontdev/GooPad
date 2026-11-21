@@ -31,6 +31,7 @@ body.light button{background:#f1f5f9;color:#172033;border-color:#cbd5e1}body.lig
 .preview button.has-graphic{justify-content:center;gap:4px}.preview .widget-graphic{width:90%;height:35%;flex:0 0 35%;min-height:0}.preview .widget-graphic svg{display:block;width:100%;height:100%}.preview .has-graphic .widget{flex-shrink:1;min-height:0}.preview button.has-bar .widget-graphic{height:8px;flex:0 0 8px;order:1}.preview button.has-bar small{order:2}
 .preview .widget[data-widget=clock]{font-size:min(calc(120cqw / var(--widget-chars,5)),40cqh,42px)}.preview .widget[data-widget=date]{font-size:min(calc(140cqw / var(--widget-chars,10)),24cqh,28px)}.preview button:not(.image-only) .widget{font-size:min(calc(135cqw / var(--widget-chars,10)),18cqh,24px)}
 .preview .gif-cover{padding:0}.preview .gif-cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.preview .gif-cover small{position:relative;z-index:1;align-self:center;margin-top:auto;margin-bottom:8px;padding:1px 5px;border-radius:4px;background:#0009;max-width:calc(100% - 16px)}.preview button.drop-target{outline:3px dashed var(--green);outline-offset:-4px}.preview.reordering{scroll-snap-type:none}
+.upload-status:not(:empty){display:block;padding:9px 12px;border:1px solid currentColor;border-radius:8px;color:var(--green);background:#10b98118;font-size:13px;font-weight:700}.upload-status.error:not(:empty){color:#ef4444;background:#ef444418}
 footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-size:12px}a{color:#a5b4fc}body.light a{color:#4338ca}
 @media(max-width:780px){.layout{grid-template-columns:1fr}.side{grid-row:1}.fields,.macro-fields{grid-template-columns:1fr}.macro-fields .wide{grid-column:auto}.preview{grid-template-columns:repeat(3,1fr)}}
 </style>
@@ -46,8 +47,9 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <section class="panel stage"><h2>Your GooPad <span class="hint" id="count"></span></h2><div class="fields">
 <div class="field"><label>Columns</label><select id="cols"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field"><label>Rows per page</label><select id="rows"><option>2</option><option selected>3</option><option>4</option></select></div>
-<div class="field wide"><label><input id="hideUnconfigured" type="checkbox"> Hide unconfigured tiles (compact the grid)</label></div>
-</div><div class="preview" id="preview" aria-label="Select a tile to edit; drag tiles to rearrange"></div><div class="preview-dots" id="previewDots" aria-label="Preview pages"></div><div class="preview-controls"><button id="prevPage" type="button" aria-label="Previous page" title="Previous page">&larr;</button><button id="addPage" type="button" aria-label="Add page after current" title="Add page after current">+</button><button id="removePage" type="button" aria-label="Remove current page" title="Remove current page">&minus;</button><button id="nextPage" type="button" aria-label="Next page" title="Next page">&rarr;</button></div><p class="hint">Select a tile to edit it; drag tiles to move or swap. Use the arrows to navigate, or hold a dragged tile over an arrow. + adds after the current page; − removes the current page. Turn off Hide unconfigured tiles to edit pages.</p><button class="primary" id="save">Save to device</button><p id="saveStatus" class="save-status" role="status" aria-live="polite"></p></section>
+<div class="field wide"><label><input id="hideEmptyTiles" type="checkbox"> Hide empty tiles (keep positions)</label><span class="hint">Empty boxes disappear on the device and preview. Their spaces stay selectable here for editing or dropping a tile.</span></div>
+<div class="field wide"><label><input id="hideUnconfigured" type="checkbox"> Compact configured tiles (remove empty positions)</label></div>
+</div><div class="preview" id="preview" aria-label="Select a tile to edit; drag tiles to rearrange"></div><div class="preview-dots" id="previewDots" aria-label="Preview pages"></div><div class="preview-controls"><button id="prevPage" type="button" aria-label="Previous page" title="Previous page">&larr;</button><button id="addPage" type="button" aria-label="Add page after current" title="Add page after current">+</button><button id="removePage" type="button" aria-label="Remove current page" title="Remove current page">&minus;</button><button id="nextPage" type="button" aria-label="Next page" title="Next page">&rarr;</button></div><p class="hint">Select a tile to edit it; drag tiles to move or swap. Use the arrows to navigate, or hold a dragged tile over an arrow. + adds after the current page; − removes the current page. Turn off Compact configured tiles to edit pages.</p><button class="primary" id="save">Save to device</button><p id="saveStatus" class="save-status" role="status" aria-live="polite"></p></section>
 <section class="panel tile-editor"><h2>Edit tile</h2><div id="macros"></div></section>
 </div></div>
 <div id="settingsView" class="hidden"><div class="layout">
@@ -69,7 +71,7 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <details><summary>PowerShell and approved apps</summary><p>PowerShell is disabled by default. Enable it <strong>locally in Companion</strong> only if you trust your LAN and everyone with the pairing token. Then choose a PowerShell step and enter your command (up to 512 characters). Scripts run as your Windows user, with a 10-second timeout. Errors stop the rest of the sequence and appear in Companion and the connection/last-result check.</p><p>For fixed app launches or SSH, advanced users can add named actions in <code>%LOCALAPPDATA%\GooPad\companion.json</code>. Each action specifies a program and fixed arguments. Enter that name in an Approved PC app step. The device cannot change those arguments. See the source README for examples.</p></details>
 <details><summary>Keep Companion running / start with Windows</summary><p>Start with Windows opens Companion at user sign-in. Enable <strong>Hide in the tray on Windows startup</strong> to start without a taskbar window. Close and Minimize each have their own tray preference. Defaults remain Close = quit and Minimize = taskbar. Hidden Companion still receives commands; use its tray menu to Open or Quit.</p><p>Manual and automatic startup support the same actions, including locally enabled PowerShell. Keyboard macros require an awake, unlocked desktop. Signing out stops Companion. Startup needs no administrator access and no Windows service is installed. The packaged app uses a stable copy under <code>%LOCALAPPDATA%\GooPad\bin</code>. Uncheck Start with Windows to disable autostart.</p></details>
 <details><summary>Live widgets and PC stats</summary><p>Choose <strong>Live widget</strong>, then Clock, Date or PC stats. Clock/date have their own format choices; seconds are optional. The UTC offset in Settings initially matches your browser; update it after daylight-saving changes.</p><p>Each PC stats tile selects CPU/RAM combined, CPU usage, RAM percentage/used GiB, GPU usage/dedicated memory, or CPU/GPU temperature in Celsius/Fahrenheit. Pair Companion in Settings and save. CPU/RAM refresh every five seconds; GPU/sensors are cached about ten seconds. GPU usage is the busiest engine; GPU memory sums dedicated memory across adapters.</p><p>GPU counters need supported Windows drivers. NVIDIA's driver may provide GPU temperature through nvidia-smi. For CPU temperatures and other GPU sensors, run the official <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases" target="_blank" rel="noopener noreferrer">LibreHardwareMonitor Windows Forms app</a> alongside Companion; its WMI provider supplies readings without enabling a remote web server. Some sensors require that sensor app to run as administrator. Keep Companion as your normal user. Missing sensors show Unavailable, never zero.</p></details>
-<details><summary>GIFs and empty tiles</summary><p>Animated GIF visuals require SD: at most 160x160 pixels, 128 KB, 240 frames, and four GIF tiles. The device caps playback at 10 fps and pauses off-screen animations; browser previews may be faster. Unconfigured tiles are blank and inactive, without a plus sign. Enable <strong>Hide unconfigured tiles</strong> to compact the grid while keeping action assignments intact.</p></details>
+<details><summary>GIFs and empty tiles</summary><p>Animated GIF visuals require SD: at most 160x160 pixels, 128 KB, 240 frames, and four GIF tiles. The device caps playback at 10 fps and pauses off-screen animations; browser previews may be faster. Enable <strong>Hide empty tiles</strong> above the preview to remove empty boxes without moving configured tiles. Empty spaces remain editable and accept dragged tiles in the preview. Alternatively, <strong>Compact configured tiles</strong> packs configured tiles together and hides unused pages. Save to apply either option to the device.</p></details>
 <details><summary>Connection or action not working</summary><p>Confirm both devices are on the same trusted LAN, Companion is open, and its current address/token match Settings. Guest Wi-Fi can block communication. Check the Private-network firewall rule for TCP 8787. Reserve the PC's IP in your router if it changes. An old Companion supports only basic actions: download the latest app for the builder.</p><p>Only one PC sequence runs at a time; repeated taps while busy are rejected instead of overlapping keys. Check the app's last-result message. Windows blocks input into administrator apps, locked screens, and some games. Media-key handling depends on the media app. Try a normal Notepad window for a text/hotkey macro.</p></details>
 <details><summary>Backgrounds, saving, and security</summary><p>Select Custom in Settings to upload a background image; an SD card is required. Images are cropped to fill the screen. Choose a preset to temporarily use its palette instead. Save appearance returns to Live preview, where saving progress and errors appear only once.</p><p>Keep both passwords/tokens private. Never forward GooPad or Companion ports to the internet. The GooPad editor uses self-signed HTTPS; the Companion LAN link is HTTP, so its token is not encrypted in transit. Use only trusted private Wi-Fi. Backups and the development firmware's NVS are not encrypted.</p></details>
 </section></div>
@@ -88,7 +90,7 @@ function uploadMessage(index,text,bad=false){
  if(!target||$("#faDialog").open)return msg(text,bad);
  target.textContent=text;target.classList.toggle("error",bad)
 }
-function emptyMacro(){return {name:"",icon:"",iconSource:"emoji",actionMode:"simple_link",action:"webhook",method:"GET",url:"",body:"",secret:"",sound:"none",color:"4F46E5"}}
+function emptyMacro(){return {name:"",icon:"",iconSource:"emoji",emojiRender:"image",actionMode:"simple_link",action:"webhook",method:"GET",url:"",body:"",secret:"",sound:"none",color:"4F46E5"}}
 function ensureTile(index){while(cfg.macros.length<=index)cfg.macros.push(emptyMacro())}
 function selectTile(index){
  if(pendingUploads||faBusy)return msg("Wait for the current upload to finish before changing tiles.",true);
@@ -103,7 +105,7 @@ function scrollToTile(index){
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 const themeBackgrounds={midnight:"111827",ocean:"0B1B2A",forest:"10251D",light:"F1F5F9"};
 function updateThemeFields(){const custom=$("#deviceTheme").value==="custom";$("#customBackground").classList.toggle("hidden",!custom);$("#backgroundUploadField").classList.toggle("hidden",!custom);$("#background").disabled=!custom;if(!custom)$("#background").value="#"+themeBackgrounds[$("#deviceTheme").value]}
-function setForm(){ $("#cols").value=cfg.cols;$("#rows").value=cfg.rows;$("#hideUnconfigured").checked=cfg.hideUnconfigured===true;$("#timeOffset").value=cfg.timeOffsetMinutes??-new Date().getTimezoneOffset();$("#background").value="#"+(cfg.background||"111827").replace("#","");$("#deviceTheme").value=cfg.theme||"midnight";$("#companionAddress").value=cfg.companionAddress||"";$("#companionToken").value=cfg.companionToken||"";updateThemeFields();render()}
+function setForm(){ $("#cols").value=cfg.cols;$("#rows").value=cfg.rows;$("#hideUnconfigured").checked=cfg.hideUnconfigured===true;$("#hideEmptyTiles").checked=cfg.hideEmptyTiles===true;$("#timeOffset").value=cfg.timeOffsetMinutes??-new Date().getTimezoneOffset();$("#background").value="#"+(cfg.background||"111827").replace("#","");$("#deviceTheme").value=cfg.theme||"midnight";$("#companionAddress").value=cfg.companionAddress||"";$("#companionToken").value=cfg.companionToken||"";updateThemeFields();render()}
 function rawPixelPreview(pixels,side,alpha=false){
  const count=side*side;if(pixels.length!==count*(alpha?3:2))throw Error("Invalid image size.");
  const canvas=document.createElement("canvas");canvas.width=canvas.height=side;const context=canvas.getContext("2d"),image=context.createImageData(side,side);
@@ -132,7 +134,7 @@ async function uploadMacroIcon(input,index,macro){
  input.disabled=true;
  try{await uploadIconImage(file,index,macro)}finally{input.disabled=false;input.value=""}
 }
-async function uploadIconImage(file,index,macro,faIcon=null){
+async function uploadIconImage(file,index,macro,faIcon=null,emoji=false){
  if(file.type==="image/gif"||/\.gif$/i.test(file.name||""))return uploadGif(file,index,macro);
  if(macro.iconSource==="gif"){uploadMessage(index,"Choose an animated GIF file.",true);return false}
  if(!file.type.startsWith("image/")){uploadMessage(index,"Choose an image file.",true);return false}
@@ -159,7 +161,7 @@ async function uploadIconImage(file,index,macro,faIcon=null){
   uploadMessage(index,"Uploading icon to SD…");
   const response=await fetch("/api/icon?key="+key,{method:"POST",headers:{"Content-Type":compressed?"application/x-goopad-rle":"application/octet-stream"},body:compressed?packed:pixels});
   if(!response.ok)throw Error((await response.text())||response.statusText);
-  macro.iconImage=key;macro.iconFormat="rgb565a8";macro.iconSize=side;macro.iconSource=faIcon?"fontawesome":"image";macro.imagePreview=previewCanvas.toDataURL("image/png");
+  macro.iconImage=key;macro.iconFormat="rgb565a8";macro.iconSize=side;macro.iconSource=emoji?"emoji":faIcon?"fontawesome":"image";macro.imagePreview=previewCanvas.toDataURL("image/png");
   const card=macroCard(index);
   if(card){card.querySelector('[data-k="iconSource"]').value=macro.iconSource;card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==macro.iconSource))}
   if(faIcon)macro.faIcon=faIcon;else {delete macro.faIcon;delete macro.faCode}
@@ -177,6 +179,26 @@ function packIconRle(pixels,side){
   output.push(run&255,run>>8,lo,hi,alpha);i+=run;
  }
  return new Uint8Array(output)
+}
+async function upgradeEmojiIcons(){
+ for(const [index,macro] of cfg.macros.entries()){
+  if(macro.actionMode==="widget"||macro.iconSource!=="emoji"||macro.emojiRender!=="image"||!String(macro.icon||"").trim())continue;
+  const key=macro.icon+"|"+(macro.textColor||"FFFFFF");
+  if(macro.iconImage&&macro.emojiImageKey===key)continue;
+  const canvas=document.createElement("canvas");canvas.width=canvas.height=160;
+  const context=canvas.getContext("2d");
+  if(!context)throw Error("Emoji canvas is unavailable.");
+  await document.fonts.ready;
+  context.font='128px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+  const bounds=context.measureText(macro.icon),width=bounds.actualBoundingBoxLeft+bounds.actualBoundingBoxRight,height=bounds.actualBoundingBoxAscent+bounds.actualBoundingBoxDescent;
+  const scale=Math.min(1,140/Math.max(1,width,height));
+  context.fillStyle="#"+(macro.textColor||"FFFFFF");context.translate(80,80);context.scale(scale,scale);
+  context.fillText(macro.icon,(bounds.actualBoundingBoxLeft-bounds.actualBoundingBoxRight)/2,(bounds.actualBoundingBoxAscent-bounds.actualBoundingBoxDescent)/2);
+  const png=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
+  if(!png)throw Error("Could not render the selected emoji.");
+  if(!await uploadIconImage(png,index,macro,null,true))throw Error(`Button ${index+1}: could not upload its emoji. Full-color emoji requires an SD card.`);
+  macro.emojiImageKey=key;
+ }
 }
 async function uploadGif(file,index,macro){
  if(file.size>128*1024){uploadMessage(index,"GIFs must be at most 128 KB and 160×160 pixels. Resize or compress this file first.",true);return false}
@@ -237,7 +259,7 @@ function render(){
   card.innerHTML=`<div class="macro-head"><button class="danger" data-delete="${i}">Clear tile</button></div><div class="macro-fields">
   <div class="field"><label>Button label (optional)</label><input data-k="name" value="${esc(m.name)}" maxlength="24" placeholder="Leave blank for an image-only button"></div>
   <div class="field"><label>Visual type</label><select data-k="iconSource"><option value="emoji">Icon / emoji</option><option value="fontawesome">Font Awesome</option><option value="image">Image</option><option value="gif">Animated GIF</option></select></div>
-  <div class="field wide" data-visual="emoji"><label>Icon / emoji</label><input data-k="icon" value="${esc(m.icon)}" maxlength="8"><input data-emoji-search type="search" placeholder="Search icons / emoji, e.g. music"><div class="picker" data-emoji-results></div><span class="hint" data-emoji-count></span></div>
+  <div class="field wide" data-visual="emoji"><label>Icon / emoji</label><input data-k="icon" value="${esc(m.icon)}" maxlength="8"><input data-emoji-search type="search" placeholder="Search icons / emoji, e.g. music"><div class="picker" data-emoji-results></div><span class="hint" data-emoji-count></span><label>Render on device</label><select data-k="emojiRender"><option value="image">Full-color emoji (SD card required)</option><option value="symbol">Built-in device symbol (no SD)</option></select><span class="hint">Full-color mode renders your browser's emoji as a transparent image when you save. Built-in mode supports only common device symbols, not all emoji. Existing tiles retain built-in mode.</span><span class="hint upload-status" data-upload-status role="status"></span></div>
   <div class="field wide" data-visual="fontawesome"><label>Font Awesome code</label><div class="icon-code-row"><input data-fa-code value="${esc(m.faCode||"")}" placeholder="fa-server or fa-brands fa-github"><button type="button" data-fa-apply>Use code</button><button type="button" data-fa="${i}">Search</button></div><span class="hint" data-fa-label>${m.faIcon?"Selected: "+esc(m.faIcon):"Enter a code or search. SD card required."}</span></div>
   <div class="field wide" data-visual="image"><label>Image (transparent PNG recommended; SD card required)</label><input data-k="imageUpload" type="file" accept="image/*"><span class="hint upload-status" data-upload-status role="status"></span></div>
   <div class="field wide" data-visual="gif"><label>Animated GIF (SD card required)</label><input data-k="gifUpload" type="file" accept=".gif,image/gif"><span class="hint">Up to 160×160, 128 KB, 240 frames; four GIF tiles per layout. Resize larger GIFs first. Animations pause on hidden pages and run at most 10 fps.</span><span class="hint upload-status" data-upload-status role="status">${m.iconFormat==="gif"&&m.iconImage?"Saved GIF selected.":""}</span></div>
@@ -260,7 +282,7 @@ function render(){
   <div class="field wide mode-field" data-mode-field="pc_macro"><label>Start with a common action</label><select data-pc-preset><option value="">Choose a starter…</option><option value="copy">Copy</option><option value="paste">Paste</option><option value="screenshot">Screenshot</option><option value="play">Media play / pause</option><option value="mute">Mute</option><option value="text">Type a text snippet</option><option value="powershell">PowerShell command</option></select><p class="hint">Uses the PC pairing in Settings. Steps run in order on that PC. Keyboard input goes to its focused app.</p><div data-pc-steps></div><button data-pc-add type="button">Add step</button><p class="hint" data-pc-summary></p></div>
   <div class="field wide mode-field" data-mode-field="simple_link"><label>Website or trigger link</label><input data-k="url" type="url" placeholder="https://example.com/your-trigger" value="${mode==="simple_link"?esc(m.url):""}"><span class="hint">Paste the link supplied by the service. Leave blank for an unconfigured tile.</span></div>
   <div class="field wide mode-field" data-mode-field="sound"><span class="hint">Choose a button sound above. No website or PC is required.</span></div>
-  <div class="field wide mode-field" data-mode-field="pc_open_url"><label>Windows PC address</label><input data-k="pcAddress" value="${esc(m.pcAddress||"")}" maxlength="160" placeholder="192.168.1.50:8787"><label>Website to open on the PC</label><input data-k="pcTarget" type="url" value="${esc(m.pcTarget||"")}" maxlength="179" placeholder="https://example.com"><label>Companion shared token</label><input data-k="secret" value="${esc(m.secret||"")}" maxlength="64" autocomplete="off"><span class="hint">Copy the Companion address and token here.</span></div>
+  <div class="field wide mode-field" data-mode-field="pc_open_url"><label>Website to open on the PC</label><input data-k="pcTarget" type="url" value="${esc(m.pcTarget||"")}" maxlength="179" placeholder="https://example.com"><span class="hint">Uses the Windows companion address and private pairing token in Settings. Opens this website in that PC's default browser.</span></div>
   <div class="field wide mode-field" data-mode-field="advanced"><label>Request type</label><select data-k="action"><option value="webhook">Webhook</option><option value="http">HTTP command</option></select><label>Target URL</label><input data-k="url" type="url" value="${esc(m.url)}"><label>Method</label><select data-k="method"><option>GET</option><option>POST</option></select><label>JSON body (POST)</label><textarea data-k="body" rows="2">${esc(m.body)}</textarea><label>Request token (optional)</label><input data-k="secret" value="${esc(m.secret||"")}" maxlength="64" autocomplete="off"></div></div>`;
   root.append(card);
   card.querySelector('[data-k="actionMode"]').value=mode;
@@ -269,6 +291,7 @@ function render(){
   card.querySelector('[data-k="shape"]').value=m.shape;
   card.querySelector('[data-k="sound"]').value=m.sound||"none";
   card.querySelector('[data-k="iconSource"]').value=m.iconSource;
+  card.querySelector('[data-k="emojiRender"]').value=m.emojiRender||"symbol";
   card.querySelector('[data-k="gifFit"]').value=m.gifFit||"contain";
   card.querySelector('[data-k="widget"]').value=m.widget||"clock";
   card.querySelector('[data-k="clockFormat"]').value=m.clockFormat||"24h";
@@ -283,6 +306,7 @@ function render(){
   updateModeFields(card,mode);
   renderPcSteps(card,m);
   card.querySelectorAll("[data-k]").forEach(el=>{
+   if(el.dataset.k==="emojiRender")el.addEventListener("change",()=>{delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.emojiImageKey});
    if(el.type==="file"){el.addEventListener("change",()=>el.dataset.k==="soundUpload"?uploadSound(el,m):uploadMacroIcon(el,i,m));return}
    const update=()=>{const key=el.dataset.k;if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}if(key==="iconSource"){card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==el.value))}if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="simple_link"){m.url="";card.querySelectorAll('[data-k="url"]').forEach(input=>input.value="")}m[key]=key==="widgetTextSize"?Number(el.value):el.type==="checkbox"?el.checked:el.type==="color"?el.value.slice(1).toUpperCase():el.value;if(key==="sound")card.querySelector("[data-sound-upload]").classList.toggle("hidden",el.value!=="file");if(["actionMode","widget","pcStat"].includes(key)){if(!widgetGraphicAllowed(m.widgetGraphic||"text",m.widget||"clock",m.pcStat||"summary")){m.widgetGraphic="text";card.querySelector('[data-k="widgetGraphic"]').value="text"}updateModeFields(card,m.actionMode)}syncWidgetStyle(card,m);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()};
    el.addEventListener("input",update);el.addEventListener("change",update);
@@ -404,7 +428,7 @@ function currentPreviewPage(){return Math.round($("#preview").scrollLeft/Math.ma
 function scrollPreviewPage(index){const p=$("#preview");p.scrollLeft=Math.max(0,Math.min(p.children.length-1,index))*previewStride();updatePreviewDots()}
 function updatePreviewDots(){const p=$("#preview"),page=currentPreviewPage();$("#previewDots").querySelectorAll("span").forEach((dot,index)=>dot.setAttribute("aria-current",String(index===page)));$("#prevPage").disabled=page<=0;$("#nextPage").disabled=page>=p.children.length-1}
 function storedPageCount(cap){const needed=Math.max(1,Math.ceil(cfg.macros.length/cap));return Math.max(needed,Math.min(Math.ceil(32/cap),cfg.pageCount||Math.max(2,needed)))}
-function macroConfigured(m){return !!m&&(m.actionMode==="widget"||!!m.iconImage||!!String(m.url||"").trim()||!!m.sound&&m.sound!=="none")}
+function macroConfigured(m){return !!m&&(m.actionMode==="widget"||!!m.iconImage||!!String(m.url||"").trim()||m.actionMode==="pc_open_url"&&!!String(m.pcTarget||"").trim()||m.actionMode==="pc_macro"&&!!m.pcSteps?.length||!!m.sound&&m.sound!=="none")}
 function preview(){
  $("#count").textContent=`(${cfg.macros.filter(macroConfigured).length}/32 configured)`;
  const p=$("#preview"),dots=$("#previewDots"),previousPage=currentPreviewPage();p.replaceChildren();dots.replaceChildren();p.style.background="#"+(themeBackgrounds[cfg.theme]||cfg.background||"111827");
@@ -420,7 +444,7 @@ function preview(){
    b.dataset.shape=m?.shape||"rounded";b.style.border=m?.outline===false?"0":"2px solid #"+(m?.outlineColor||({ocean:"67E8F9",forest:"6EE7B7",light:"334155"}[cfg.theme]||"A5B4FC"));
    b.type="button";b.dataset.tile=index;b.setAttribute("aria-label",m?.name||m?.widget||"Edit tile");b.setAttribute("aria-pressed",String(index===selectedTile));b.disabled=index>=32;b.draggable=index<32;b.onclick=()=>selectTile(index);
    b.classList.toggle("gif-cover",m?.iconFormat==="gif"&&m.gifFit==="cover"&&m.actionMode!=="widget");
-   if(!macroConfigured(m)){b.style.background="#1f2937"}
+   if(!macroConfigured(m)){b.style.background=$("#hideEmptyTiles").checked?"transparent":"#1f2937";if($("#hideEmptyTiles").checked)b.style.border="0"}
    else{
     b.style.background="#"+(m.color||"4F46E5");b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.classList.toggle("image-only",!m.name);
     if(m.actionMode==="widget"){
@@ -640,14 +664,10 @@ function prepareMacroAction(m,index){
  }else if(m.actionMode==="pc_macro"){
   preparePcMacro(m,index);
  }else if(m.actionMode==="pc_open_url"){
-  const address=String(m.pcAddress||"").trim().replace(/^https?:\/\//i,"").replace(/\/+$/,"");
-  if(!address||/[/?#]/.test(address))throw Error(`Button ${index+1}: enter the PC address shown by GooPad Companion, such as 192.168.1.50:8787.`);
-  let pc;try{pc=new URL("http://"+address)}catch{throw Error(`Button ${index+1}: the Windows PC address is not valid.`)}
-  if(pc.pathname!=="/"||pc.username||pc.password)throw Error(`Button ${index+1}: enter only the PC address and port, not a path.`);
+  const connection=pcConnection(cfg.companionAddress||m.pcAddress,cfg.companionToken||m.secret);
   const target=parseWebUrl(m.pcTarget,`Button ${index+1} website`);
   if(target.length>179)throw Error(`Button ${index+1}: the website link is too long.`);
-  if(String(m.secret||"").trim().length<32)throw Error(`Button ${index+1}: paste the full Companion shared token (at least 32 characters).`);
-  m.url=pc.origin+"/open";m.method="POST";m.action="http";m.body=JSON.stringify({url:target});
+  m.url=connection.origin+"/open";m.secret=connection.token;m.method="POST";m.action="http";m.body=JSON.stringify({url:target});
   if(m.body.length>256)throw Error(`Button ${index+1}: shorten the website link to fit the Companion request.`);
  }else if(m.actionMode==="advanced"){
   m.url=parseWebUrl(m.url,`Button ${index+1} target URL`);
@@ -656,7 +676,7 @@ function prepareMacroAction(m,index){
 }
 $("#addPage").onclick=()=>{
  if(pendingUploads||faBusy||$("#preview").classList.contains("reordering"))return msg("Finish the current upload or tile move first.",true);
- if($("#hideUnconfigured").checked)return msg("Turn off Hide unconfigured tiles to edit pages.",true);
+ if($("#hideUnconfigured").checked)return msg("Turn off Compact configured tiles to edit pages.",true);
  const cap=Number($("#cols").value)*Number($("#rows").value),count=storedPageCount(cap),page=currentPreviewPage(),position=(page+1)*cap;
  if(count>=Math.ceil(32/cap))return msg("Maximum 32 tile positions.",true);
  const tiles=Array.from({length:Math.min(32,count*cap)},(_,i)=>cfg.macros[i]||emptyMacro());
@@ -666,7 +686,7 @@ $("#addPage").onclick=()=>{
 };
 $("#removePage").onclick=()=>{
  if(pendingUploads||faBusy||$("#preview").classList.contains("reordering"))return msg("Finish the current upload or tile move first.",true);
- if($("#hideUnconfigured").checked)return msg("Turn off Hide unconfigured tiles to edit pages.",true);
+ if($("#hideUnconfigured").checked)return msg("Turn off Compact configured tiles to edit pages.",true);
  const cap=Number($("#cols").value)*Number($("#rows").value),count=storedPageCount(cap),page=currentPreviewPage(),start=page*cap;
  if(count<=1)return;
  if(cfg.macros.slice(start,start+cap).some(m=>macroConfigured(m)||m.name||m.icon)&&!confirm("Remove this page and its tiles? Other pages shift forward. This takes effect when you save."))return;
@@ -676,13 +696,13 @@ $("#prevPage").onclick=()=>scrollPreviewPage(currentPreviewPage()-1);$("#nextPag
 $("#save").onclick=async()=>{
  if(pendingUploads){$("#saveStatus").textContent="Wait for the upload to finish before saving.";return}
  cfg.cols=Number($("#cols").value);cfg.rows=Number($("#rows").value);cfg.background=$("#background").value.slice(1).toUpperCase();cfg.theme=$("#deviceTheme").value;
- cfg.hideUnconfigured=$("#hideUnconfigured").checked;cfg.timeOffsetMinutes=Number($("#timeOffset").value);
+ cfg.hideUnconfigured=$("#hideUnconfigured").checked;cfg.hideEmptyTiles=$("#hideEmptyTiles").checked;cfg.timeOffsetMinutes=Number($("#timeOffset").value);
  cfg.companionAddress=$("#companionAddress").value.trim();cfg.companionToken=$("#companionToken").value.trim();
  const saveButton=$("#save"),settingsButton=$("#saveSettings"),status=$("#saveStatus");saveButton.disabled=settingsButton.disabled=true;saveButton.textContent=settingsButton.textContent="Saving…";saveButton.setAttribute("aria-busy","true");settingsButton.setAttribute("aria-busy","true");status.classList.remove("error");status.textContent="Saving configuration to GooPad…";$("#status").textContent="";
  try{
   if(!Number.isInteger(cfg.timeOffsetMinutes)||cfg.timeOffsetMinutes < -840||cfg.timeOffsetMinutes > 840)throw Error("Choose a UTC offset between -840 and 840 minutes.");
   await new Promise(resolve=>requestAnimationFrame(resolve));cfg.macros.forEach(prepareMacroAction);
-  await upgradeLegacyFaIcons();
+  await upgradeLegacyFaIcons();await upgradeEmojiIcons();
   const {backgroundPreview,...settings}=cfg,stored={...settings,macros:cfg.macros.map(({imagePreview,pcSteps,tileName,...macro})=>macro)},body=JSON.stringify(stored);
   if(new TextEncoder().encode(body).length>12000)throw Error("Configuration exceeds 12 KB. Shorten PC sequences or reduce the number of macros.");
   await api("/api/config",{method:"POST",body});status.textContent="Saved to device.";preview()
@@ -800,7 +820,7 @@ $("#preview").addEventListener("scrollend",updatePreviewDots);
  }
 }
 $("#faSearch").oninput=()=>{clearTimeout(faSearchTimer);faSearchVersion++;$("#faResults").replaceChildren();faSearchTimer=setTimeout(drawFaResults,180)};$("#faClose").onclick=()=>{if(!faBusy)$("#faDialog").close()};
-$("#hideUnconfigured").onchange=preview;$("#timeOffset").oninput=updateWidgetPreview;
+$("#hideUnconfigured").onchange=preview;$("#hideEmptyTiles").onchange=preview;$("#timeOffset").oninput=updateWidgetPreview;
 init();
 </script>
 </body></html>

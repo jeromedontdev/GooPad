@@ -3,10 +3,12 @@ param(
     [Parameter(Mandatory)][pscredential]$Credential,
     [uri]$Companion,
     [securestring]$CompanionToken,
-    [switch]$NonMutating
+    [switch]$NonMutating,
+    [switch]$TileVisibilityOnly
 )
 
 $ErrorActionPreference = 'Stop'
+if ($NonMutating -and $TileVisibilityOnly) { throw 'Tile visibility fixtures require temporary configuration writes.' }
 if ($Device.Scheme -ne 'https') { throw 'Use the HTTPS device address.' }
 $base = $Device.GetLeftPart([System.UriPartial]::Authority)
 $token = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(
@@ -34,6 +36,9 @@ $schema = (Request '/api/status').Content | ConvertFrom-Json
 if ($null -eq $schema.renderedPages) {
     throw 'Update to GooPad 0.5.4 or later before running these validation checks; older firmware ignores new fields.'
 }
+if ((Request '/').Content -notmatch 'data-k="emojiRender"') {
+    throw 'Update to GooPad 0.5.5 or later before running these checks; older firmware ignores empty-tile hiding.'
+}
 $parallelStatus = 1..12 | ForEach-Object -Parallel {
     $response = Invoke-WebRequest -Uri "$using:base/api/status" -Headers $using:headers `
         -SkipCertificateCheck -DisableKeepAlive -TimeoutSec 30
@@ -48,7 +53,7 @@ if ($timer.Elapsed.TotalSeconds -gt 2) { throw 'Legacy PC polling still blocks t
 $unauthorized = Request '/api/config' 'POST' '{}' @{}
 Expect $unauthorized 401
 if ($unauthorized.Content -ne 'Authentication required') { throw 'Unauthorized handler appended data.' }
-if ((Request '/api/config').Content -ne $original.Content) { throw 'Unauthorized write changed configuration.' }
+if ((Request '/api/config').Content -ne $original.Content) { throw 'Configuration changed during authentication checks; stopped without overwriting it.' }
 $catalog = Request '/api/icons'
 Expect $catalog 200
 if (!(($catalog.Content | ConvertFrom-Json).icons | Where-Object name -eq 'server')) {
@@ -56,6 +61,9 @@ if (!(($catalog.Content | ConvertFrom-Json).icons | Where-Object name -eq 'serve
 }
 
 $invalid = $original.Content | ConvertFrom-Json -AsHashtable
+$invalid.hideEmptyTiles = 'true'
+Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
+$invalid.Remove('hideEmptyTiles')
 $invalid.macros = @(@{
     name=''; icon=''; action='webhook'; method='GET'; url=''; body=''; secret=''
     actionMode='simple_link'; tileName=('x' * 25)
@@ -73,6 +81,7 @@ foreach ($setting in @(
     @{widgetTextSize=29}, @{widgetAccent='nothex'},
     @{widget='clock'; widgetGraphic='calendar'},
     @{widget='pc_monitor'; pcStat='gpu_temp'; widgetGraphic='ring'}
+    @{emojiRender='unknown'}, @{emojiImageKey=123}
 )) {
     foreach ($key in $setting.Keys) { $invalid.macros[0][$key] = $setting[$key] }
     Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
@@ -104,6 +113,64 @@ if ($NonMutating) {
     'PASS: concurrent HTTPS, authentication, catalog, tile/widget styling and page validation, PC stats schema; configuration unchanged.'
     return
 }
+
+$visibility = $original.Content | ConvertFrom-Json -AsHashtable
+$visibility.cols = 2; $visibility.rows = 2; $visibility.pageCount = 2
+$empty = @{name='';icon='';actionMode='simple_link';action='webhook';method='GET';url='';body='';secret='';sound='none'}
+$clock = @{name='';icon='';actionMode='widget';widget='clock';action='http';method='GET';url='';body='';secret='';sound='none'}
+$visibility.macros = @($empty.Clone(), $clock.Clone(), $empty.Clone(), $empty.Clone(), $empty.Clone(), $empty.Clone(), $clock.Clone())
+$expectedVisibility = $original.Content
+try {
+    foreach ($case in @(
+        @{hide=$false;compact=$false;pages=2;tiles=2;empty=6},
+        @{hide=$true;compact=$false;pages=2;tiles=2;empty=0},
+        @{hide=$true;compact=$true;pages=1;tiles=2;empty=0},
+        @{hide=$false;compact=$false;pages=2;tiles=2;empty=6}
+    )) {
+        $visibility.hideEmptyTiles = $case.hide; $visibility.hideUnconfigured = $case.compact
+        if ((Request '/api/config').Content -ne $expectedVisibility) { throw 'Configuration changed outside the visibility test; stopped.' }
+        $expectedVisibility = $visibility | ConvertTo-Json -Depth 20 -Compress
+        Expect (Request '/api/config' 'POST' $expectedVisibility) 200
+        $deadline = [DateTime]::UtcNow.AddSeconds(15)
+        do {
+            Start-Sleep -Milliseconds 300
+            $rendered = (Request '/api/status').Content | ConvertFrom-Json
+            $matches = $rendered.renderedPages -eq $case.pages -and $rendered.renderedTiles -eq $case.tiles -and $rendered.emptyTiles -eq $case.empty
+        } until ($matches -or [DateTime]::UtcNow -gt $deadline)
+        if (!$matches) { throw 'Native empty-tile visibility or page preservation failed.' }
+    }
+    $visibility.macros = @()
+    $visibility.hideEmptyTiles = $true
+    if ((Request '/api/config').Content -ne $expectedVisibility) { throw 'Configuration changed outside the visibility test; stopped.' }
+    $expectedVisibility = $visibility | ConvertTo-Json -Depth 20 -Compress
+    Expect (Request '/api/config' 'POST' $expectedVisibility) 200
+    Start-Sleep -Milliseconds 700
+    $rendered = (Request '/api/status').Content | ConvertFrom-Json
+    if ($rendered.renderedPages -ne 2 -or $rendered.renderedTiles -ne 0 -or $rendered.emptyTiles -ne 0) {
+        throw 'All-empty layout did not hide its boxes while preserving pages.'
+    }
+    foreach ($icon in @('⚙', '⚙️', '⚙︎', '⏸', '⏸️', '▶', '▶️', 'OK')) {
+        if ((Request '/api/config').Content -ne $expectedVisibility) { throw 'Configuration changed outside the visibility test; stopped.' }
+        $symbol = $empty.Clone()
+        $symbol.icon = $icon; $symbol.sound = 'chime'; $symbol.emojiRender = 'symbol'
+        $visibility.macros = @($symbol)
+        $expectedVisibility = $visibility | ConvertTo-Json -Depth 20 -Compress
+        Expect (Request '/api/config' 'POST' $expectedVisibility) 200
+        Start-Sleep -Milliseconds 700
+        $rendered = (Request '/api/status').Content | ConvertFrom-Json
+        if ($rendered.renderedTiles -ne 1 -or $rendered.symbolFallbacks -ne 0) { throw 'Supported symbol fell back to a question mark.' }
+    }
+} finally {
+    $currentVisibility = (Request '/api/config').Content
+    if ($currentVisibility -eq $expectedVisibility) {
+        Expect (Request '/api/config' 'POST' $original.Content) 200
+    } elseif ($currentVisibility -ne $original.Content) {
+        throw 'Configuration changed outside the visibility test; preserved that change instead of overwriting it.'
+    }
+    if ((Request '/api/config').Content -ne $original.Content) { throw 'Tile visibility test failed to restore configuration.' }
+}
+'PASS: native hiding, compact compatibility, restored empty boxes, all-empty pages; configuration restored.'
+if ($TileVisibilityOnly) { return }
 
 $test = $original.Content | ConvertFrom-Json -AsHashtable
 $controls = (Request '/api/status').Content | ConvertFrom-Json

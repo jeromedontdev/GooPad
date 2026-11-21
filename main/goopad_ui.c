@@ -75,6 +75,7 @@ static void clear_dynamic_assets(void)
     s_info_overlay = NULL;
     g_app.rendered_tiles = g_app.empty_tiles = g_app.widget_count = g_app.gif_count = g_app.gif_loops = 0;
     g_app.rendered_pages = 0;
+    g_app.symbol_fallbacks = 0;
     for (unsigned i = 0; i < MAX_MACROS; i++) {
         free(s_gif_buffers[i]);
         s_gif_buffers[i] = NULL;
@@ -151,32 +152,45 @@ static lv_color_t color(uint32_t value)
 
 static const char *symbol_for_icon(const char *icon)
 {
+    const char *original = icon;
+    char normalized[32];
+    size_t used = 0;
+    for (const unsigned char *p = (const unsigned char *)icon; *p;) {
+        if (p[0] == 0xEF && p[1] == 0xB8 && (p[2] == 0x8E || p[2] == 0x8F)) {
+            p += 3;
+            continue;
+        }
+        if (used + 1 >= sizeof(normalized)) return NULL;
+        normalized[used++] = (char)*p++;
+    }
+    normalized[used] = '\0';
+    icon = normalized;
     if (!strcmp(icon, "+") || !strcmp(icon, "➕")) return LV_SYMBOL_PLUS;
     if (!strcmp(icon, "🏠")) return LV_SYMBOL_HOME;
     if (!strcmp(icon, "💡") || !strcmp(icon, "🔆")) return LV_SYMBOL_CHARGE;
-    if (!strcmp(icon, "🎵") || !strcmp(icon, "🎙️") || !strcmp(icon, "🔊")) return LV_SYMBOL_AUDIO;
+    if (!strcmp(icon, "🎵") || !strcmp(icon, "🎙") || !strcmp(icon, "🔊")) return LV_SYMBOL_AUDIO;
     if (!strcmp(icon, "▶️") || !strcmp(icon, "▶")) return LV_SYMBOL_PLAY;
-    if (!strcmp(icon, "⏸️")) return LV_SYMBOL_PAUSE;
-    if (!strcmp(icon, "⏹️")) return LV_SYMBOL_STOP;
+    if (!strcmp(icon, "⏸")) return LV_SYMBOL_PAUSE;
+    if (!strcmp(icon, "⏹")) return LV_SYMBOL_STOP;
     if (!strcmp(icon, "🌐") || !strcmp(icon, "📶") || !strcmp(icon, "📡")) return LV_SYMBOL_WIFI;
     if (!strcmp(icon, "🔄")) return LV_SYMBOL_REFRESH;
     if (!strcmp(icon, "✅")) return LV_SYMBOL_OK;
-    if (!strcmp(icon, "⚠️") || !strcmp(icon, "🚨")) return LV_SYMBOL_WARNING;
-    if (!strcmp(icon, "✖️")) return LV_SYMBOL_CLOSE;
+    if (!strcmp(icon, "⚠") || !strcmp(icon, "🚨")) return LV_SYMBOL_WARNING;
+    if (!strcmp(icon, "✖")) return LV_SYMBOL_CLOSE;
     if (!strcmp(icon, "📁") || !strcmp(icon, "📂")) return LV_SYMBOL_DIRECTORY;
-    if (!strcmp(icon, "🖼️") || !strcmp(icon, "📷")) return LV_SYMBOL_IMAGE;
+    if (!strcmp(icon, "🖼") || !strcmp(icon, "📷")) return LV_SYMBOL_IMAGE;
     if (!strcmp(icon, "🎥") || !strcmp(icon, "📺")) return LV_SYMBOL_VIDEO;
-    if (!strcmp(icon, "🔒") || !strcmp(icon, "🛡️")) return LV_SYMBOL_EYE_OPEN;
-    if (!strcmp(icon, "⬆️")) return LV_SYMBOL_UPLOAD;
-    if (!strcmp(icon, "⬇️")) return LV_SYMBOL_DOWNLOAD;
+    if (!strcmp(icon, "🔒") || !strcmp(icon, "🛡")) return LV_SYMBOL_EYE_OPEN;
+    if (!strcmp(icon, "⬆")) return LV_SYMBOL_UPLOAD;
+    if (!strcmp(icon, "⬇")) return LV_SYMBOL_DOWNLOAD;
     if (!strcmp(icon, "📋")) return LV_SYMBOL_COPY;
     if (!strcmp(icon, "💾")) return LV_SYMBOL_SAVE;
     if (!strcmp(icon, "🔌")) return LV_SYMBOL_USB;
-    if (!strcmp(icon, "⚙️")) return LV_SYMBOL_SETTINGS;
+    if (!strcmp(icon, "⚙")) return LV_SYMBOL_SETTINGS;
     for (const unsigned char *p = (const unsigned char *)icon; *p; p++) {
         if (*p >= 0x80) return NULL;
     }
-    return strlen(icon) <= 3 ? icon : NULL;
+    return strlen(icon) <= 3 ? original : NULL;
 }
 
 static lv_obj_t *label(lv_obj_t *parent, const char *text, int size, lv_color_t fg)
@@ -902,6 +916,7 @@ static void build_grid_screen(void)
     cJSON *hide_item = root ? cJSON_GetObjectItemCaseSensitive(root, "hideUnconfigured") : NULL;
     cJSON *offset_item = root ? cJSON_GetObjectItemCaseSensitive(root, "timeOffsetMinutes") : NULL;
     bool hide = cJSON_IsTrue(hide_item);
+    bool hide_empty = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "hideEmptyTiles"));
     s_time_offset = cJSON_IsNumber(offset_item) ? offset_item->valueint : 0;
     int indices[MAX_MACROS], visible = 0;
     for (int i = 0; i < total && i < MAX_MACROS; i++) {
@@ -1025,6 +1040,7 @@ static void build_grid_screen(void)
             if (hide && position >= visible) continue;
             int index = position < visible ? indices[position] : MAX_MACROS;
             cJSON *macro = index < MAX_MACROS ? cJSON_GetArrayItem(macros, index) : NULL;
+            if (hide_empty && !macro_configured(macro)) continue;
             lv_obj_t *tile = lv_button_create(surface);
             int width = cell_width;
             int height = cell_height;
@@ -1236,6 +1252,10 @@ static void build_grid_screen(void)
                 }
                 if (!image_drawn) {
                     const char *drawn_icon = symbol_for_icon(glyph);
+                    if (!drawn_icon) {
+                        g_app.symbol_fallbacks++;
+                        ESP_LOGW(TAG, "Tile %d unsupported symbol; choose full-color emoji or Font Awesome", index);
+                    }
                     char initial[2] = {caption[0] ? caption[0] : '?', '\0'};
                     lv_obj_t *symbol = label(tile, drawn_icon ? drawn_icon : initial,
                                              28, text_color);
@@ -1255,6 +1275,7 @@ static void build_grid_screen(void)
                     lv_obj_align(text, LV_ALIGN_BOTTOM_MID, 0, -6);
                 }
             } else {
+                g_app.empty_tiles++;
                 lv_obj_set_style_bg_color(tile, color(0x1F2937), 0);
                 lv_obj_set_clickable(tile, false);
             }

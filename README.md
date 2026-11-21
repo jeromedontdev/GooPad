@@ -47,27 +47,40 @@ The preview-only arrows navigate without dragging. **+** inserts a page after
 the current page; **−** removes the current page, confirming if it contains
 tiles. Other pages shift with their contents. At least one page remains, with
 up to 32 positions total; insertion is rejected if it would discard configured
-tiles beyond that limit. Turn off **Hide unconfigured tiles** to edit pages.
+tiles beyond that limit. Turn off **Compact configured tiles** to edit pages.
 Page changes apply when you save.
+Enable **Hide empty tiles (keep positions)** above the preview to remove empty
+boxes without shifting configured tiles or removing pages. The preview's empty
+spaces remain selectable for editing and accept dragged tiles. Alternatively,
+**Compact configured tiles** packs configured tiles together and hides unused
+pages. Existing compact layouts retain their behavior. Save to apply either option.
 **Save to device** is below the live preview.
 Save progress, confirmation, and errors appear only there. **Save appearance**
 returns to the preview so its result is visible. **About & help** includes
 downloads, setup instructions, examples, troubleshooting, and source links.
 **Open a link or trigger a service** needs only the complete link supplied by
-that service. **Open a website on my Windows PC** uses the Companion app and
-asks for its displayed address/token and the website; it opens only HTTP(S)
+that service. **Open a website on my Windows PC** uses the Companion app with
+the address/token saved under **Settings → Windows companion** and asks
+only for the website; it opens only HTTP(S)
 links in the PC's default browser. **Custom web request (Advanced)** retains
 the optional `GET`/`POST`, target URL, JSON body, and token controls. Requests
 from GooPad validate HTTPS certificates. The searchable icon picker includes 275+
-symbols, and the icon field accepts other short icon codes or glyphs. Common
-symbols map to the built-in LVGL icon font on the panel; unsupported glyphs
-fall back to the button label's initial. The editor also bundles 2,163
+symbols, and the icon field accepts other short icon codes or glyphs.
+**Full-color emoji** renders the browser's emoji as a transparent 160×160
+image on save and requires SD; unchanged saved emoji images are reused.
+New tiles use this mode. Existing tiles retain **Built-in device symbol (no SD)**,
+which maps common emoji to monochrome LVGL symbols rather than a full emoji font.
+Gear, play and other mapped symbols accept either text or emoji variation selectors.
+Unsupported built-in glyphs fall back to the label's initial or `?` and are logged;
+choose full-color mode or Font Awesome for these. The editor also bundles 2,163
 searchable Font Awesome Free solid, regular, and brand icons. Enter Font
 Awesome codes such as `fa-server` or `fa-brands fa-github`, or search the
 bundled catalog. The picker first downloads a small compressed name index and
 only fetches matching drawings. Selection progress stays inside the picker;
 direct-code progress uses the main page. Repeated selections reuse uploaded
 assets, and lossless run-length compression reduces icon-upload traffic.
+Image/GIF upload status uses a bright, bold bordered notice beneath its picker,
+distinct from the field description; errors are red.
 Font Awesome selections and uploaded images are converted to
 160×160 RGB565 with an 8-bit alpha plane and saved under
 `/goopad` on the SD card; a card is required to use them. The **Settings** page
@@ -320,13 +333,16 @@ uploaded WAV playback and rapid sound taps, then restores configuration
 and power settings and deletes the test sound even if a check fails.
 Add `-NonMutating` to check HTTPS, authentication, icon catalog and rejection
 of invalid tile settings without replacing the layout or changing power controls.
-These checks require firmware 0.5.4 or later and refuse older schemas before
+Add `-TileVisibilityOnly` instead to run the focused native empty-tile fixtures
+with snapshot restoration and built-in emoji checks, without the broader audio/power/asset tests.
+These checks require firmware 0.5.5 or later and refuse older schemas before
 sending invalid-input tests that older firmware might otherwise accept.
 Browser editor regressions are in [tests/test_editor.js](tests/test_editor.js).
 Open the local [editor](main/index.html), load that script as a classic script,
 and call `runGooPadEditorTests()` in its console. It uses synthetic layouts and
 mocked saves, refuses device URLs, and checks page editing, drag-hover navigation,
-widget controls and actual text bounds across all grids, shapes and text sizes.
+widget controls, empty-slot hiding and drag/drop, shared website pairing, and
+actual text bounds across all grids, shapes and text sizes.
 
 To create a full-flash image and an app-only OTA image:
 

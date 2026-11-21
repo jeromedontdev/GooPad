@@ -61,13 +61,13 @@ pages. Existing compact layouts retain their behavior. Save to apply either opti
 Save progress, confirmation, and errors appear only there. **Save appearance**
 returns to the preview so its result is visible. **About & help** includes
 downloads, setup instructions, examples, troubleshooting, and source links.
-**Trigger a service with a link** sends a GET request from GooPad to the link
-supplied by the service; it does not open a browser. To open a website on your
+**Custom web request** sends a GET or POST from GooPad and allows a JSON body
+and optional `X-GooPad-Token` header. Existing service-link tiles remain GET
+requests. To open a website on your
 PC, choose **Windows PC macro** and the **Open a website** starter or step.
 It uses the Companion pairing in Settings and opens HTTP(S) links in the PC's
-default browser. Existing website tiles keep working. **Custom web request
-(Advanced)** sends a GET or POST from GooPad and allows a JSON body and optional
-`X-GooPad-Token` header. Requests from GooPad validate HTTPS certificates.
+default browser. Existing website tiles keep working. Requests from GooPad
+validate HTTPS certificates.
 The searchable icon picker includes 275+
 symbols, and the icon field accepts other short icon codes or glyphs.
 **Full-color emoji** renders the browser's emoji as a transparent 160×160
@@ -103,9 +103,8 @@ grid size controls how many appear on each page. Each macro can choose an
 outline color or remove its outline. Action tiles also support a custom
 two-color vertical gradient and three icon/image sizes; set both colors alike
 for a solid tile. GIFs set to fill the tile ignore the visual-size setting.
-**Navigate GooPad pages** makes a tile go to the next, previous, or first page,
-without requiring a PC or network. Navigation stops at the ends and can
-optionally play the tile's sound. Preset themes always use their own
+Existing page-navigation tiles continue to work until cleared or changed, but
+new ones cannot be created. Preset themes always use their own
 background; choose **Custom** for your own background. Custom also accepts an
 uploaded image (up to 15 MB input, SD required). The browser center-crops it to
 480x480 RGB565 and fills transparent pixels with the selected background color.

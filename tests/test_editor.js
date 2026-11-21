@@ -171,16 +171,30 @@ globalThis.runGooPadEditorTests = async function () {
   check(document.querySelector('[data-k="widgetGradient"]').disabled && cfg.macros[0].widgetGradient==="335577", "Preset preserves custom gradient");
   change("widgetTheme","custom");
   check(document.querySelector('[data-k="widgetGradient"]').value==="#335577", "Custom gradient restored");
-  change("actionMode","page_navigation");
-  change("pageDirection","previous");change("tileGradient","#AA7744");change("visualScale","75");
+  check(!document.querySelector('[data-k="actionMode"] option[value="simple_link"],[data-k="actionMode"] option[value="page_navigation"]'),"Removed actions cannot be selected for new tiles");
+  const widgetConfig = structuredClone(cfg);
+  change("actionMode","advanced");
+  change("url","https://example.com/trigger");
+  change("tileGradient","#AA7744");change("visualScale","75");
   prepareMacroAction(cfg.macros[0],0);
-  check(macroConfigured(cfg.macros[0]) && cfg.macros[0].pageDirection==="previous" && cfg.macros[0].url==="", "Page navigation persists as a local action");
-  check(document.querySelector("[data-test-action]").disabled && document.querySelector('[data-tile="0"]').style.backgroundImage.includes("linear-gradient"), "Navigation preview shows tile gradient and disables remote testing");
+  check(document.querySelector('[data-tile="0"]').style.backgroundImage.includes("linear-gradient"), "Action preview shows tile gradient");
   check(cfg.macros[0].visualScale===75 && document.querySelector('[data-tile="0"] .ico').style.transform==="scale(0.75)", "Visual size persists and updates the preview");
-  cfg.macros[0].pageDirection="elsewhere";
-  let badDirection=false;try{prepareMacroAction(cfg.macros[0],0)}catch{badDirection=true}
-  check(badDirection,"Invalid page navigation rejected");
-  change("pageDirection","next");change("actionMode","widget");
+  reset({macros:[{...emptyMacro(),actionMode:"page_navigation",pageDirection:"previous"}]});selectTile(0);
+  prepareMacroAction(cfg.macros[0],0);
+  check(cfg.macros[0].pageDirection==="previous" && document.querySelector('[data-k="actionMode"]').value==="page_navigation", "Existing navigation tiles are preserved");
+  reset({macros:[{...emptyMacro(),url:"https://example.com/trigger"}]});selectTile(0);
+  prepareMacroAction(cfg.macros[0],0);
+  check(cfg.macros[0].actionMode==="advanced" && cfg.macros[0].method==="GET" && cfg.macros[0].url==="https://example.com/trigger", "Existing service links remain equivalent web requests");
+  reset({macros:[emptyMacro()]});selectTile(0);prepareMacroAction(cfg.macros[0],0);
+  check(cfg.macros[0].actionMode==="simple_link" && cfg.macros[0].url==="", "Empty slots remain saveable");
+  let emptySaved;
+  globalThis.fetch = async (url, options) => url==="/api/config"
+   ? (emptySaved=JSON.parse(options.body),new Response("{}",{status:200,headers:{"Content-Type":"application/json"}}))
+   : fetchOriginal(url,options);
+  await document.querySelector("#save").onclick();
+  check(emptySaved?.macros[0].actionMode==="simple_link" && emptySaved.macros[0].url==="", "Saving an empty layout succeeds");
+  globalThis.fetch = fetchOriginal;
+  reset(widgetConfig);selectTile(0);
   for(const [theme,background] of Object.entries(themeBackgrounds)){
    const control=document.querySelector("#deviceTheme");control.value=theme;control.dispatchEvent(new Event("change"));
    check(cfg.theme===theme && document.querySelector("#background").value.toUpperCase()==="#"+background, "Device theme background: "+theme);

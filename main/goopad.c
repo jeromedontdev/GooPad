@@ -93,16 +93,44 @@ const char *goopad_pc_stat_key(unsigned index)
 
 const char *goopad_widget_time_format(bool date, const char *key)
 {
-    static const char *keys[2][4] = {
-        {"24h", "12h", "24h_seconds", "12h_seconds"}, {"iso", "mdy", "dmy", "month_short"}
+    static const char *keys[2][6] = {
+        {"24h", "12h", "24h_seconds", "12h_seconds", "12h_plain", "12h_plain_seconds"}, {"iso", "mdy", "dmy", "month_short"}
     };
-    static const char *formats[2][4] = {
-        {"%H:%M", "%I:%M %p", "%H:%M:%S", "%I:%M:%S %p"},
+    static const char *formats[2][6] = {
+        {"%H:%M", "%I:%M %p", "%H:%M:%S", "%I:%M:%S %p", "%I:%M", "%I:%M:%S"},
         {"%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%b %d"}
     };
-    for (unsigned i = 0; key && i < 4; i++)
-        if (!strcmp(key, keys[date][i])) return formats[date][i];
+    for (unsigned i = 0; key && i < 6; i++)
+        if (keys[date][i] && !strcmp(key, keys[date][i])) return formats[date][i];
     return NULL;
+}
+
+const goopad_widget_style_t *goopad_widget_style(const char *key)
+{
+    static const char *keys[] = {"minimal", "neon", "terminal", "paper", "ocean", "sunset", "retro"};
+    static const goopad_widget_style_t styles[] = {
+        {0x0F172A, 0x0F172A, 0xF8FAFC, 0x94A3B8},
+        {0x06121C, 0x102A43, 0xCFFAFE, 0x22D3EE},
+        {0x081A14, 0x081A14, 0x86EFAC, 0x22C55E},
+        {0xF8FAFC, 0xE2E8F0, 0x172033, 0xEF4444},
+        {0x082F49, 0x0E7490, 0xE0F2FE, 0x38BDF8},
+        {0x7C2D12, 0x9F1239, 0xFFF7ED, 0xFDBA74},
+        {0x292524, 0x44403C, 0xFEF3C7, 0xF59E0B},
+    };
+    for (unsigned i = 0; key && i < sizeof(keys) / sizeof(keys[0]); i++)
+        if (!strcmp(key, keys[i])) return &styles[i];
+    return NULL;
+}
+
+bool goopad_widget_graphic_valid(const char *graphic, const char *widget, const char *stat)
+{
+    if (!graphic || !strcmp(graphic, "text") || !strcmp(graphic, "icon")) return true;
+    if (!widget) return false;
+    if (!strcmp(graphic, "analog")) return !strcmp(widget, "clock");
+    if (!strcmp(graphic, "calendar")) return !strcmp(widget, "date");
+    if (strcmp(graphic, "bar") && strcmp(graphic, "ring")) return false;
+    return !strcmp(widget, "pc_monitor") && (!stat || !strcmp(stat, "summary") ||
+        !strcmp(stat, "cpu") || !strcmp(stat, "ram") || !strcmp(stat, "gpu"));
 }
 
 #define WIFI_CONNECT_MAX_ATTEMPTS 5
@@ -729,10 +757,15 @@ static bool validate_config(const char *json)
     cJSON *background_image = cJSON_GetObjectItemCaseSensitive(root, "backgroundImage");
     cJSON *hide = cJSON_GetObjectItemCaseSensitive(root, "hideUnconfigured");
     cJSON *offset = cJSON_GetObjectItemCaseSensitive(root, "timeOffsetMinutes");
+    cJSON *pages = cJSON_GetObjectItemCaseSensitive(root, "pageCount");
     unsigned gif_count = 0;
     bool valid = cJSON_IsNumber(cols) && cols->valueint >= 2 && cols->valueint <= 4 &&
                  cJSON_IsNumber(rows) && rows->valueint >= 2 && rows->valueint <= 4 &&
                  cJSON_IsArray(macros) && cJSON_GetArraySize(macros) <= MAX_MACROS &&
+                 (!pages || (cJSON_IsNumber(pages) && pages->valuedouble == pages->valueint &&
+                             pages->valueint >= 1 &&
+                             pages->valueint <= (MAX_MACROS + cols->valueint * rows->valueint - 1) / (cols->valueint * rows->valueint) &&
+                             cJSON_GetArraySize(macros) <= pages->valueint * cols->valueint * rows->valueint)) &&
                  (!theme || (cJSON_IsString(theme) &&
                              (!strcmp(theme->valuestring, "midnight") ||
                               !strcmp(theme->valuestring, "ocean") ||
@@ -775,6 +808,10 @@ static bool validate_config(const char *json)
         cJSON *date_format = cJSON_GetObjectItemCaseSensitive(item, "dateFormat");
         cJSON *pc_stat = cJSON_GetObjectItemCaseSensitive(item, "pcStat");
         cJSON *temperature_unit = cJSON_GetObjectItemCaseSensitive(item, "temperatureUnit");
+        cJSON *widget_theme = cJSON_GetObjectItemCaseSensitive(item, "widgetTheme");
+        cJSON *widget_graphic = cJSON_GetObjectItemCaseSensitive(item, "widgetGraphic");
+        cJSON *widget_size = cJSON_GetObjectItemCaseSensitive(item, "widgetTextSize");
+        cJSON *widget_accent = cJSON_GetObjectItemCaseSensitive(item, "widgetAccent");
         bool gif = cJSON_IsString(image_format) && !strcmp(image_format->valuestring, "gif");
         if (gif) gif_count++;
         valid = cJSON_IsObject(item) && cJSON_IsString(name) && strlen(name->valuestring) <= 24 &&
@@ -789,6 +826,18 @@ static bool validate_config(const char *json)
                 (!temperature_unit || (cJSON_IsString(temperature_unit) &&
                                        (!strcmp(temperature_unit->valuestring, "C") ||
                                         !strcmp(temperature_unit->valuestring, "F")))) &&
+                (!widget_theme || (cJSON_IsString(widget_theme) &&
+                                  (!strcmp(widget_theme->valuestring, "custom") || goopad_widget_style(widget_theme->valuestring)))) &&
+                (!widget_accent || valid_hex_color(widget_accent)) &&
+                (!widget_size || (cJSON_IsNumber(widget_size) &&
+                                  (widget_size->valuedouble == 0 || widget_size->valuedouble == 12 ||
+                                   widget_size->valuedouble == 14 || widget_size->valuedouble == 16 ||
+                                   widget_size->valuedouble == 20 || widget_size->valuedouble == 28 ||
+                                   widget_size->valuedouble == 40))) &&
+                (!widget_graphic || (cJSON_IsString(widget_graphic) &&
+                                    goopad_widget_graphic_valid(widget_graphic->valuestring,
+                                        cJSON_IsString(widget) ? widget->valuestring : NULL,
+                                        cJSON_IsString(pc_stat) ? pc_stat->valuestring : NULL))) &&
                 cJSON_IsString(icon) && strlen(icon->valuestring) <= 8 &&
                 cJSON_IsString(url) &&
                 (valid_url(url->valuestring) ||
@@ -1422,6 +1471,7 @@ static esp_err_t status_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "uptimeMs", esp_timer_get_time() / 1000);
     cJSON_AddNumberToObject(root, "timeEpoch", time(NULL));
     cJSON_AddNumberToObject(root, "renderedTiles", g_app.rendered_tiles);
+    cJSON_AddNumberToObject(root, "renderedPages", g_app.rendered_pages);
     cJSON_AddNumberToObject(root, "emptyTiles", g_app.empty_tiles);
     cJSON_AddNumberToObject(root, "widgets", g_app.widget_count);
     cJSON_AddNumberToObject(root, "gifs", g_app.gif_count);
@@ -1532,6 +1582,17 @@ static esp_err_t companion_status_handler(httpd_req_t *req)
 void goopad_monitor_text(char *out, size_t capacity)
 {
     goopad_pc_stat_text(0, false, out, capacity);
+}
+
+bool goopad_pc_stat_value(unsigned index, double *out)
+{
+    if (!index) index = 1;
+    if (index >= GOOPAD_PC_STAT_COUNT) return false;
+    portENTER_CRITICAL(&s_monitor_lock);
+    bool valid = !s_monitor_text[0] && s_monitor_valid[index];
+    if (valid) *out = s_monitor_values[index];
+    portEXIT_CRITICAL(&s_monitor_lock);
+    return valid;
 }
 
 void goopad_pc_stat_text(unsigned index, bool fahrenheit, char *out, size_t capacity)
@@ -1725,6 +1786,7 @@ static esp_err_t start_server(void)
     if (s_server) return ESP_OK;
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
     config.httpd.max_uri_handlers = 21;
+    config.httpd.max_open_sockets = 6;
     config.httpd.core_id = 1;
     esp_err_t err = goopad_tls_configure(&config, s_ip_address);
     if (err == ESP_OK) err = httpd_ssl_start(&s_server, &config);

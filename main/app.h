@@ -116,6 +116,7 @@ typedef struct {
     volatile uint32_t audio_tones_played;
     volatile uint32_t audio_peak;
     volatile uint32_t rendered_tiles;
+    volatile uint32_t rendered_pages;
     volatile uint32_t empty_tiles;
     volatile uint32_t widget_count;
     volatile uint32_t gif_count;
@@ -164,6 +165,12 @@ int goopad_pc_stat_index(const char *key);
 const char *goopad_pc_stat_key(unsigned index);
 void goopad_pc_stat_text(unsigned index, bool fahrenheit, char *out, size_t capacity);
 const char *goopad_widget_time_format(bool date, const char *key);
+typedef struct {
+    uint32_t background, gradient, text, accent;
+} goopad_widget_style_t;
+const goopad_widget_style_t *goopad_widget_style(const char *key);
+bool goopad_widget_graphic_valid(const char *graphic, const char *widget, const char *stat);
+bool goopad_pc_stat_value(unsigned index, double *out);
 bool goopad_prepare_gif(uint8_t *data, size_t *size, size_t capacity);
 
 /* hw_*.c */

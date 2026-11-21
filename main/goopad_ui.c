@@ -55,6 +55,13 @@ static unsigned s_widget_types[MAX_MACROS];
 static const char *s_widget_formats[MAX_MACROS];
 static unsigned s_widget_stats[MAX_MACROS];
 static bool s_widget_fahrenheit[MAX_MACROS];
+static lv_obj_t *s_widget_graphics[MAX_MACROS], *s_widget_hands[MAX_MACROS][2], *s_widget_days[MAX_MACROS];
+static lv_point_precise_t s_widget_points[MAX_MACROS][2][2];
+static unsigned s_widget_graphic_modes[MAX_MACROS], s_widget_sizes[MAX_MACROS];
+static int s_widget_widths[MAX_MACROS], s_widget_heights[MAX_MACROS], s_widget_minutes[MAX_MACROS], s_widget_sides[MAX_MACROS];
+static int s_widget_meter_values[MAX_MACROS];
+static void fit_widget_text(unsigned index, const char *text);
+static void update_widget_graphic(unsigned index, const struct tm *now, bool synced);
 static int s_time_offset;
 static bool s_grid_shown;
 static bool s_loading_shown;
@@ -67,6 +74,7 @@ static void clear_dynamic_assets(void)
     s_pages = NULL;
     s_info_overlay = NULL;
     g_app.rendered_tiles = g_app.empty_tiles = g_app.widget_count = g_app.gif_count = g_app.gif_loops = 0;
+    g_app.rendered_pages = 0;
     for (unsigned i = 0; i < MAX_MACROS; i++) {
         free(s_gif_buffers[i]);
         s_gif_buffers[i] = NULL;
@@ -76,6 +84,11 @@ static void clear_dynamic_assets(void)
         s_widget_formats[i] = NULL;
         s_widget_stats[i] = 0;
         s_widget_fahrenheit[i] = false;
+        s_widget_graphics[i] = s_widget_days[i] = NULL;
+        s_widget_hands[i][0] = s_widget_hands[i][1] = NULL;
+        s_widget_graphic_modes[i] = 0;
+        s_widget_minutes[i] = -1;
+        s_widget_meter_values[i] = -2;
         s_gif_paused[i] = true;
     }
 }
@@ -113,8 +126,11 @@ static void update_widgets(void)
                 goopad_pc_stat_text(s_widget_stats[i], s_widget_fahrenheit[i], text, sizeof(text));
             else if (!synced) strlcpy(text, "Sync time\nin the website", sizeof(text));
             else strftime(text, sizeof(text), s_widget_formats[i], &now);
-            if (strcmp(lv_label_get_text(s_widget_labels[i]), text))
+            if (strcmp(lv_label_get_text(s_widget_labels[i]), text)) {
+                fit_widget_text(i, text);
                 lv_label_set_text(s_widget_labels[i], text);
+            }
+            update_widget_graphic(i, &now, synced);
         }
         if (s_gif_objects[i]) {
             int left = s_gif_pages[i] * 480;
@@ -187,6 +203,168 @@ static lv_obj_t *button(lv_obj_t *parent, const char *text, int x, int y, int w,
     lv_obj_t *caption = label(obj, text, 16, lv_color_white());
     lv_obj_center(caption);
     return obj;
+}
+
+static void fit_widget_text(unsigned index, const char *text)
+{
+    static const lv_font_t *fonts[] = {&lv_font_montserrat_40, &lv_font_montserrat_28,
+        &lv_font_montserrat_20, &lv_font_montserrat_16, &lv_font_montserrat_14,
+        &lv_font_montserrat_12, &lv_font_montserrat_10, &lv_font_montserrat_8};
+    static const unsigned sizes[] = {40, 28, 20, 16, 14, 12, 10, 8};
+    const lv_font_t *chosen = &lv_font_montserrat_8;
+    for (unsigned i = 0; i < sizeof(fonts) / sizeof(fonts[0]); i++) {
+        if (sizes[i] > s_widget_sizes[index]) continue;
+        lv_point_t bounds;
+        lv_text_get_size(&bounds, text, fonts[i], 0, 0,
+                        s_widget_types[index] == 3 ? s_widget_widths[index] : LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (bounds.x <= s_widget_widths[index] && bounds.y <= s_widget_heights[index]) {
+            chosen = fonts[i];
+            break;
+        }
+    }
+    lv_obj_set_style_text_font(s_widget_labels[index], chosen, 0);
+    lv_obj_set_style_text_line_space(s_widget_labels[index], 0, 0);
+    lv_label_set_long_mode(s_widget_labels[index], s_widget_types[index] == 3 ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_CLIP);
+    lv_obj_set_height(s_widget_labels[index], LV_SIZE_CONTENT);
+    lv_obj_set_style_max_height(s_widget_labels[index], s_widget_heights[index], 0);
+}
+
+static lv_obj_t *graphic_box(lv_obj_t *parent, int w, int h, uint32_t accent)
+{
+    lv_obj_t *box = lv_obj_create(parent);
+    lv_obj_set_clickable(box, false);
+    lv_obj_set_scrollable(box, false);
+    lv_obj_set_size(box, w, h);
+    lv_obj_set_style_pad_all(box, 0, 0);
+    lv_obj_set_style_shadow_width(box, 0, 0);
+    lv_obj_set_style_radius(box, 4, 0);
+    lv_obj_set_style_border_width(box, 2, 0);
+    lv_obj_set_style_border_color(box, color(accent), 0);
+    lv_obj_set_style_bg_opa(box, LV_OPA_TRANSP, 0);
+    return box;
+}
+
+static void set_clock_hands(unsigned index, int hour, int minute)
+{
+    int side = s_widget_sides[index], center = side / 2;
+    int angles[] = {(hour % 12) * 30 + minute / 2, minute * 6};
+    for (unsigned hand = 0; hand < 2; hand++) {
+        int length = side * (hand ? 36 : 25) / 100;
+        s_widget_points[index][hand][0] = (lv_point_precise_t){center, center};
+        s_widget_points[index][hand][1] = (lv_point_precise_t){
+            center + lv_trigo_sin(angles[hand]) * length / 32768,
+            center - lv_trigo_cos(angles[hand]) * length / 32768};
+        lv_line_set_points(s_widget_hands[index][hand], s_widget_points[index][hand], 2);
+    }
+}
+
+static void create_widget_graphic(unsigned index, lv_obj_t *tile, const char *graphic,
+                                  unsigned type, uint32_t accent, int width, int height, bool caption)
+{
+    if (!strcmp(graphic, "text")) return;
+    unsigned mode = !strcmp(graphic, "analog") ? 2 : !strcmp(graphic, "calendar") ? 3 :
+                    !strcmp(graphic, "bar") ? 4 : !strcmp(graphic, "ring") ? 5 : 1;
+    s_widget_graphic_modes[index] = mode;
+    int content_height = height - (caption ? 28 : 12);
+    if (content_height < (type == 3 ? 50 : 38)) {
+        s_widget_graphic_modes[index] = 0;
+        return;
+    }
+    if (mode == 4) {
+        lv_obj_t *bar = lv_bar_create(tile);
+        s_widget_graphics[index] = bar;
+        lv_obj_set_clickable(bar, false);
+        lv_obj_set_size(bar, width - 24, 8);
+        lv_obj_align(bar, LV_ALIGN_BOTTOM_MID, 0, caption ? -24 : -8);
+        lv_obj_set_style_bg_color(bar, color(accent), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(bar, LV_OPA_20, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(bar, color(accent), LV_PART_INDICATOR);
+        lv_bar_set_range(bar, 0, 100);
+        s_widget_heights[index] = content_height - 18;
+        return;
+    }
+    int side = content_height * 35 / 100;
+    if (side > width - 20) side = width - 20;
+    if (side < 16) side = 16;
+    s_widget_sides[index] = side;
+    s_widget_heights[index] = content_height - side - 6;
+    lv_obj_align(s_widget_labels[index], LV_ALIGN_CENTER, 0, side / 2 + 2 - (caption ? 10 : 0));
+    if (mode == 5) {
+        lv_obj_t *arc = lv_arc_create(tile);
+        s_widget_graphics[index] = arc;
+        lv_obj_set_size(arc, side, side);
+        lv_obj_align(arc, LV_ALIGN_TOP_MID, 0, 8);
+        lv_obj_set_clickable(arc, false);
+        lv_obj_remove_style(arc, NULL, LV_PART_KNOB);
+        lv_obj_set_style_arc_width(arc, side < 40 ? 3 : 6, LV_PART_MAIN);
+        lv_obj_set_style_arc_width(arc, side < 40 ? 3 : 6, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(arc, color(accent), LV_PART_MAIN);
+        lv_obj_set_style_arc_opa(arc, LV_OPA_20, LV_PART_MAIN);
+        lv_obj_set_style_arc_color(arc, color(accent), LV_PART_INDICATOR);
+        lv_arc_set_bg_angles(arc, 135, 45);
+        lv_arc_set_range(arc, 0, 100);
+        return;
+    }
+    lv_obj_t *box = graphic_box(tile, side, side, accent);
+    s_widget_graphics[index] = box;
+    lv_obj_align(box, LV_ALIGN_TOP_MID, 0, 8);
+    if (type == 1) {
+        lv_obj_set_style_radius(box, LV_RADIUS_CIRCLE, 0);
+        for (unsigned hand = 0; hand < 2; hand++) {
+            s_widget_hands[index][hand] = lv_line_create(box);
+            lv_obj_set_style_line_color(s_widget_hands[index][hand], color(accent), 0);
+            lv_obj_set_style_line_width(s_widget_hands[index][hand], side < 40 ? 1 : 2, 0);
+            lv_obj_set_pos(s_widget_hands[index][hand], -2, -2);
+        }
+        set_clock_hands(index, 10, 10);
+    } else if (type == 2) {
+        lv_obj_t *header = graphic_box(box, side, side < 30 ? 4 : 8, accent);
+        lv_obj_set_pos(header, -2, -2);
+        lv_obj_set_style_bg_color(header, color(accent), 0);
+        lv_obj_set_style_bg_opa(header, LV_OPA_COVER, 0);
+        s_widget_days[index] = label(box, mode == 3 ? "--" : "#", side >= 60 ? 28 : side >= 34 ? 20 : 14, color(accent));
+        if (side < 30) lv_obj_set_style_text_font(s_widget_days[index], &lv_font_montserrat_12, 0);
+        if (side < 24) lv_obj_set_style_text_font(s_widget_days[index], &lv_font_montserrat_8, 0);
+        lv_obj_align(s_widget_days[index], LV_ALIGN_CENTER, 0, 2);
+    } else {
+        for (int bar = 0; bar < 3; bar++) {
+            lv_obj_t *stripe = graphic_box(box, side / 8, side / 2, accent);
+            lv_obj_set_pos(stripe, side * (bar * 2 + 2) / 8 - 2, side / 4 - 2);
+            lv_obj_set_style_bg_color(stripe, color(accent), 0);
+            lv_obj_set_style_bg_opa(stripe, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_width(stripe, 0, 0);
+        }
+    }
+}
+
+static void update_widget_graphic(unsigned index, const struct tm *now, bool synced)
+{
+    unsigned mode = s_widget_graphic_modes[index];
+    if (mode == 2 && synced) {
+        int minute = now->tm_hour * 60 + now->tm_min;
+        if (s_widget_minutes[index] != minute) {
+            set_clock_hands(index, now->tm_hour, now->tm_min);
+            s_widget_minutes[index] = minute;
+        }
+    } else if (mode == 3 && synced) {
+        char day[4];
+        strftime(day, sizeof(day), "%d", now);
+        if (strcmp(lv_label_get_text(s_widget_days[index]), day))
+            lv_label_set_text(s_widget_days[index], day);
+    } else if (mode == 4 || mode == 5) {
+        double reading;
+        bool valid = goopad_pc_stat_value(s_widget_stats[index], &reading);
+        int value = valid ? (int)(reading + 0.5) : 0;
+        if (value > 100) value = 100;
+        if (value < 0) value = 0;
+        int state = valid ? value : -1;
+        if (s_widget_meter_values[index] != state) {
+            lv_obj_set_style_opa(s_widget_graphics[index], valid ? LV_OPA_COVER : LV_OPA_30, 0);
+            if (mode == 4) lv_bar_set_value(s_widget_graphics[index], value, LV_ANIM_OFF);
+            else lv_arc_set_value(s_widget_graphics[index], value);
+            s_widget_meter_values[index] = state;
+        }
+    }
 }
 
 static void theme_screen(void)
@@ -731,7 +909,9 @@ static void build_grid_screen(void)
     }
     int per_page = cols * rows;
     int page_count = (visible + per_page - 1) / per_page;
-    if (page_count < (hide ? 1 : 2)) page_count = hide ? 1 : 2;
+    cJSON *pages_item = cJSON_GetObjectItemCaseSensitive(root, "pageCount");
+    int minimum_pages = hide ? 1 : cJSON_IsNumber(pages_item) ? pages_item->valueint : 2;
+    if (page_count < minimum_pages) page_count = minimum_pages;
     cJSON *bg = root ? cJSON_GetObjectItemCaseSensitive(root, "background") : NULL;
     cJSON *device_theme = root ? cJSON_GetObjectItemCaseSensitive(root, "theme") : NULL;
     const char *theme_name = cJSON_IsString(device_theme)
@@ -933,12 +1113,37 @@ static void build_grid_screen(void)
                     s_widget_stats[index] = stat_index >= 0 ? (unsigned)stat_index : 0;
                     cJSON *unit = cJSON_GetObjectItemCaseSensitive(macro, "temperatureUnit");
                     s_widget_fahrenheit[index] = cJSON_IsString(unit) && !strcmp(unit->valuestring, "F");
-                    bool long_clock = type == 1 && strcmp(s_widget_formats[index], "%H:%M");
+                    bool long_clock = type == 1 && strlen(s_widget_formats[index]) > 5;
                     bool long_stat = type == 3 && s_widget_stats[index] != 0;
+                    cJSON *widget_theme = cJSON_GetObjectItemCaseSensitive(macro, "widgetTheme");
+                    const goopad_widget_style_t *style = goopad_widget_style(cJSON_IsString(widget_theme) ? widget_theme->valuestring : NULL);
+                    cJSON *widget_accent = cJSON_GetObjectItemCaseSensitive(macro, "widgetAccent");
+                    unsigned graphic_accent = cJSON_IsString(widget_accent) ?
+                        (unsigned)strtoul(widget_accent->valuestring, NULL, 16) : 0xA5B4FC;
+                    if (style) {
+                        lv_obj_set_style_bg_color(tile, color(style->background), 0);
+                        lv_obj_set_style_bg_grad_color(tile, color(style->gradient), 0);
+                        lv_obj_set_style_bg_grad_dir(tile, style->background == style->gradient ? LV_GRAD_DIR_NONE : LV_GRAD_DIR_VER, 0);
+                        text_color = color(style->text);
+                        graphic_accent = style->accent;
+                        lv_obj_set_style_border_color(tile, color(style->accent), 0);
+                    }
+                    cJSON *widget_size = cJSON_GetObjectItemCaseSensitive(macro, "widgetTextSize");
+                    s_widget_sizes[index] = cJSON_IsNumber(widget_size) && widget_size->valueint ? (unsigned)widget_size->valueint :
+                        width < 140 || ((long_clock || long_stat) && width < 200) ? 14 : 28;
+                    s_widget_widths[index] = width - 16;
+                    s_widget_heights[index] = height - (caption[0] ? 36 : 16);
                     s_widget_labels[index] = label(tile, "", width < 140 || ((long_clock || long_stat) && width < 200) ? 14 : 28, text_color);
                     lv_obj_set_width(s_widget_labels[index], width - 16);
                     lv_obj_set_style_text_align(s_widget_labels[index], LV_TEXT_ALIGN_CENTER, 0);
                     lv_obj_align(s_widget_labels[index], LV_ALIGN_CENTER, 0, icon_y);
+                    cJSON *graphic = cJSON_GetObjectItemCaseSensitive(macro, "widgetGraphic");
+                    create_widget_graphic(index, tile, cJSON_IsString(graphic) ? graphic->valuestring : "text",
+                        type, graphic_accent, width, height, caption[0]);
+                    if (circle && s_widget_graphic_modes[index]) {
+                        s_widget_widths[index] = width * 3 / 4;
+                        lv_obj_set_width(s_widget_labels[index], s_widget_widths[index]);
+                    }
                     image_drawn = true;
                 } else if (cJSON_IsString(custom_image) && cJSON_IsString(image_format) &&
                            !strcmp(image_format->valuestring, "gif") && g_app.sd.mounted) {
@@ -1058,6 +1263,7 @@ static void build_grid_screen(void)
     update_widgets();
     s_dots = lv_obj_create(s_screen);
     s_page_dot_count = (size_t)page_count;
+    g_app.rendered_pages = (uint32_t)page_count;
     lv_obj_set_size(s_dots, page_count * 18, 14);
     lv_obj_align(s_dots, LV_ALIGN_BOTTOM_MID, 0, -8);
     lv_obj_set_flex_flow(s_dots, LV_FLEX_FLOW_ROW);

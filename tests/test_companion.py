@@ -182,6 +182,36 @@ class CompanionTests(unittest.TestCase):
             urlopen(request, timeout=3)
         self.assertEqual(error.exception.code, 403)
 
+    def test_monitor_requires_token_and_reports_only_usage_metrics(self):
+        with patch.object(COMPANION, "monitor_snapshot", return_value={
+                "cpuPercent": 37.5, "memoryPercent": 50,
+                "memoryUsedBytes": 8000, "memoryTotalBytes": 16000}) as snapshot:
+            with self.assertRaises(HTTPError) as error:
+                urlopen(self.base + "/monitor", timeout=3)
+            self.assertEqual(error.exception.code, 401)
+            snapshot.assert_not_called()
+            request = Request(self.base + "/monitor", headers={"X-GooPad-Token": self.token})
+            with urlopen(request, timeout=3) as response:
+                payload = json.load(response)
+            self.assertEqual(payload["cpuPercent"], 37.5)
+            self.assertEqual(payload["memoryPercent"], 50)
+            self.assertNotIn("token", payload)
+
+    def test_monitor_failure_is_reported(self):
+        with patch.object(COMPANION, "monitor_snapshot", side_effect=OSError("unavailable")):
+            request = Request(self.base + "/monitor", headers={"X-GooPad-Token": self.token})
+            with self.assertRaises(HTTPError) as error:
+                urlopen(request, timeout=3)
+            self.assertEqual(error.exception.code, 503)
+
+    def test_tray_preferences_reject_invalid_settings(self):
+        for setting in ({"close_behavior": "service"}, {"minimize_behavior": "invalid"},
+                        {"hide_on_startup": "yes"}):
+            with self.subTest(setting=setting):
+                self.write_config({"token": self.token, "actions": {}, **setting})
+                with self.assertRaises(ValueError):
+                    COMPANION.load_config()
+
 @unittest.skipUnless(sys.platform == "win32", "Windows startup integration")
 class WindowsStartupTests(unittest.TestCase):
     def test_registration_persists_and_can_be_disabled_in_isolated_registry_key(self):
@@ -203,6 +233,10 @@ class WindowsStartupTests(unittest.TestCase):
                         command, kind = winreg.QueryValueEx(key, runtime.STARTUP_NAME)
                     self.assertEqual(kind, winreg.REG_SZ)
                     self.assertIn("--gui --minimized --port 18787", command)
+                    runtime.set_startup(True, app, SOURCE, 18787, hidden=True)
+                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+                        hidden_command, kind = winreg.QueryValueEx(key, runtime.STARTUP_NAME)
+                    self.assertIn("--gui --hidden --port 18787", hidden_command)
                     runtime.set_startup(False, app, SOURCE, 18787)
                     self.assertFalse(runtime.startup_enabled())
             finally:

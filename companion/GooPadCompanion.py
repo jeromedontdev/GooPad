@@ -9,6 +9,7 @@ import ipaddress
 import json
 import logging
 import os
+import queue
 import secrets
 import socket
 import subprocess
@@ -28,6 +29,8 @@ MAX_BODY = 4096
 MAX_STEPS = 12
 RUN_LOCK = threading.Lock()
 LAST_RESULT = "No PC macro has run yet."
+MONITOR_LOCK = threading.Lock()
+MONITOR_PREVIOUS = None
 MODIFIERS = {"CTRL": 0x11, "SHIFT": 0x10, "ALT": 0x12, "WIN": 0x5B}
 KEYS = {
     **{chr(value): value for value in range(ord("A"), ord("Z") + 1)},
@@ -85,7 +88,49 @@ def load_config():
         raise ValueError(f"'actions' must be an object in {CONFIG_PATH}")
     if type(config.get("allow_powershell", False)) is not bool:
         raise ValueError("'allow_powershell' must be true or false")
+    for key, choices in (("close_behavior", ("tray", "quit")),
+                         ("minimize_behavior", ("tray", "taskbar"))):
+        if key in config and config[key] not in choices:
+            raise ValueError(f"Invalid {key}")
+    if type(config.get("hide_on_startup", False)) is not bool:
+        raise ValueError("'hide_on_startup' must be true or false")
     return config
+
+
+class MemoryStatus(ctypes.Structure):
+    _fields_ = [("length", ctypes.c_ulong), ("load", ctypes.c_ulong),
+                ("total_physical", ctypes.c_ulonglong), ("available_physical", ctypes.c_ulonglong),
+                ("total_page", ctypes.c_ulonglong), ("available_page", ctypes.c_ulonglong),
+                ("total_virtual", ctypes.c_ulonglong), ("available_virtual", ctypes.c_ulonglong),
+                ("available_extended", ctypes.c_ulonglong)]
+
+
+def monitor_snapshot():
+    global MONITOR_PREVIOUS
+    if sys.platform != "win32":
+        raise OSError("PC monitoring requires Windows")
+    memory = MemoryStatus()
+    memory.length = ctypes.sizeof(memory)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.GlobalMemoryStatusEx.argtypes = [ctypes.POINTER(MemoryStatus)]
+    kernel.GlobalMemoryStatusEx.restype = ctypes.c_int
+    kernel.GetSystemTimes.argtypes = [ctypes.POINTER(ctypes.c_ulonglong)] * 3
+    kernel.GetSystemTimes.restype = ctypes.c_int
+    idle, system, user = ctypes.c_ulonglong(), ctypes.c_ulonglong(), ctypes.c_ulonglong()
+    with MONITOR_LOCK:
+        if not kernel.GlobalMemoryStatusEx(ctypes.byref(memory)) or not kernel.GetSystemTimes(
+                ctypes.byref(idle), ctypes.byref(system), ctypes.byref(user)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        current = (idle.value, system.value + user.value)
+        cpu = None
+        if MONITOR_PREVIOUS is not None:
+            elapsed = current[1] - MONITOR_PREVIOUS[1]
+            if elapsed > 0:
+                cpu = round(max(0, min(100, 100 * (1 - (current[0] - MONITOR_PREVIOUS[0]) / elapsed))), 1)
+        MONITOR_PREVIOUS = current
+    return {"cpuPercent": cpu, "memoryPercent": memory.load,
+            "memoryUsedBytes": memory.total_physical - memory.available_physical,
+            "memoryTotalBytes": memory.total_physical}
 
 
 def send_input(vk=0, scan=0, flags=0):
@@ -287,6 +332,14 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_GET(self):
+        if self.path == "/monitor":
+            if self.authenticated_config() is not None:
+                try:
+                    self.respond(200, "PC monitor", **monitor_snapshot())
+                except OSError as error:
+                    logging.error("PC monitor unavailable: %s", error)
+                    self.respond(503, "PC monitor is unavailable")
+            return
         if self.path == "/status":
             config = self.authenticated_config()
             if config is not None:
@@ -416,6 +469,7 @@ def main():
     parser.add_argument("--gui", action="store_true", help="Show the desktop control panel")
     parser.add_argument("--no-gui", action="store_true", help="Run in console mode")
     parser.add_argument("--minimized", action="store_true", help="Start the desktop panel minimized")
+    parser.add_argument("--hidden", action="store_true", help="Start hidden in the system tray")
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
         parser.error("port must be between 1024 and 65535")
@@ -441,7 +495,7 @@ def main():
         parser.error(f"Could not listen on port {args.port}: {error}")
     try:
         if (args.gui or getattr(sys, "frozen", False)) and not args.no_gui:
-            desktop_panel(server, config, address, args.port, args.minimized)
+            desktop_panel(server, config, address, args.port, args.minimized, args.hidden)
         else:
             server.serve_forever()
     except KeyboardInterrupt:
@@ -450,13 +504,15 @@ def main():
         server.server_close()
 
 
-def desktop_panel(server, config, address, port, minimized=False):
+def desktop_panel(server, config, address, port, minimized=False, hidden=False):
     import tkinter as tk
     from tkinter import messagebox, ttk
+    import pystray
+    from PIL import Image, ImageDraw
 
     root = tk.Tk()
     root.title("GooPad Companion")
-    root.geometry("540x380")
+    root.geometry("540x510")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=20)
     frame.pack(fill="both", expand=True)
@@ -496,31 +552,111 @@ def desktop_panel(server, config, address, port, minimized=False):
 
     def change_startup():
         try:
-            windows_startup.set_startup(startup.get(), APP_DIR, __file__, port)
+            windows_startup.set_startup(startup.get(), APP_DIR, __file__, port,
+                                       config.get("hide_on_startup", False))
         except OSError as error:
             startup.set(windows_startup.startup_enabled())
             messagebox.showerror("Could not change Windows startup", str(error))
 
-    ttk.Checkbutton(frame, text="Start with Windows (at sign-in, minimized)",
+    ttk.Checkbutton(frame, text="Start with Windows (at sign-in)",
                     variable=startup, command=change_startup).pack(anchor="w", pady=4)
+    behavior_labels = {"tray": "Hide in tray", "quit": "Quit Companion", "taskbar": "Minimize to taskbar"}
+    behavior_values = {label: value for value, label in behavior_labels.items()}
+    close_mode = tk.StringVar(value=behavior_labels[config.get("close_behavior", "quit")])
+    minimize_mode = tk.StringVar(value=behavior_labels[config.get("minimize_behavior", "taskbar")])
+    hide_startup = tk.BooleanVar(value=config.get("hide_on_startup", False))
+
+    def save_behavior(event=None):
+        try:
+            latest = load_config()
+            latest.update(close_behavior=behavior_values[close_mode.get()],
+                          minimize_behavior=behavior_values[minimize_mode.get()],
+                          hide_on_startup=hide_startup.get())
+            CONFIG_PATH.write_text(json.dumps(latest, indent=2), encoding="utf-8")
+            config.update(latest)
+            if startup.get():
+                change_startup()
+        except (OSError, ValueError) as error:
+            close_mode.set(behavior_labels[config.get("close_behavior", "quit")])
+            minimize_mode.set(behavior_labels[config.get("minimize_behavior", "taskbar")])
+            hide_startup.set(config.get("hide_on_startup", False))
+            messagebox.showerror("Could not save tray preferences", str(error))
+
+    ttk.Checkbutton(frame, text="Hide in the tray on Windows startup",
+                    variable=hide_startup, command=save_behavior).pack(anchor="w", pady=4)
+    for title, variable, values in (("Close button", close_mode, ("tray", "quit")),
+                                    ("Minimize button", minimize_mode, ("taskbar", "tray"))):
+        row = ttk.Frame(frame)
+        row.pack(fill="x", pady=3)
+        ttk.Label(row, text=title).pack(side="left")
+        choice = ttk.Combobox(row, textvariable=variable,
+                              values=tuple(behavior_labels[value] for value in values),
+                              state="readonly", width=24)
+        choice.pack(side="right")
+        choice.bind("<<ComboboxSelected>>", save_behavior)
     state = tk.StringVar(value=LAST_RESULT)
     ttk.Label(frame, textvariable=state, wraplength=490).pack(anchor="w", pady=6)
     ttk.Label(frame, text="In GooPad: Settings > Windows companion > paste address and token.\n"
-              "Allow port 8787 only on a Private network. Minimize; closing stops the app.",
+              "Tray mode keeps commands running. Use Quit to stop Companion.",
               wraplength=490).pack(anchor="w")
+    ttk.Button(frame, text="Quit Companion", command=root.destroy).pack(anchor="w", pady=8)
+
+    tray_image = Image.new("RGB", (64, 64), "#182443")
+    draw = ImageDraw.Draw(tray_image)
+    for x in (12, 36):
+        for y in (12, 36):
+            draw.rounded_rectangle((x, y, x + 16, y + 16), radius=4, fill="#A5B4FC")
+
+    def restore():
+        root.deiconify()
+        root.lift()
+
+    tray_commands = queue.SimpleQueue()
+    tray = pystray.Icon("GooPadCompanion", tray_image, "GooPad Companion",
+                        pystray.Menu(pystray.MenuItem("Open GooPad Companion",
+                                                     lambda icon, item: tray_commands.put("open"), default=True),
+                                     pystray.MenuItem("Quit", lambda icon, item: tray_commands.put("quit"))))
+    tray.run_detached()
+
+    def hide_to_tray():
+        if tray.visible:
+            root.withdraw()
+        else:
+            restore()
+            messagebox.showerror("Tray unavailable", "The system tray is not ready. "
+                                 "Keep the window open or minimize it to the taskbar.")
+
+    root.protocol("WM_DELETE_WINDOW",
+                  lambda: hide_to_tray() if close_mode.get() == behavior_labels["tray"] else root.destroy())
+
+    def minimized_event(event):
+        if event.widget is root and root.state() == "iconic" and minimize_mode.get() == behavior_labels["tray"]:
+            hide_to_tray()
+
+    root.bind("<Unmap>", minimized_event)
 
     def refresh():
+        while not tray_commands.empty():
+            command = tray_commands.get()
+            if command == "quit":
+                root.destroy()
+                return
+            restore()
         state.set(LAST_RESULT)
         root.after(500, refresh)
 
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     refresh()
-    if minimized:
+    if hidden:
+        root.withdraw()
+        root.after(1000, lambda: None if tray.visible else hide_to_tray())
+    elif minimized:
         root.iconify()
     try:
         root.mainloop()
     finally:
+        tray.stop()
         server.shutdown()
         thread.join(timeout=3)
 

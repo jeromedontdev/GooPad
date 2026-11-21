@@ -115,6 +115,11 @@ typedef struct {
     volatile uint32_t audio_bytes_written;
     volatile uint32_t audio_tones_played;
     volatile uint32_t audio_peak;
+    volatile uint32_t rendered_tiles;
+    volatile uint32_t empty_tiles;
+    volatile uint32_t widget_count;
+    volatile uint32_t gif_count;
+    volatile uint32_t gif_loops;
 
     i2c_master_bus_handle_t i2c_bus;
     lv_display_t *disp;
@@ -153,6 +158,8 @@ esp_err_t goopad_trigger(unsigned index);
 const char *goopad_initial_password(void);
 esp_err_t goopad_set_controls(int brightness, int volume);
 void goopad_get_address(char *out, size_t capacity);
+void goopad_monitor_text(char *out, size_t capacity);
+bool goopad_prepare_gif(uint8_t *data, size_t *size, size_t capacity);
 
 /* hw_*.c */
 esp_err_t hw_display_init(lv_display_t **out_disp);

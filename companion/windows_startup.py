@@ -36,7 +36,7 @@ def copy_executable(source, destination):
         temporary_path.unlink(missing_ok=True)
 
 
-def set_startup(enabled, app_directory, script, port):
+def set_startup(enabled, app_directory, script, port, hidden=False):
     import winreg
 
     if enabled:
@@ -49,7 +49,7 @@ def set_startup(enabled, app_directory, script, port):
             if not pythonw.exists():
                 raise OSError("Windows startup requires pythonw.exe or the packaged Companion app.")
             command = [str(pythonw), str(Path(script).resolve())]
-        command += ["--gui", "--minimized", "--port", str(port)]
+        command += ["--gui", "--hidden" if hidden else "--minimized", "--port", str(port)]
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, STARTUP_KEY) as key:
             winreg.SetValueEx(key, STARTUP_NAME, 0, winreg.REG_SZ,
                               subprocess.list2cmdline(command))

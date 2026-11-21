@@ -139,9 +139,16 @@ globalThis.runGooPadEditorTests = async function () {
   for(const theme of Object.keys(widgetThemes)) {
    change("widgetTheme",theme);
    check(document.querySelector('[data-k="color"]').disabled && cfg.macros[0].color==="123456", "Preset preserves custom color: "+theme);
+   check(document.querySelector('[data-k="widgetGradient"]').value.toUpperCase()==="#"+widgetThemes[theme][1], "Preset gradient shown: "+theme);
   }
   change("widgetTheme","custom");
   check(!document.querySelector('[data-k="color"]').disabled && document.querySelector('[data-k="color"]').value==="#123456", "Custom colors restored");
+  change("widgetGradient","#335577");change("widgetLayout","panel");
+  check(cfg.macros[0].widgetGradient==="335577" && cfg.macros[0].widgetLayout==="panel" && !!document.querySelector('[data-tile="0"] .widget-heading'), "Modern card and custom gradient update the preview");
+  change("widgetTheme","cloud");
+  check(document.querySelector('[data-k="widgetGradient"]').disabled && cfg.macros[0].widgetGradient==="335577", "Preset preserves custom gradient");
+  change("widgetTheme","custom");
+  check(document.querySelector('[data-k="widgetGradient"]').value==="#335577", "Custom gradient restored");
   change("clockFormat","12h_plain");
   check(widgetTimeText(cfg.macros[0],new Date("2026-11-21T14:30:45Z"))==="02:30", "12-hour without AM/PM");
   change("clockFormat","12h_plain_seconds");
@@ -158,7 +165,7 @@ globalThis.runGooPadEditorTests = async function () {
    : fetchOriginal(url,options);
   document.querySelector("#hideEmptyTiles").checked=true;
   await document.querySelector("#save").onclick();
-  check(stored?.macros[0].name==="Visible" && !("tileName" in stored.macros[0]) && stored.macros[0].widgetTextSize===40 && stored.hideEmptyTiles===true, "Save omits legacy names and stores sizing and hiding");
+  check(stored?.macros[0].name==="Visible" && !("tileName" in stored.macros[0]) && stored.macros[0].widgetTextSize===40 && stored.macros[0].widgetLayout==="panel" && stored.macros[0].widgetGradient==="335577" && stored.hideEmptyTiles===true, "Save preserves widget layout, gradient, sizing and hiding");
   const graphic=document.createElement("span");
   graphic.innerHTML=widgetGraphicSvg({widget:"clock",widgetGraphic:"icon",widgetAccent:'" onload="invalid'},new Date(),"");
   check(!graphic.querySelector("svg").hasAttribute("onload"), "Legacy accent data cannot inject SVG attributes");
@@ -172,7 +179,7 @@ globalThis.runGooPadEditorTests = async function () {
   for(const cols of [2,3,4]) for(const rows of [2,3,4])
    for(const shape of ["rounded","square","circle","pill","soft"])
     for(const size of [0,12,14,16,20,28,40]) for(const name of ["","Label"]) {
-     cfg={...cfg,cols,rows,pageCount:1,macros:examples.map(extra=>({...emptyMacro(),...extra,actionMode:"widget",widgetTheme:["custom",...Object.keys(widgetThemes)][layouts%8],widgetTextSize:size,shape,name}))};
+     cfg={...cfg,cols,rows,pageCount:1,macros:examples.map(extra=>({...emptyMacro(),...extra,actionMode:"widget",widgetTheme:["custom",...Object.keys(widgetThemes)][layouts%14],widgetLayout:"panel",widgetTextSize:size,shape,name}))};
      document.querySelector("#cols").value=cols; document.querySelector("#rows").value=rows; preview();
      for(const el of document.querySelectorAll("#preview .widget")) {
       layouts++;
@@ -180,6 +187,9 @@ globalThis.runGooPadEditorTests = async function () {
       const bounds=range.getBoundingClientRect(), box=el.closest("button").getBoundingClientRect();
       check(bounds.left>=box.left+1 && bounds.right<=box.right-1 && bounds.top>=box.top+1 && bounds.bottom<=box.bottom-1 && el.scrollHeight<=el.clientHeight+1,
        `Text clipped: ${cols}x${rows} ${shape} ${size} ${name} ${el.dataset.widget}`);
+      const heading=el.closest("button").querySelector(".widget-heading");
+      if(heading){const h=heading.getBoundingClientRect();check(h.bottom<=bounds.top+1,`Heading overlaps reading: ${cols}x${rows} ${shape} ${size} ${name} ${el.dataset.widget}`)}
+      if(["circle","pill","soft"].includes(shape))check(!heading,`Curved tile should use classic layout: ${shape}`);
      }
     }
   return {checks,layouts};

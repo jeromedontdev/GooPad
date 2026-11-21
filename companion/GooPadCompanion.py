@@ -715,29 +715,46 @@ def main():
         server.server_close()
 
 
+def companion_icon(size=64):
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (size, size), "#182443")
+    draw = ImageDraw.Draw(image)
+    for x in (12, 36):
+        for y in (12, 36):
+            draw.rounded_rectangle((x * size // 64, y * size // 64,
+                                    (x + 16) * size // 64, (y + 16) * size // 64),
+                                   radius=4 * size // 64, fill="#A5B4FC")
+    return image
+
+
 def desktop_panel(server, config, address, port, minimized=False, hidden=False):
     import tkinter as tk
     from tkinter import messagebox, ttk
     import pystray
-    from PIL import Image, ImageDraw
+    from PIL import ImageTk
+
+    set_app_id = ctypes.WinDLL("shell32").SetCurrentProcessExplicitAppUserModelID
+    set_app_id.argtypes = [ctypes.c_wchar_p]
+    set_app_id.restype = ctypes.c_long
+    if set_app_id("GooPad.Companion") < 0:
+        raise OSError("Could not set the GooPad taskbar identity.")
 
     root = tk.Tk()
     root.title("GooPad Companion")
-    root.geometry("540x610")
+    tray_image = companion_icon()
+    window_icons = [ImageTk.PhotoImage(tray_image),
+                    ImageTk.PhotoImage(companion_icon(32))]
+    root.iconphoto(True, *window_icons)
+    root.geometry("540x500")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=20)
     frame.pack(fill="both", expand=True)
     ttk.Label(frame, text="GooPad Companion", font=("Segoe UI", 18, "bold")).pack(anchor="w")
     ttk.Label(frame, text="Keep this app running in your logged-in Windows session.").pack(anchor="w", pady=8)
     cert_path = APP_DIR / "tls-cert.pem"
-    ttk.Button(frame, text="Copy secure pairing (recommended)",
+    ttk.Button(frame, text="Copy secure pairing",
                command=lambda: copy_text(pairing_bundle(address, port, config["token"], cert_path))).pack(fill="x", pady=4)
-    ttk.Button(frame, text=f"Copy HTTPS address: {address}:{port}",
-               command=lambda: copy_text(f"https://{address}:{port}")).pack(fill="x", pady=4)
-    ttk.Button(frame, text="Copy private pairing token",
-               command=lambda: copy_text(config["token"])).pack(fill="x", pady=4)
-    ttk.Button(frame, text="Copy public TLS certificate",
-               command=lambda: copy_text(cert_path.read_text(encoding="ascii"))).pack(fill="x", pady=4)
     allowed = tk.BooleanVar(value=config.get("allow_powershell", False))
 
     def copy_text(value):
@@ -812,16 +829,10 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
         choice.bind("<<ComboboxSelected>>", save_behavior)
     state = tk.StringVar(value=LAST_RESULT)
     ttk.Label(frame, textvariable=state, wraplength=490).pack(anchor="w", pady=6)
-    ttk.Label(frame, text="In GooPad: Settings > Windows companion > paste address and token.\n"
+    ttk.Label(frame, text="In GooPad: Settings > Windows companion > paste secure pairing code.\n"
               "Tray mode keeps commands running. Use Quit to stop Companion.",
               wraplength=490).pack(anchor="w")
     ttk.Button(frame, text="Quit Companion", command=root.destroy).pack(anchor="w", pady=8)
-
-    tray_image = Image.new("RGB", (64, 64), "#182443")
-    draw = ImageDraw.Draw(tray_image)
-    for x in (12, 36):
-        for y in (12, 36):
-            draw.rounded_rectangle((x, y, x + 16, y + 16), radius=4, fill="#A5B4FC")
 
     def restore():
         root.deiconify()

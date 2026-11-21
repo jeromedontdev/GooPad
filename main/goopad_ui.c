@@ -31,7 +31,8 @@ static lv_obj_t *s_pages;
 static lv_obj_t *s_dots;
 static lv_obj_t *s_page_dots[32];
 static lv_obj_t *s_info_overlay;
-static lv_obj_t *s_theme_dropdown;
+static lv_point_t s_menu_press;
+static bool s_menu_tracking;
 static lv_obj_t *s_settings_status;
 static lv_obj_t *s_brightness_slider;
 static lv_obj_t *s_volume_slider;
@@ -533,7 +534,7 @@ static void close_info_cb(lv_event_t *event)
         lv_obj_del(s_info_overlay);
     }
     s_info_overlay = NULL;
-    s_theme_dropdown = NULL;
+    s_menu_tracking = false;
     s_settings_status = NULL;
     s_ota_armed = false;
 }
@@ -552,19 +553,14 @@ static void back_to_info_cb(lv_event_t *event)
     build_info_panel(false);
 }
 
-static void save_device_theme_cb(lv_event_t *event)
+static void save_device_controls_cb(lv_event_t *event)
 {
     (void)event;
-    static const char *themes[] = {"midnight", "ocean", "forest", "light", "custom"};
-    if (!s_theme_dropdown || !lv_obj_is_valid(s_theme_dropdown)) return;
-    uint16_t selected = lv_dropdown_get_selected(s_theme_dropdown);
-    if (selected >= sizeof(themes) / sizeof(themes[0])) return;
-    esp_err_t err = goopad_set_theme(themes[selected]);
-    if (err == ESP_OK) err = goopad_set_controls(
+    esp_err_t err = goopad_set_controls(
         lv_slider_get_value(s_brightness_slider), lv_slider_get_value(s_volume_slider));
     if (err != ESP_OK && s_settings_status && lv_obj_is_valid(s_settings_status)) {
         char message[64];
-        snprintf(message, sizeof(message), "Could not save theme: %s",
+        snprintf(message, sizeof(message), "Could not save controls: %s",
                  esp_err_to_name(err));
         lv_label_set_text(s_settings_status, message);
     } else if (s_settings_status && lv_obj_is_valid(s_settings_status)) {
@@ -645,6 +641,9 @@ static void build_info_panel(bool settings)
 {
     if (!s_info_overlay || !lv_obj_is_valid(s_info_overlay)) return;
     lv_obj_clean(s_info_overlay);
+    s_settings_status = NULL;
+    s_brightness_slider = s_volume_slider = NULL;
+    s_brightness_label = s_volume_label = NULL;
 
     lv_obj_t *panel = lv_obj_create(s_info_overlay);
     lv_obj_set_size(panel, 420, settings ? 420 : 300);
@@ -680,24 +679,11 @@ static void build_info_panel(bool settings)
         return;
     }
 
-    lv_obj_t *theme_label = label(panel, "Device color theme", 15, color(0xCBD5E1));
-    lv_obj_align(theme_label, LV_ALIGN_TOP_LEFT, 0, 42);
-    s_theme_dropdown = lv_dropdown_create(panel);
-    lv_dropdown_set_options(s_theme_dropdown, "Midnight\nOcean\nForest\nLight\nCustom");
-    lv_obj_set_pos(s_theme_dropdown, 0, 68);
-    lv_obj_set_size(s_theme_dropdown, 210, 42);
-    goopad_get_config(s_config_buffer, 12001);
-    cJSON *root = cJSON_Parse(s_config_buffer);
-    cJSON *theme = root ? cJSON_GetObjectItemCaseSensitive(root, "theme") : NULL;
-    if (cJSON_IsString(theme)) {
-        if (!strcmp(theme->valuestring, "ocean")) lv_dropdown_set_selected(s_theme_dropdown, 1);
-        else if (!strcmp(theme->valuestring, "forest")) lv_dropdown_set_selected(s_theme_dropdown, 2);
-        else if (!strcmp(theme->valuestring, "light")) lv_dropdown_set_selected(s_theme_dropdown, 3);
-        else if (!strcmp(theme->valuestring, "custom")) lv_dropdown_set_selected(s_theme_dropdown, 4);
-    }
-    cJSON_Delete(root);
+    lv_obj_t *appearance_hint = label(panel, "Change appearance from the web editor.",
+                                      14, color(0xCBD5E1));
+    lv_obj_align(appearance_hint, LV_ALIGN_TOP_LEFT, 0, 42);
     button(panel, "Save settings", 224, 68, 150, 42,
-           save_device_theme_cb, NULL, 0x4F46E5);
+           save_device_controls_cb, NULL, 0x4F46E5);
 
     char text[40];
     snprintf(text, sizeof(text), "Display brightness: %d%%", board_backlight_get());
@@ -732,6 +718,11 @@ static void build_info_panel(bool settings)
     button(panel, "Close", 264, 344, 110, 38, close_info_cb, NULL, 0x475569);
 }
 
+static void menu_slide(void *panel, int32_t y)
+{
+    lv_obj_set_y(panel, y);
+}
+
 static void show_info_cb(lv_event_t *event)
 {
     (void)event;
@@ -745,6 +736,45 @@ static void show_info_cb(lv_event_t *event)
     lv_obj_set_style_pad_all(s_info_overlay, 0, 0);
     lv_obj_set_scrollable(s_info_overlay, false);
     build_info_panel(false);
+    lv_obj_t *panel = lv_obj_get_child(s_info_overlay, 0);
+    lv_obj_update_layout(panel);
+    int target_y = lv_obj_get_y(panel);
+    lv_anim_t animation;
+    lv_anim_init(&animation);
+    lv_anim_set_var(&animation, panel);
+    lv_anim_set_exec_cb(&animation, menu_slide);
+    /* Animation positions are offsets from the panel's centered alignment. */
+    int start_y = -lv_obj_get_height(panel) - target_y;
+    lv_anim_set_values(&animation, start_y, 0);
+    lv_anim_set_duration(&animation, 220);
+    lv_anim_set_path_cb(&animation, lv_anim_path_ease_out);
+    lv_obj_set_y(panel, start_y);
+    lv_anim_start(&animation);
+}
+
+static void menu_swipe_cb(lv_event_t *event)
+{
+    lv_event_code_t code = lv_event_get_code(event);
+    if (code != LV_EVENT_PRESSED && code != LV_EVENT_PRESSING &&
+        code != LV_EVENT_RELEASED && code != LV_EVENT_PRESS_LOST) return;
+    lv_indev_t *indev = lv_event_get_indev(event);
+    if (!indev) return;
+    lv_point_t point;
+    lv_indev_get_point(indev, &point);
+    if (code == LV_EVENT_PRESSED) {
+        s_menu_press = point;
+        s_menu_tracking = point.y <= 32;
+    } else if (code == LV_EVENT_PRESSING && s_menu_tracking) {
+        int dy = point.y - s_menu_press.y;
+        int dx = abs(point.x - s_menu_press.x);
+        if (dy >= 64 && dy > dx) {
+            s_menu_tracking = false;
+            lv_indev_wait_release(indev);
+            show_info_cb(NULL);
+        }
+    } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+        s_menu_tracking = false;
+    }
 }
 
 static void password_visibility_cb(lv_event_t *event)
@@ -891,7 +921,7 @@ static void build_grid_screen(void)
         lv_obj_set_hidden(s_keyboard, true);
     }
     s_info_overlay = NULL;
-    s_theme_dropdown = NULL;
+    s_menu_tracking = false;
     s_settings_status = NULL;
     s_ota_armed = false;
     s_dots = NULL;
@@ -987,17 +1017,16 @@ static void build_grid_screen(void)
         cJSON_Delete(root);
         return;
     }
-    lv_obj_t *info_button = lv_button_create(s_screen);
-    lv_obj_set_pos(info_button, screen_width - 48, 6);
-    lv_obj_set_size(info_button, 40, 36);
-    lv_obj_set_style_bg_opa(info_button, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(info_button, 1, 0);
-    lv_obj_set_style_border_color(info_button, color(accent_color), 0);
-    lv_obj_set_style_shadow_width(info_button, 0, 0);
-    lv_obj_set_style_radius(info_button, LV_RADIUS_CIRCLE, 0);
-    lv_obj_add_event_cb(info_button, show_info_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *info_icon = label(info_button, "i", 20, color(accent_color));
-    lv_obj_center(info_icon);
+    lv_obj_t *menu_edge = lv_obj_create(s_screen);
+    lv_obj_set_pos(menu_edge, 0, 0);
+    lv_obj_set_size(menu_edge, screen_width, 48);
+    lv_obj_set_style_bg_opa(menu_edge, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(menu_edge, 0, 0);
+    lv_obj_set_style_pad_all(menu_edge, 0, 0);
+    lv_obj_set_scrollable(menu_edge, false);
+    lv_obj_set_clickable(menu_edge, true);
+    lv_obj_add_flag(menu_edge, LV_OBJ_FLAG_PRESS_LOCK);
+    lv_obj_add_event_cb(menu_edge, menu_swipe_cb, LV_EVENT_ALL, NULL);
 
     s_pages = lv_obj_create(s_screen);
     const int page_top = 48;

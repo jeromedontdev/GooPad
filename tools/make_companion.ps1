@@ -7,7 +7,12 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $package = Join-Path $OutputDirectory 'GooPadCompanion-Windows'
 New-Item -ItemType Directory -Force $package | Out-Null
+New-Item -ItemType Directory -Force $WorkDirectory | Out-Null
+$icon = Join-Path $WorkDirectory 'GooPadCompanion.ico'
+python -c "import sys; sys.path.insert(0,sys.argv[1]); from GooPadCompanion import companion_icon; companion_icon(256).save(sys.argv[2],format='ICO',sizes=[(16,16),(32,32),(48,48),(64,64),(256,256)])" (Join-Path $root 'companion') $icon
+if ($LASTEXITCODE -ne 0) { throw 'Could not create the GooPad executable icon.' }
 python -m PyInstaller --noconfirm --onefile --windowed --name GooPadCompanion `
+    --icon $icon `
     --hidden-import pystray._win32 `
     --distpath $package --workpath (Join-Path $WorkDirectory 'work') `
     --specpath $WorkDirectory (Join-Path $root 'companion\GooPadCompanion.py')

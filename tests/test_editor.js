@@ -17,10 +17,14 @@ globalThis.runGooPadEditorTests = async function () {
   el.value = value; el.dispatchEvent(new Event("change"));
  };
  try {
+  const primaryColors=new Set(),secondaryColors=new Set();
   for(const theme of ["dark","light","ocean","forest","violet","ember"]){
    const control=document.querySelector("#siteTheme");control.value=theme;control.dispatchEvent(new Event("change"));
    check(document.body.dataset.siteTheme===theme && document.body.classList.contains("light")===(theme==="light") && localStorage.getItem("goopad-site-theme")===theme,"Website theme persists: "+theme);
+   primaryColors.add(getComputedStyle(document.querySelector("#save")).backgroundColor);
+   secondaryColors.add(getComputedStyle(document.querySelector("#backup")).backgroundColor);
   }
+  check(primaryColors.size===6 && secondaryColors.size===6,"Website themes recolor primary and secondary buttons");
   for (const page of [0,1,2]) {
    reset({}); scrollPreviewPage(page); document.querySelector("#addPage").click();
    check(cfg.pageCount === 4 && currentPreviewPage() === page+1, "Insertion/selection after current page");
@@ -30,12 +34,7 @@ globalThis.runGooPadEditorTests = async function () {
    document.querySelector("#removePage").click();
    check(cfg.pageCount === 3 && cfg.macros[6].name === "W6", "Removing an empty inserted page");
   }
-  reset({cols:2,rows:2,pageCount:1,macros:[make(0)]});
-  document.querySelector("#pageTemplate").value="fusion";document.querySelector("#insertTemplate").click();
-  check(cfg.pageCount===2 && cfg.macros[0].name==="W0" && cfg.macros[4].name==="Toolbox" && cfg.macros[5].pcSteps[0].keys[0]==="F", "App page inserts without overwriting existing tiles");
-  reset({cols:2,rows:2,pageCount:8,macros:Array.from({length:32},(_,i)=>make(i))});
-  const fullBefore=JSON.stringify(cfg);document.querySelector("#pageTemplate").value="github";document.querySelector("#insertTemplate").click();
-  check(JSON.stringify(cfg)===fullBefore,"App template cannot displace existing tiles past capacity");
+  check(!document.querySelector("#pageTemplate,#insertTemplate"),"Premade app page controls are absent");
   reset({}); scrollPreviewPage(1);
   globalThis.confirm = () => false; document.querySelector("#removePage").click();
   check(cfg.pageCount === 3 && cfg.macros.length === 18, "Cancel deletion preserves page");
@@ -86,6 +85,17 @@ globalThis.runGooPadEditorTests = async function () {
   check(macroConfigured(website), "Draft website remains visible before save");
   prepareMacroAction(website,0);
   check(website.url==="https://192.0.2.20:8787/open" && website.secret===cfg.companionToken && website.method==="POST" && JSON.parse(website.body).url===website.pcTarget, "Website uses verified HTTPS pairing and default port");
+  reset({pageCount:1,macros:[emptyMacro()],companionAddress:"192.0.2.20",companionToken:"x".repeat(32),companionCertificate:certificate});selectTile(0);
+  check(!document.querySelector('[data-k="actionMode"] option[value="pc_open_url"]'),"New PC websites are configured inside the PC builder");
+  change("actionMode","pc_macro");
+  const starter=document.querySelector("[data-pc-preset]");starter.value="open";starter.dispatchEvent(new Event("change"));
+  const websiteInput=document.querySelector('[data-step-fields] [data-value]');websiteInput.value="https://example.com/test";websiteInput.dispatchEvent(new Event("input"));
+  prepareMacroAction(cfg.macros[0],0);
+  check(cfg.macros[0].url==="https://192.0.2.20:8787/run" && JSON.parse(cfg.macros[0].body).steps[0].value==="https://example.com/test","PC builder sends an open-website step");
+  cfg.macros[0].pcSteps[0].value="https://example.com/"+("a".repeat(180));
+  let longWebsiteRejected=false;try{prepareMacroAction(cfg.macros[0],0)}catch{longWebsiteRejected=true}
+  check(longWebsiteRejected,"PC website steps reject links the Companion cannot accept");
+  reset({pageCount:1,macros:[website],companionAddress:"192.0.2.20",companionToken:"x".repeat(32),companionCertificate:certificate});selectTile(0);
   website.pcAddress="192.0.2.30:8787";website.secret="y".repeat(32);
   prepareMacroAction(website,0);
   check(website.url==="https://192.0.2.20:8787/open" && website.secret===cfg.companionToken, "Settings override legacy website pairing");

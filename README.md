@@ -61,13 +61,14 @@ pages. Existing compact layouts retain their behavior. Save to apply either opti
 Save progress, confirmation, and errors appear only there. **Save appearance**
 returns to the preview so its result is visible. **About & help** includes
 downloads, setup instructions, examples, troubleshooting, and source links.
-**Open a link or trigger a service** needs only the complete link supplied by
-that service. **Open a website on my Windows PC** uses the Companion app with
-the address/token saved under **Settings → Windows companion** and asks
-only for the website; it opens only HTTP(S)
-links in the PC's default browser. **Custom web request (Advanced)** retains
-the optional `GET`/`POST`, target URL, JSON body, and token controls. Requests
-from GooPad validate HTTPS certificates. The searchable icon picker includes 275+
+**Trigger a service with a link** sends a GET request from GooPad to the link
+supplied by the service; it does not open a browser. To open a website on your
+PC, choose **Windows PC macro** and the **Open a website** starter or step.
+It uses the Companion pairing in Settings and opens HTTP(S) links in the PC's
+default browser. Existing website tiles keep working. **Custom web request
+(Advanced)** sends a GET or POST from GooPad and allows a JSON body and optional
+`X-GooPad-Token` header. Requests from GooPad validate HTTPS certificates.
+The searchable icon picker includes 275+
 symbols, and the icon field accepts other short icon codes or glyphs.
 **Full-color emoji** renders the browser's emoji as a transparent 160×160
 image on save and requires SD; unchanged saved emoji images are reused.
@@ -176,10 +177,6 @@ tiles or frequent reboots may exhaust it, and quotes may be delayed. The stock
 key is stored in device configuration and backups; protect both. Live widgets
 use verified HTTPS and show unavailable on errors or provider limits. They are
 informational, not financial advice.
-
-Premade Photoshop, GitHub, Excel, OBS Studio and Autodesk Fusion pages insert
-after the current page without replacing existing tiles. Shortcuts act on the
-focused Windows application; OBS streaming/recording shortcuts must be set in OBS.
 
 Home Assistant switch/light tiles support toggle, on and off through its REST
 API. Enter a long-lived access token and an HTTPS address with a publicly
@@ -392,10 +389,17 @@ Use the USB-C/CH340 serial port shown by Windows (COM9 on the development
 machine). The board is an ESP32-S3-WROOM-1U-N16R8: 16 MB flash, 8 MB octal
 PSRAM, ST7701S RGB display, GT911 touch, and microSD slot.
 
-Run the existing Companion tests with `python -m unittest tests.test_companion`.
-The console receiver and Windows startup use the standard library.
-The desktop tray uses pystray and Pillow; install source-GUI dependencies with
-`python -m pip install -r companion\requirements.txt`.
+Run Companion tests in an isolated Python environment:
+
+```powershell
+python -m venv build\companion-test-venv
+.\build\companion-test-venv\Scripts\python.exe -m pip install -r companion\requirements.txt
+.\build\companion-test-venv\Scripts\python.exe -m unittest tests.test_companion
+```
+
+Isolation avoids globally installed `pip_system_certs` injecting client
+certificate verification into the test HTTPS server. It does not change the
+system Python installation. The desktop tray uses pystray and Pillow.
 Build the Windows download with
 `.\tools\make_companion.ps1`; PyInstaller must also be installed. The download
 includes dependency licenses and pystray source for replacing/rebuilding that

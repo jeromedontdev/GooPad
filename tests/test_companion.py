@@ -185,7 +185,9 @@ class CompanionTests(unittest.TestCase):
     def test_monitor_requires_token_and_reports_only_usage_metrics(self):
         with patch.object(COMPANION, "monitor_snapshot", return_value={
                 "cpuPercent": 37.5, "memoryPercent": 50,
-                "memoryUsedBytes": 8000, "memoryTotalBytes": 16000}) as snapshot:
+                "memoryUsedBytes": 8000, "memoryTotalBytes": 16000,
+                "gpuPercent": 25, "gpuMemoryUsedBytes": 4000, "cpuTemperatureC": None,
+                "gpuTemperatureC": 65, "hardwareStatus": "Some sensors unavailable"}) as snapshot:
             with self.assertRaises(HTTPError) as error:
                 urlopen(self.base + "/monitor", timeout=3)
             self.assertEqual(error.exception.code, 401)
@@ -195,6 +197,9 @@ class CompanionTests(unittest.TestCase):
                 payload = json.load(response)
             self.assertEqual(payload["cpuPercent"], 37.5)
             self.assertEqual(payload["memoryPercent"], 50)
+            self.assertEqual(payload["gpuPercent"], 25)
+            self.assertEqual(payload["gpuTemperatureC"], 65)
+            self.assertIsNone(payload["cpuTemperatureC"])
             self.assertNotIn("token", payload)
 
     def test_monitor_failure_is_reported(self):
@@ -211,6 +216,97 @@ class CompanionTests(unittest.TestCase):
                 self.write_config({"token": self.token, "actions": {}, **setting})
                 with self.assertRaises(ValueError):
                     COMPANION.load_config()
+
+class SensorTests(unittest.TestCase):
+    def setUp(self):
+        for name in ("HARDWARE_CACHE", "HARDWARE_BUSY", "HARDWARE_LAST"):
+            original = getattr(COMPANION, name)
+            self.addCleanup(setattr, COMPANION, name, original)
+
+    def test_sensor_values_preserve_missing_readings_and_reject_invalid_numbers(self):
+        reading = {"gpuPercent": 25, "gpuMemoryUsedBytes": 4000,
+                   "cpuTemperatureC": None, "gpuTemperatureC": 65}
+        self.assertEqual(COMPANION.hardware_metrics(reading), reading)
+        for field, value in (("gpuPercent", True), ("gpuPercent", 101),
+                             ("cpuTemperatureC", float("nan")), ("gpuMemoryUsedBytes", -1)):
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                COMPANION.hardware_metrics({**reading, field: value})
+        with self.assertRaises(ValueError):
+            COMPANION.hardware_metrics({"cpuTemperatureC": 50})
+
+    def test_cached_requests_start_only_one_sensor_query(self):
+        COMPANION.HARDWARE_BUSY = False
+        COMPANION.HARDWARE_LAST = 0
+        COMPANION.HARDWARE_CACHE = {"gpuPercent": 25}
+        with patch.object(COMPANION.time, "monotonic", return_value=100), \
+                patch.object(COMPANION.threading, "Thread") as thread:
+            self.assertEqual(COMPANION.hardware_snapshot(), {"gpuPercent": 25})
+            self.assertEqual(COMPANION.hardware_snapshot(), {"gpuPercent": 25})
+            thread.return_value.start.assert_called_once()
+
+    def test_invalid_nvidia_temperature_does_not_poison_other_gpu_readings(self):
+        reading = {"gpuPercent": 25, "gpuMemoryUsedBytes": 4000,
+                   "cpuTemperatureC": None, "gpuTemperatureC": None}
+        replies = [
+            COMPANION.subprocess.CompletedProcess([], 0, stdout=json.dumps(reading)),
+            COMPANION.subprocess.CompletedProcess([], 0, stdout="nan\n"),
+        ]
+        with patch.object(COMPANION.subprocess, "run", side_effect=replies), \
+                patch.object(Path, "is_file", return_value=True), self.assertLogs(level="WARNING"):
+            result = COMPANION.query_hardware()
+        self.assertEqual(result, reading)
+
+    def test_failed_sensor_query_clears_stale_readings_and_reports_failure(self):
+        COMPANION.HARDWARE_CACHE = {"gpuPercent": 25}
+        COMPANION.HARDWARE_BUSY = True
+        with patch.object(COMPANION, "query_hardware", side_effect=OSError("blocked")), \
+                self.assertLogs(level="WARNING"):
+            COMPANION.refresh_hardware()
+        self.assertIsNone(COMPANION.HARDWARE_CACHE["gpuPercent"])
+        self.assertIn("failed", COMPANION.HARDWARE_CACHE["hardwareStatus"])
+        self.assertFalse(COMPANION.HARDWARE_BUSY)
+
+    def test_sensor_collector_updates_cache_without_turning_missing_temp_into_zero(self):
+        reading = {"gpuPercent": 25, "gpuMemoryUsedBytes": 4000,
+                   "cpuTemperatureC": None, "gpuTemperatureC": 65}
+        with patch.object(COMPANION, "query_hardware", return_value=reading):
+            COMPANION.refresh_hardware()
+        self.assertEqual(COMPANION.HARDWARE_CACHE["gpuTemperatureC"], 65)
+        self.assertIsNone(COMPANION.HARDWARE_CACHE["cpuTemperatureC"])
+        self.assertIn("unavailable", COMPANION.HARDWARE_CACHE["hardwareStatus"])
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows sensor script")
+    def test_sensor_script_aggregates_engines_and_prefers_package_and_core_temperatures(self):
+        fixture = r"""
+        function Get-CimInstance {
+            param([Parameter(Position=0)]$ClassName, $Namespace, $Filter)
+            switch ($ClassName) {
+                'Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine' {
+                    [pscustomobject]@{Name='pid_1_luid_1_phys_0_eng_0_engtype_3D';UtilizationPercentage=20}
+                    [pscustomobject]@{Name='pid_2_luid_1_phys_0_eng_0_engtype_3D';UtilizationPercentage=15}
+                    [pscustomobject]@{Name='pid_3_luid_1_phys_0_eng_1_engtype_Copy';UtilizationPercentage=5}
+                }
+                'Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory' {
+                    [pscustomobject]@{DedicatedUsage=6000}
+                    [pscustomobject]@{DedicatedUsage=4000}
+                }
+                'Sensor' {
+                    [pscustomobject]@{Parent='/intelcpu/0';Name='CPU Package';Value=70}
+                    [pscustomobject]@{Parent='/intelcpu/0';Name='CPU Core';Value=60}
+                    [pscustomobject]@{Parent='/nvidiagpu/0';Name='GPU Core';Value=65}
+                    [pscustomobject]@{Parent='/nvidiagpu/0';Name='GPU Hot Spot';Value=80}
+                }
+            }
+        }
+        """
+        powershell = Path(COMPANION.os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+        completed = COMPANION.subprocess.run(
+            [str(powershell), "-NoProfile", "-NonInteractive", "-Command", fixture + COMPANION.HARDWARE_SCRIPT],
+            capture_output=True, text=True, timeout=10, check=True)
+        values = COMPANION.hardware_metrics(json.loads(completed.stdout))
+        self.assertEqual(values, {"gpuPercent": 35, "gpuMemoryUsedBytes": 10000,
+                                  "cpuTemperatureC": 70, "gpuTemperatureC": 65})
+
 
 @unittest.skipUnless(sys.platform == "win32", "Windows startup integration")
 class WindowsStartupTests(unittest.TestCase):

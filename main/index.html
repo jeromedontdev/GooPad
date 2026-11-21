@@ -27,6 +27,7 @@ body.light button{background:#f1f5f9;color:#172033;border-color:#cbd5e1}body.lig
 .studio{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:start}.stage{position:sticky;top:16px}.stage .fields{margin-bottom:18px}.stage .preview{max-width:540px;margin:auto}.tile-editor .macro{margin:0;border:0;padding:0;background:transparent}.tile-editor .macro-head{flex-wrap:wrap}.preview button{container-type:size;cursor:pointer}.preview button[aria-pressed=true]{outline:3px solid var(--accent);outline-offset:-4px}.preview button:focus-visible{outline:3px solid var(--green);outline-offset:-4px}.preview button:disabled{cursor:default;opacity:.35}.preview .widget{width:100%;max-height:100%;overflow:hidden;font-size:min(14cqw,20cqh,24px);line-height:1.15;white-space:pre-line;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.preview .widget[data-widget=clock]{font-size:min(24cqw,40cqh,42px);white-space:nowrap}.preview .widget[data-widget=date]{font-size:min(14cqw,24cqh,28px);white-space:nowrap}.upload-status.error{color:#ef4444}
 @media(max-width:940px){.studio{grid-template-columns:1fr}.stage{position:static}.stage .preview{max-width:540px}}
 .preview .widget{line-height:1.4}.preview button:not(.image-only) .widget{font-size:min(14cqw,18cqh,24px);flex-shrink:0}
+.preview .widget[data-widget=clock]{font-size:min(calc(120cqw / var(--widget-chars,5)),40cqh,42px)}.preview .widget[data-widget=date]{font-size:min(calc(140cqw / var(--widget-chars,10)),24cqh,28px)}.preview button:not(.image-only) .widget{font-size:min(calc(135cqw / var(--widget-chars,10)),18cqh,24px)}
 .preview .gif-cover{padding:0}.preview .gif-cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.preview .gif-cover small{position:relative;z-index:1;align-self:center;margin-top:auto;margin-bottom:8px;padding:1px 5px;border-radius:4px;background:#0009;max-width:calc(100% - 16px)}.preview button.drop-target{outline:3px dashed var(--green);outline-offset:-4px}.preview.reordering{scroll-snap-type:none}
 footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-size:12px}a{color:#a5b4fc}body.light a{color:#4338ca}
 @media(max-width:780px){.layout{grid-template-columns:1fr}.side{grid-row:1}.fields,.macro-fields{grid-template-columns:1fr}.macro-fields .wide{grid-column:auto}.preview{grid-template-columns:repeat(3,1fr)}}
@@ -65,7 +66,7 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <details open><summary>Build a PC macro without JSON</summary><p>Choose a starter such as Copy, Paste, Screenshot, Play/Pause, or Mute. Each step can press a hotkey, send a media key, type text, wait, open a website, run PowerShell, or launch an app already approved on the PC. Use the arrow buttons to reorder steps. A sequence can contain up to 12 steps, with at most 10 seconds of waiting in total.</p><p>Example: add <strong>Ctrl+L</strong>, <strong>Type text</strong> with a website address, and <strong>Enter</strong> to use a focused browser. Or simply use <strong>Open website</strong> to open a link in the default browser. Add a short Wait if an app needs time between steps.</p></details>
 <details><summary>PowerShell and approved apps</summary><p>PowerShell is disabled by default. Enable it <strong>locally in Companion</strong> only if you trust your LAN and everyone with the pairing token. Then choose a PowerShell step and enter your command (up to 512 characters). Scripts run as your Windows user, with a 10-second timeout. Errors stop the rest of the sequence and appear in Companion and the connection/last-result check.</p><p>For fixed app launches or SSH, advanced users can add named actions in <code>%LOCALAPPDATA%\GooPad\companion.json</code>. Each action specifies a program and fixed arguments. Enter that name in an Approved PC app step. The device cannot change those arguments. See the source README for examples.</p></details>
 <details><summary>Keep Companion running / start with Windows</summary><p>Start with Windows opens Companion at user sign-in. Enable <strong>Hide in the tray on Windows startup</strong> to start without a taskbar window. Close and Minimize each have their own tray preference. Defaults remain Close = quit and Minimize = taskbar. Hidden Companion still receives commands; use its tray menu to Open or Quit.</p><p>Manual and automatic startup support the same actions, including locally enabled PowerShell. Keyboard macros require an awake, unlocked desktop. Signing out stops Companion. Startup needs no administrator access and no Windows service is installed. The packaged app uses a stable copy under <code>%LOCALAPPDATA%\GooPad\bin</code>. Uncheck Start with Windows to disable autostart.</p></details>
-<details><summary>Live widgets and PC monitoring</summary><p>Choose <strong>Live widget</strong> for a clock, date, or PC CPU/RAM display. Widgets do not run actions when tapped. Clock/date sync over Wi-Fi or when you open this website. The fixed UTC offset in Settings initially matches your browser; update it after daylight-saving changes. PC usage refreshes every five seconds and requires a paired, reachable Companion.</p></details>
+<details><summary>Live widgets and PC stats</summary><p>Choose <strong>Live widget</strong>, then Clock, Date or PC stats. Clock/date have their own format choices; seconds are optional. The UTC offset in Settings initially matches your browser; update it after daylight-saving changes.</p><p>Each PC stats tile selects CPU/RAM combined, CPU usage, RAM percentage/used GiB, GPU usage/dedicated memory, or CPU/GPU temperature in Celsius/Fahrenheit. Pair Companion in Settings and save. CPU/RAM refresh every five seconds; GPU/sensors are cached about ten seconds. GPU usage is the busiest engine; GPU memory sums dedicated memory across adapters.</p><p>GPU counters need supported Windows drivers. NVIDIA's driver may provide GPU temperature through nvidia-smi. For CPU temperatures and other GPU sensors, run the official <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases" target="_blank" rel="noopener noreferrer">LibreHardwareMonitor Windows Forms app</a> alongside Companion; its WMI provider supplies readings without enabling a remote web server. Some sensors require that sensor app to run as administrator. Keep Companion as your normal user. Missing sensors show Unavailable, never zero.</p></details>
 <details><summary>GIFs and empty tiles</summary><p>Animated GIF visuals require SD: at most 160x160 pixels, 128 KB, 240 frames, and four GIF tiles. The device caps playback at 10 fps and pauses off-screen animations; browser previews may be faster. Unconfigured tiles are blank and inactive, without a plus sign. Enable <strong>Hide unconfigured tiles</strong> to compact the grid while keeping action assignments intact.</p></details>
 <details><summary>Connection or action not working</summary><p>Confirm both devices are on the same trusted LAN, Companion is open, and its current address/token match Settings. Guest Wi-Fi can block communication. Check the Private-network firewall rule for TCP 8787. Reserve the PC's IP in your router if it changes. An old Companion supports only basic actions: download the latest app for the builder.</p><p>Only one PC sequence runs at a time; repeated taps while busy are rejected instead of overlapping keys. Check the app's last-result message. Windows blocks input into administrator apps, locked screens, and some games. Media-key handling depends on the media app. Try a normal Notepad window for a text/hotkey macro.</p></details>
 <details><summary>Backgrounds, saving, and security</summary><p>Select Custom in Settings to upload a background image; an SD card is required. Images are cropped to fill the screen. Choose a preset to temporarily use its palette instead. Save appearance returns to Live preview, where saving progress and errors appear only once.</p><p>Keep both passwords/tokens private. Never forward GooPad or Companion ports to the internet. The GooPad editor uses self-signed HTTPS; the Companion LAN link is HTTP, so its token is not encrypted in transit. Use only trusted private Wi-Fi. Backups and the development firmware's NVS are not encrypted.</p></details>
@@ -79,6 +80,7 @@ const $=s=>document.querySelector(s), presets=[["Home","🏠"],["Light","💡"],
 let cfg={cols:3,rows:3,theme:"midnight",background:"111827",shape:"rounded",macros:[]}, selectedTile=-1,faIcons=null,faLoading=null,faTargetIndex=-1,faBusy=false,pendingUploads=0;
 function msg(t,bad=false){const target=$("#faDialog").open?$("#faStatus"):$("#status");target.textContent=t;target.style.color=bad?"#fca5a5":"#34d399"}
 function macroCard(index){return document.querySelector(`.macro[data-index="${index}"]`)}
+const pcStatLabels={summary:"CPU + RAM usage",cpu:"CPU usage",ram:"RAM usage",ram_used:"RAM used (GiB)",gpu:"GPU usage (busiest engine)",gpu_memory:"GPU dedicated RAM used (GiB)",cpu_temp:"CPU temperature",gpu_temp:"GPU temperature"};
 function uploadMessage(index,text,bad=false){
  const target=macroCard(index)?.querySelector(`[data-visual="${cfg.macros[index]?.iconSource}"] [data-upload-status]`);
  if(!target||$("#faDialog").open)return msg(text,bad);
@@ -245,7 +247,11 @@ function render(){
   <div class="field"><label>Button sound (device speaker)</label><select data-k="sound"><option value="none">None</option><option value="click">Click</option><option value="beep">Beep</option><option value="chime">Chime</option><option value="alert">Alert</option><option value="file">Uploaded WAV / MP3</option></select></div>
   <div class="field wide" data-sound-upload><label>Upload sound (WAV / MP3, at most 30 seconds)</label><input data-k="soundUpload" type="file" accept=".wav,.mp3,audio/wav,audio/mpeg"><span class="hint" data-sound-name>${esc(m.soundName||"Choose a file. Audio is converted in your browser and stored on SD.")}</span></div>
   <div class="field wide"><label>What should this button do?</label><select data-k="actionMode"><option value="simple_link">Open a link or trigger a service</option><option value="widget">Live widget (clock, date, PC monitor)</option><option value="pc_macro">Windows PC macro (guided builder)</option><option value="pc_open_url">Open a website on my Windows PC</option><option value="sound">Play a sound only</option><option value="advanced">Custom web request (Advanced)</option></select></div>
-  <div class="field wide mode-field" data-mode-field="widget"><label>Widget</label><select data-k="widget"><option value="clock">Clock</option><option value="date">Date</option><option value="pc_monitor">PC CPU / RAM</option></select><span class="hint">Display-only. PC monitoring uses the pairing in Settings. Clocks use network time or time synced from this browser; set the UTC offset in Settings.</span></div>
+  <div class="field wide mode-field" data-mode-field="widget"><label>Widget</label><select data-k="widget"><option value="clock">Clock</option><option value="date">Date</option><option value="pc_monitor">PC stats</option></select><span class="hint">Display-only. PC stats use the pairing in Settings. Clocks use network time or time synced from this browser; set the UTC offset in Settings.</span></div>
+  <div class="field wide" data-widget-option="clock"><label>Time format</label><select data-k="clockFormat"><option value="24h">24-hour (14:30)</option><option value="12h">12-hour (02:30 PM)</option><option value="24h_seconds">24-hour with seconds (14:30:45)</option><option value="12h_seconds">12-hour with seconds (02:30:45 PM)</option></select></div>
+  <div class="field wide" data-widget-option="date"><label>Date format</label><select data-k="dateFormat"><option value="iso">Year-month-day (2026-11-20)</option><option value="mdy">Month/day/year (11/20/2026)</option><option value="dmy">Day/month/year (20/11/2026)</option><option value="month_short">Short month and day (Nov 20)</option></select></div>
+  <div class="field wide" data-widget-option="pc_monitor"><label>PC statistic</label><select data-k="pcStat">${Object.entries(pcStatLabels).map(([key,label])=>`<option value="${key}">${label}</option>`).join("")}</select><span class="hint">GPU readings require supported Windows drivers. Run LibreHardwareMonitor for CPU/GPU temperatures; NVIDIA's nvidia-smi can also provide GPU temperature. Missing readings say Unavailable, never zero.</span></div>
+  <div class="field" data-widget-option="pc_temperature"><label>Temperature unit</label><select data-k="temperatureUnit"><option value="C">Celsius</option><option value="F">Fahrenheit</option></select></div>
   <div class="field wide mode-field" data-mode-field="pc_macro"><label>Start with a common action</label><select data-pc-preset><option value="">Choose a starter…</option><option value="copy">Copy</option><option value="paste">Paste</option><option value="screenshot">Screenshot</option><option value="play">Media play / pause</option><option value="mute">Mute</option><option value="text">Type a text snippet</option><option value="powershell">PowerShell command</option></select><p class="hint">Uses the PC pairing in Settings. Steps run in order on that PC. Keyboard input goes to its focused app.</p><div data-pc-steps></div><button data-pc-add type="button">Add step</button><p class="hint" data-pc-summary></p></div>
   <div class="field wide mode-field" data-mode-field="simple_link"><label>Website or trigger link</label><input data-k="url" type="url" placeholder="https://example.com/your-trigger" value="${mode==="simple_link"?esc(m.url):""}"><span class="hint">Paste the link supplied by the service. Leave blank for an unconfigured tile.</span></div>
   <div class="field wide mode-field" data-mode-field="sound"><span class="hint">Choose a button sound above. No website or PC is required.</span></div>
@@ -260,13 +266,17 @@ function render(){
   card.querySelector('[data-k="iconSource"]').value=m.iconSource;
   card.querySelector('[data-k="gifFit"]').value=m.gifFit||"contain";
   card.querySelector('[data-k="widget"]').value=m.widget||"clock";
+  card.querySelector('[data-k="clockFormat"]').value=m.clockFormat||"24h";
+  card.querySelector('[data-k="dateFormat"]').value=m.dateFormat||"iso";
+  card.querySelector('[data-k="pcStat"]').value=m.pcStat||"summary";
+  card.querySelector('[data-k="temperatureUnit"]').value=m.temperatureUnit||"C";
   card.querySelector("[data-sound-upload]").classList.toggle("hidden",m.sound!=="file");
   card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==m.iconSource));
   updateModeFields(card,mode);
   renderPcSteps(card,m);
   card.querySelectorAll("[data-k]").forEach(el=>{
    if(el.type==="file"){el.addEventListener("change",()=>el.dataset.k==="soundUpload"?uploadSound(el,m):uploadMacroIcon(el,i,m));return}
-   const update=()=>{const key=el.dataset.k;if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}if(key==="iconSource"){card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==el.value))}if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="simple_link"){m.url="";card.querySelectorAll('[data-k="url"]').forEach(input=>input.value="")}m[key]=el.type==="checkbox"?el.checked:el.type==="color"?el.value.slice(1).toUpperCase():el.value;if(key==="tileName"||key==="name")card.querySelector(".macro-head b").textContent=tileTitle(m);if(key==="sound")card.querySelector("[data-sound-upload]").classList.toggle("hidden",el.value!=="file");if(key==="actionMode")updateModeFields(card,el.value);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()};
+   const update=()=>{const key=el.dataset.k;if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}if(key==="iconSource"){card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==el.value))}if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="simple_link"){m.url="";card.querySelectorAll('[data-k="url"]').forEach(input=>input.value="")}m[key]=el.type==="checkbox"?el.checked:el.type==="color"?el.value.slice(1).toUpperCase():el.value;if(key==="tileName"||key==="name")card.querySelector(".macro-head b").textContent=tileTitle(m);if(key==="sound")card.querySelector("[data-sound-upload]").classList.toggle("hidden",el.value!=="file");if(["actionMode","widget","pcStat"].includes(key))updateModeFields(card,m.actionMode);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()};
    el.addEventListener("input",update);el.addEventListener("change",update);
   });
   card.querySelector("[data-fa]").onclick=()=>openFaPicker(i);
@@ -286,6 +296,11 @@ function updateModeFields(card,mode){
  const sound=card.querySelector('[data-k="sound"]');
  sound.closest(".field").classList.toggle("hidden",widget);
  card.querySelector("[data-sound-upload]").classList.toggle("hidden",widget||sound.value!=="file")
+ card.querySelectorAll("[data-widget-option]").forEach(field=>{
+  const selected=card.querySelector('[data-k="widget"]').value,stat=card.querySelector('[data-k="pcStat"]').value;
+  field.classList.toggle("hidden",!widget||(field.dataset.widgetOption==="pc_temperature"
+   ? selected!=="pc_monitor"||!["cpu_temp","gpu_temp"].includes(stat) : field.dataset.widgetOption!==selected))
+ })
 }
 const pcKeyNames=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ",..."0123456789",...Array.from({length:24},(_,i)=>"F"+(i+1)),"ENTER","TAB","ESC","SPACE","BACKSPACE","DELETE","INSERT","HOME","END","PAGEUP","PAGEDOWN","LEFT","RIGHT","UP","DOWN","PRINTSCREEN"];
 const pcTypes={hotkey:"Press a hotkey",media:"Send a media key",text:"Type text",wait:"Wait",open:"Open website",powershell:"Run PowerShell (local permission required)",action:"Launch an approved PC app"};
@@ -388,20 +403,37 @@ function preview(){
  }
  p.scrollLeft=Math.min(previousPage,count-1)*p.clientWidth;updatePreviewDots();updateWidgetPreview()
 }
-let pcMonitorPreview="CPU --%\nRAM --%";
+let pcMonitorPreview="CPU --%\nRAM --%",pcStatsPreview={},pcStatsFPreview={};
+function widgetTimeText(m,time){
+ const hours=time.getUTCHours(),minutes=String(time.getUTCMinutes()).padStart(2,"0"),seconds=String(time.getUTCSeconds()).padStart(2,"0");
+ if(m.widget==="date"){
+  const iso=time.toISOString().slice(0,10),[year,month,day]=iso.split("-");
+  return m.dateFormat==="mdy"?`${month}/${day}/${year}`:m.dateFormat==="dmy"?`${day}/${month}/${year}`:
+   m.dateFormat==="month_short"?`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][time.getUTCMonth()]} ${day}`:iso
+ }
+ const format=m.clockFormat||"24h",twelve=format.startsWith("12h");
+ return `${String(twelve?hours%12||12:hours).padStart(2,"0")}:${minutes}${format.endsWith("_seconds")?":"+seconds:""}${twelve?hours<12?" AM":" PM":""}`
+}
 function updateWidgetPreview(){
  const offset=Number($("#timeOffset").value);
  if(!Number.isInteger(offset)||offset < -840||offset > 840){$("#preview").querySelectorAll("[data-widget]").forEach(element=>element.textContent="Invalid UTC offset");return}
- const time=new Date(Date.now()+offset*60000).toISOString();
- $("#preview").querySelectorAll("[data-widget]").forEach(element=>element.textContent=element.dataset.widget==="clock"?time.slice(11,16):element.dataset.widget==="date"?time.slice(0,10):pcMonitorPreview)
+ const time=new Date(Date.now()+offset*60000);
+ $("#preview").querySelectorAll("[data-widget]").forEach(element=>{
+  const macro=cfg.macros[Number(element.closest("[data-tile]").dataset.tile)],stat=macro.pcStat||"summary";
+  element.textContent=element.dataset.widget==="pc_monitor"?(macro.temperatureUnit==="F"&&pcStatsFPreview[stat]||pcStatsPreview[stat]||(stat==="summary"?pcMonitorPreview:"PC sampling")):widgetTimeText(macro,time);
+  element.style.setProperty("--widget-chars",Math.max(...element.textContent.split("\n").map(line=>line.length)))
+ })
 }
 setInterval(updateWidgetPreview,1000);
 let monitorPreviewBusy=false;
 async function refreshMonitorPreview(){
  if(monitorPreviewBusy||pendingUploads||!cfg.macros.some(m=>m.actionMode==="widget"&&m.widget==="pc_monitor")||$("#faDialog").open)return;
  monitorPreviewBusy=true;
- try{const data=await api("/api/status");if(typeof data.pcMonitor!=="string"||!data.pcMonitor.length||data.pcMonitor.length>64)throw Error("GooPad returned an invalid monitor reading.");pcMonitorPreview=data.pcMonitor}
- catch(error){pcMonitorPreview="PC unavailable\n"+error.message.slice(0,40)}
+ try{const data=await api("/api/status");if(typeof data.pcMonitor!=="string"||!data.pcMonitor.length||data.pcMonitor.length>64)throw Error("GooPad returned an invalid monitor reading.");
+  for(const [key,required] of [["pcStats",Object.keys(pcStatLabels)],["pcStatsF",["cpu_temp","gpu_temp"]]]){if(!data[key]||required.some(stat=>typeof data[key][stat]!=="string"||!data[key][stat].length||data[key][stat].length>64))throw Error("Update firmware to use configurable PC stats.")}
+  pcMonitorPreview=data.pcMonitor;pcStatsPreview=data.pcStats;pcStatsFPreview=data.pcStatsF
+ }
+ catch(error){pcMonitorPreview="PC unavailable\n"+error.message.slice(0,40);pcStatsPreview=Object.fromEntries(Object.keys(pcStatLabels).map(key=>[key,pcMonitorPreview]));pcStatsFPreview={}}
  finally{monitorPreviewBusy=false}
  updateWidgetPreview()
 }

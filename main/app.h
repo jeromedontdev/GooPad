@@ -118,6 +118,7 @@ typedef struct {
     volatile uint32_t rendered_tiles;
     volatile uint32_t rendered_pages;
     volatile uint32_t empty_tiles;
+    volatile uint32_t symbol_fallbacks;
     volatile uint32_t widget_count;
     volatile uint32_t gif_count;
     volatile uint32_t gif_loops;

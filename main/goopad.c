@@ -756,6 +756,7 @@ static bool validate_config(const char *json)
     cJSON *background = cJSON_GetObjectItemCaseSensitive(root, "background");
     cJSON *background_image = cJSON_GetObjectItemCaseSensitive(root, "backgroundImage");
     cJSON *hide = cJSON_GetObjectItemCaseSensitive(root, "hideUnconfigured");
+    cJSON *hide_empty = cJSON_GetObjectItemCaseSensitive(root, "hideEmptyTiles");
     cJSON *offset = cJSON_GetObjectItemCaseSensitive(root, "timeOffsetMinutes");
     cJSON *pages = cJSON_GetObjectItemCaseSensitive(root, "pageCount");
     unsigned gif_count = 0;
@@ -776,6 +777,7 @@ static bool validate_config(const char *json)
                  (!background_image || (cJSON_IsString(background_image) &&
                                         valid_icon_key(background_image->valuestring))) &&
                  (!hide || cJSON_IsBool(hide)) &&
+                 (!hide_empty || cJSON_IsBool(hide_empty)) &&
                  (!offset || (cJSON_IsNumber(offset) && offset->valuedouble == offset->valueint &&
                               offset->valueint >= -840 && offset->valueint <= 840));
     for (cJSON *item = valid ? macros->child : NULL; item; item = item->next) {
@@ -785,6 +787,8 @@ static bool validate_config(const char *json)
         cJSON *method = cJSON_GetObjectItemCaseSensitive(item, "method");
         cJSON *action = cJSON_GetObjectItemCaseSensitive(item, "action");
         cJSON *icon = cJSON_GetObjectItemCaseSensitive(item, "icon");
+        cJSON *emoji_render = cJSON_GetObjectItemCaseSensitive(item, "emojiRender");
+        cJSON *emoji_image_key = cJSON_GetObjectItemCaseSensitive(item, "emojiImageKey");
         cJSON *body = cJSON_GetObjectItemCaseSensitive(item, "body");
         cJSON *secret = cJSON_GetObjectItemCaseSensitive(item, "secret");
         cJSON *icon_image = cJSON_GetObjectItemCaseSensitive(item, "iconImage");
@@ -838,7 +842,11 @@ static bool validate_config(const char *json)
                                     goopad_widget_graphic_valid(widget_graphic->valuestring,
                                         cJSON_IsString(widget) ? widget->valuestring : NULL,
                                         cJSON_IsString(pc_stat) ? pc_stat->valuestring : NULL))) &&
-                cJSON_IsString(icon) && strlen(icon->valuestring) <= 8 &&
+                cJSON_IsString(icon) && strlen(icon->valuestring) <= 32 &&
+                (!emoji_render || (cJSON_IsString(emoji_render) &&
+                                   (!strcmp(emoji_render->valuestring, "image") ||
+                                    !strcmp(emoji_render->valuestring, "symbol")))) &&
+                (!emoji_image_key || (cJSON_IsString(emoji_image_key) && strlen(emoji_image_key->valuestring) <= 64)) &&
                 cJSON_IsString(url) &&
                 (valid_url(url->valuestring) ||
                  (url->valuestring[0] == '\0' &&
@@ -1473,6 +1481,7 @@ static esp_err_t status_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "renderedTiles", g_app.rendered_tiles);
     cJSON_AddNumberToObject(root, "renderedPages", g_app.rendered_pages);
     cJSON_AddNumberToObject(root, "emptyTiles", g_app.empty_tiles);
+    cJSON_AddNumberToObject(root, "symbolFallbacks", g_app.symbol_fallbacks);
     cJSON_AddNumberToObject(root, "widgets", g_app.widget_count);
     cJSON_AddNumberToObject(root, "gifs", g_app.gif_count);
     cJSON_AddNumberToObject(root, "gifLoops", g_app.gif_loops);

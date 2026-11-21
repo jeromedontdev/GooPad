@@ -10,6 +10,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_netif_sntp.h"
 #include "esp_ota_ops.h"
 #include "esp_random.h"
 #include "esp_wifi.h"
@@ -28,6 +29,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 
 static const char *TAG = "goopad";
 static const char *NVS_NS = "goopad";
@@ -39,11 +41,12 @@ static const char *NVS_NS = "goopad";
 #define BACKGROUND_BYTES (480 * 480 * 2)
 #define MACRO_BODY_BYTES 3072
 #define SOUND_MAX_BYTES (44 + BSP_I2S_SAMPLE_RATE * 2 * 30)
+#define GIF_MAX_BYTES (128 * 1024)
 
 static const char s_default_config[] =
     "{\"cols\":3,\"rows\":3,\"theme\":\"midnight\",\"background\":\"111827\","
     "\"shape\":\"rounded\",\"macros\":["
-    "{\"name\":\"Welcome\",\"icon\":\"+\",\"color\":\"4F46E5\","
+    "{\"name\":\"Welcome\",\"icon\":\"\",\"color\":\"4F46E5\","
     "\"action\":\"webhook\",\"method\":\"POST\",\"url\":\"\",\"secret\":\"\","
     "\"body\":\"\"}]}";
 
@@ -51,6 +54,8 @@ extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 extern const uint8_t fa_icons_json_start[] asm("_binary_fa_icons_json_start");
 extern const uint8_t fa_icons_json_end[] asm("_binary_fa_icons_json_end");
+extern const uint8_t fa_index_start[] asm("_binary_fa_index_json_gz_start");
+extern const uint8_t fa_index_end[] asm("_binary_fa_index_json_gz_end");
 
 static char *s_config;
 static char s_web_key[65];
@@ -65,11 +70,96 @@ static char s_ip_address[16];
 static SemaphoreHandle_t s_config_lock;
 static portMUX_TYPE s_action_lock = portMUX_INITIALIZER_UNLOCKED;
 static unsigned s_action_count;
+static portMUX_TYPE s_monitor_lock = portMUX_INITIALIZER_UNLOCKED;
+static char s_monitor_text[64] = "Set PC pairing";
 
 #define WIFI_CONNECT_MAX_ATTEMPTS 5
 
 static esp_err_t auth_required(httpd_req_t *req);
 static bool valid_icon_key(const char *key);
+
+static bool receive_bytes(httpd_req_t *req, uint8_t *out, size_t bytes)
+{
+    size_t offset = 0;
+    while (offset < bytes) {
+        int read = httpd_req_recv(req, (char *)out + offset, bytes - offset);
+        if (read <= 0) return false;
+        offset += read;
+    }
+    return true;
+}
+
+static bool decode_icon_rle(const uint8_t *input, size_t length, uint8_t *output, unsigned side)
+{
+    if (length < 6 || memcmp(input, "GPR1", 4) || (side != 32 && side != 160)) return false;
+    size_t count = side * side, pixel = 0;
+    for (size_t offset = 6; offset < length; offset += 5) {
+        if (length - offset < 5) return false;
+        unsigned run = input[offset] | (input[offset + 1] << 8);
+        if (!run || run > count - pixel) return false;
+        for (unsigned i = 0; i < run; i++, pixel++) {
+            output[pixel * 2] = input[offset + 2];
+            output[pixel * 2 + 1] = input[offset + 3];
+            output[count * 2 + pixel] = input[offset + 4];
+        }
+    }
+    return pixel == count;
+}
+
+bool goopad_prepare_gif(uint8_t *data, size_t *size, size_t capacity)
+{
+    size_t length = *size;
+    if (length > capacity || length < 14 || (memcmp(data, "GIF89a", 6) && memcmp(data, "GIF87a", 6))) return false;
+    unsigned width = data[6] | data[7] << 8, height = data[8] | data[9] << 8;
+    if (!width || !height || width > 160 || height > 160) return false;
+    size_t offset = 13;
+    if (data[10] & 128) offset += 3u << ((data[10] & 7) + 1);
+    unsigned frames = 0;
+    bool control = false;
+    while (offset < length) {
+        uint8_t tag = data[offset++];
+        if (tag == 0x3B) { *size = length; return frames > 0 && offset == length; }
+        if (tag == 0x21) {
+            if (offset >= length) return false;
+            uint8_t extension = data[offset++];
+            if (extension == 0xF9) {
+                if (length - offset < 6 || data[offset] != 4 || data[offset + 5] != 0) return false;
+                control = true;
+                unsigned delay = data[offset + 2] | data[offset + 3] << 8;
+                if (delay < 10) { data[offset + 2] = 10; data[offset + 3] = 0; }
+            }
+        } else if (tag == 0x2C) {
+            if (++frames > 240 || length - offset < 9) return false;
+            if (!control) {
+                if (length + 8 > GIF_MAX_BYTES || length + 8 > capacity) return false;
+                const uint8_t timing[] = {0x21, 0xF9, 4, 0, 10, 0, 0, 0};
+                memmove(data + offset + 7, data + offset - 1, length - offset + 1);
+                memcpy(data + offset - 1, timing, sizeof(timing));
+                memcpy(data, "GIF89a", 6);
+                length += 8; offset += 8;
+            }
+            control = false;
+            unsigned x = data[offset] | data[offset + 1] << 8;
+            unsigned y = data[offset + 2] | data[offset + 3] << 8;
+            unsigned w = data[offset + 4] | data[offset + 5] << 8;
+            unsigned h = data[offset + 6] | data[offset + 7] << 8;
+            uint8_t packed = data[offset + 8];
+            if (!w || !h || x + w > width || y + h > height) return false;
+            offset += 9;
+            if (packed & 128) offset += 3u << ((packed & 7) + 1);
+            if (offset >= length || data[offset] < 2 || data[offset] > 8) return false;
+            offset++;
+        } else return false;
+        while (true) {
+            if (offset >= length) return false;
+            unsigned block = data[offset++];
+            if (!block) break;
+            if (block > length - offset) return false;
+            offset += block;
+        }
+    }
+    return false;
+}
 
 static bool read_string(const char *key, char *out, size_t capacity)
 {
@@ -88,8 +178,14 @@ static esp_err_t icon_upload_handler(httpd_req_t *req)
     if (!g_app.sd.mounted) {
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Insert and mount an SD card");
     }
-    if (req->content_len != ICON_BYTES && req->content_len != ALPHA_ICON_BYTES &&
-        req->content_len != LARGE_ICON_BYTES && req->content_len != BACKGROUND_BYTES) {
+    char content_type[64] = "";
+    httpd_req_get_hdr_value_str(req, "Content-Type", content_type, sizeof(content_type));
+    bool rle = !strcmp(content_type, "application/x-goopad-rle");
+    bool gif = !strcmp(content_type, "image/gif");
+    if ((rle && (req->content_len < 11 || req->content_len > LARGE_ICON_BYTES)) ||
+        (gif && (req->content_len < 14 || req->content_len > GIF_MAX_BYTES)) ||
+        (!rle && !gif && req->content_len != ICON_BYTES && req->content_len != ALPHA_ICON_BYTES &&
+        req->content_len != LARGE_ICON_BYTES && req->content_len != BACKGROUND_BYTES)) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Expected a supported icon or 480x480 background");
     }
     char query[32];
@@ -101,12 +197,40 @@ static esp_err_t icon_upload_handler(httpd_req_t *req)
     }
 
     size_t image_bytes = (size_t)req->content_len;
+    uint8_t *prepared = NULL;
+    if (rle || gif) {
+        uint8_t *encoded = heap_caps_malloc(image_bytes + (gif ? 240 * 8 : 0), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!encoded) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Image memory unavailable");
+        if (!receive_bytes(req, encoded, image_bytes)) {
+            free(encoded);
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Image upload interrupted");
+        }
+        if (gif) {
+            if (!goopad_prepare_gif(encoded, &image_bytes, req->content_len + 240 * 8)) {
+                free(encoded);
+                return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "GIF invalid or exceeds 160x160, 128 KB or 240 frames");
+            }
+            prepared = encoded;
+        } else {
+            unsigned side = encoded[4] | encoded[5] << 8;
+            size_t decoded_bytes = side == 160 ? LARGE_ICON_BYTES : ALPHA_ICON_BYTES;
+            prepared = heap_caps_malloc(decoded_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            bool decoded = prepared && decode_icon_rle(encoded, image_bytes, prepared, side);
+            free(encoded);
+            if (!decoded) {
+                free(prepared);
+                return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid compressed icon");
+            }
+            image_bytes = decoded_bytes;
+        }
+    }
     char *image = heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!image) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Image buffer unavailable");
+    if (!image) { free(prepared); return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Image buffer unavailable"); }
 
     const char *directory = BSP_SD_MOUNT_POINT "/goopad";
     if (mkdir(directory, 0775) != 0 && errno != EEXIST) {
         free(image);
+        free(prepared);
         ESP_LOGE(TAG, "could not create SD icon directory: errno=%d", errno);
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not create icon folder");
     }
@@ -114,16 +238,22 @@ static esp_err_t icon_upload_handler(httpd_req_t *req)
     char path[64];
     snprintf(temporary, sizeof(temporary), "%s/icon-%s.tmp", directory, value);
     snprintf(path, sizeof(path), "%s/icon-%s.%s", directory, value,
-             image_bytes == ICON_BYTES ? "rgb565" :
+             gif ? "gif" : image_bytes == ICON_BYTES ? "rgb565" :
              image_bytes == BACKGROUND_BYTES ? "480.rgb565" :
              image_bytes == LARGE_ICON_BYTES ? "160.rgb565a8" : "rgb565a8");
     FILE *file = fopen(temporary, "wb");
     if (!file) {
         free(image);
+        free(prepared);
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not write icon to SD");
     }
     size_t received = 0;
     bool ok = true;
+    if (prepared) {
+        ok = fwrite(prepared, 1, image_bytes, file) == image_bytes;
+        received = image_bytes;
+        free(prepared);
+    }
     while (received < image_bytes) {
         size_t remaining = image_bytes - received;
         int n = httpd_req_recv(req, image, remaining < 4096 ? remaining : 4096);
@@ -165,6 +295,8 @@ static esp_err_t icon_get_handler(httpd_req_t *req)
         !valid_icon_key(key)) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid icon key");
     }
+    bool gif = httpd_query_key_value(query, "format", format, sizeof(format)) == ESP_OK &&
+               !strcmp(format, "gif");
     bool alpha = httpd_query_key_value(query, "format", format, sizeof(format)) == ESP_OK &&
                  !strcmp(format, "rgb565a8");
     bool large = alpha && httpd_query_key_value(query, "size", size, sizeof(size)) == ESP_OK &&
@@ -173,10 +305,18 @@ static esp_err_t icon_get_handler(httpd_req_t *req)
                       !strcmp(size, "480");
     char path[64];
     snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.%s",
-             key, background ? "480.rgb565" : large ? "160.rgb565a8" : alpha ? "rgb565a8" : "rgb565");
+             key, gif ? "gif" : background ? "480.rgb565" : large ? "160.rgb565a8" : alpha ? "rgb565a8" : "rgb565");
     FILE *file = g_app.sd.mounted ? fopen(path, "rb") : NULL;
     if (!file) return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Icon not found on SD");
     size_t bytes = background ? BACKGROUND_BYTES : large ? LARGE_ICON_BYTES : alpha ? ALPHA_ICON_BYTES : ICON_BYTES;
+    if (gif) {
+        struct stat info;
+        if (fstat(fileno(file), &info) != 0 || info.st_size < 14 || info.st_size > GIF_MAX_BYTES) {
+            fclose(file);
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid GIF asset");
+        }
+        bytes = info.st_size;
+    }
     char *pixels = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     bool ok = pixels && fread(pixels, 1, bytes, file) == bytes;
     fclose(file);
@@ -184,7 +324,8 @@ static esp_err_t icon_get_handler(httpd_req_t *req)
         free(pixels);
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not read icon");
     }
-    httpd_resp_set_type(req, "application/octet-stream");
+    httpd_resp_set_type(req, gif ? "image/gif" : "application/octet-stream");
+    httpd_resp_set_hdr(req, "Cache-Control", "private, max-age=31536000, immutable");
     esp_err_t err = httpd_resp_send(req, pixels, (ssize_t)bytes);
     free(pixels);
     return err;
@@ -554,6 +695,9 @@ static bool validate_config(const char *json)
     cJSON *theme = cJSON_GetObjectItemCaseSensitive(root, "theme");
     cJSON *background = cJSON_GetObjectItemCaseSensitive(root, "background");
     cJSON *background_image = cJSON_GetObjectItemCaseSensitive(root, "backgroundImage");
+    cJSON *hide = cJSON_GetObjectItemCaseSensitive(root, "hideUnconfigured");
+    cJSON *offset = cJSON_GetObjectItemCaseSensitive(root, "timeOffsetMinutes");
+    unsigned gif_count = 0;
     bool valid = cJSON_IsNumber(cols) && cols->valueint >= 2 && cols->valueint <= 4 &&
                  cJSON_IsNumber(rows) && rows->valueint >= 2 && rows->valueint <= 4 &&
                  cJSON_IsArray(macros) && cJSON_GetArraySize(macros) <= MAX_MACROS &&
@@ -565,7 +709,10 @@ static bool validate_config(const char *json)
                               !strcmp(theme->valuestring, "custom")))) &&
                  (!background || valid_hex_color(background)) &&
                  (!background_image || (cJSON_IsString(background_image) &&
-                                        valid_icon_key(background_image->valuestring)));
+                                        valid_icon_key(background_image->valuestring))) &&
+                 (!hide || cJSON_IsBool(hide)) &&
+                 (!offset || (cJSON_IsNumber(offset) && offset->valuedouble == offset->valueint &&
+                              offset->valueint >= -840 && offset->valueint <= 840));
     for (cJSON *item = valid ? macros->child : NULL; item; item = item->next) {
         cJSON *name = cJSON_GetObjectItemCaseSensitive(item, "name");
         cJSON *url = cJSON_GetObjectItemCaseSensitive(item, "url");
@@ -589,6 +736,9 @@ static bool validate_config(const char *json)
         cJSON *icon_size = cJSON_GetObjectItemCaseSensitive(item, "iconSize");
         cJSON *outline = cJSON_GetObjectItemCaseSensitive(item, "outline");
         cJSON *outline_color = cJSON_GetObjectItemCaseSensitive(item, "outlineColor");
+        cJSON *widget = cJSON_GetObjectItemCaseSensitive(item, "widget");
+        bool gif = cJSON_IsString(image_format) && !strcmp(image_format->valuestring, "gif");
+        if (gif) gif_count++;
         valid = cJSON_IsObject(item) && cJSON_IsString(name) && strlen(name->valuestring) <= 24 &&
                 cJSON_IsString(icon) && strlen(icon->valuestring) <= 8 &&
                 cJSON_IsString(url) &&
@@ -596,7 +746,8 @@ static bool validate_config(const char *json)
                  (url->valuestring[0] == '\0' &&
                   (!action_mode || (cJSON_IsString(action_mode) &&
                                     (!strcmp(action_mode->valuestring, "simple_link") ||
-                                     !strcmp(action_mode->valuestring, "sound")))))) &&
+                                     !strcmp(action_mode->valuestring, "sound") ||
+                                     !strcmp(action_mode->valuestring, "widget")))))) &&
                 cJSON_IsString(action) &&
                 (strcmp(action->valuestring, "webhook") == 0 ||
                  strcmp(action->valuestring, "http") == 0) &&
@@ -613,6 +764,7 @@ static bool validate_config(const char *json)
                                    !strcmp(action_mode->valuestring, "pc_open_url") ||
                                    !strcmp(action_mode->valuestring, "pc_macro") ||
                                    !strcmp(action_mode->valuestring, "sound") ||
+                                   !strcmp(action_mode->valuestring, "widget") ||
                                    !strcmp(action_mode->valuestring, "advanced")))) &&
                 (!pc_address || (cJSON_IsString(pc_address) &&
                                  strlen(pc_address->valuestring) <= 160)) &&
@@ -625,7 +777,16 @@ static bool validate_config(const char *json)
                              !strcmp(shape->valuestring, "soft") ||
                              !strcmp(shape->valuestring, "circle")))) &&
                 (!image_format || (cJSON_IsString(image_format) &&
-                                   !strcmp(image_format->valuestring, "rgb565a8"))) &&
+                                   (!strcmp(image_format->valuestring, "rgb565a8") || gif))) &&
+                (!widget || (cJSON_IsString(widget) &&
+                             (!strcmp(widget->valuestring, "clock") || !strcmp(widget->valuestring, "date") ||
+                              !strcmp(widget->valuestring, "pc_monitor")))) &&
+                (!(cJSON_IsString(action_mode) && !strcmp(action_mode->valuestring, "widget")) ||
+                 cJSON_IsString(widget)) &&
+                (!(cJSON_IsString(action_mode) && !strcmp(action_mode->valuestring, "widget") &&
+                   cJSON_IsString(widget) && !strcmp(widget->valuestring, "pc_monitor")) ||
+                 (valid_url(url->valuestring) && strlen(secret->valuestring) >= 32)) &&
+                (!gif || (gif_count <= 4 && cJSON_IsString(icon_image))) &&
                 (!sound || (cJSON_IsString(sound) &&
                             (!strcmp(sound->valuestring, "none") ||
                              !strcmp(sound->valuestring, "click") ||
@@ -641,7 +802,7 @@ static bool validate_config(const char *json)
                 (!icon_size || (cJSON_IsNumber(icon_size) &&
                                 (icon_size->valuedouble == 32 || icon_size->valuedouble == 160))) &&
                 (!(cJSON_IsNumber(icon_size) && icon_size->valueint == 160) ||
-                 (cJSON_IsString(image_format) && !strcmp(image_format->valuestring, "rgb565a8"))) &&
+                 (cJSON_IsString(image_format) && (!strcmp(image_format->valuestring, "rgb565a8") || gif))) &&
                 (!outline || cJSON_IsBool(outline)) &&
                 (!outline_color || valid_hex_color(outline_color)) &&
                 (!(cJSON_IsString(action_mode) && !strcmp(action_mode->valuestring, "sound")) ||
@@ -675,11 +836,67 @@ static esp_err_t icons_handler(httpd_req_t *req)
     esp_err_t auth = auth_required(req);
     if (auth != ESP_OK) return auth;
     httpd_resp_set_type(req, "application/json; charset=utf-8");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    size_t length = strnlen((const char *)fa_icons_json_start,
-                            (size_t)(fa_icons_json_end - fa_icons_json_start));
-    return httpd_resp_send(req, (const char *)fa_icons_json_start,
-                           (ssize_t)length);
+    httpd_resp_set_hdr(req, "Cache-Control", "private, max-age=86400");
+    char query[192], search[96] = "", name[96] = "", style[16] = "";
+    size_t query_length = httpd_req_get_url_query_len(req);
+    if (query_length >= sizeof(query))
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Icon search query is too long");
+    if (query_length && httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK)
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid icon search query");
+    if (query_length) {
+        httpd_query_key_value(query, "q", search, sizeof(search));
+        httpd_query_key_value(query, "name", name, sizeof(name));
+        httpd_query_key_value(query, "style", style, sizeof(style));
+    }
+    if (!search[0] && !name[0]) {
+        httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+        return httpd_resp_send(req, (const char *)fa_index_start, fa_index_end - fa_index_start);
+    }
+    for (const char *p = search; *p; p++) {
+        if (!((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') || *p == '-'))
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Search by icon name");
+    }
+    char *reply = heap_caps_malloc(128 * 1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!reply) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Icon search memory unavailable");
+    size_t used = 10;
+    memcpy(reply, "{\"icons\":[", used);
+    unsigned matches = 0;
+    const char *record = strstr((const char *)fa_icons_json_start, "{\"name\":\"");
+    while (record && matches < 24) {
+        const char *next = strstr(record + 1, "},{\"name\":\"");
+        const char *end = next ? next + 1 : strstr(record, "}]}");
+        if (!end) break;
+        if (!next) end++;
+        char icon_name[96], icon_style[16], combined[116];
+        const char *name_end = strchr(record + 9, '"');
+        const char *style_start = strstr(record, "\"style\":\"");
+        if (!name_end || !style_start || style_start >= end) break;
+        size_t name_length = name_end - (record + 9);
+        style_start += 9;
+        const char *style_end = strchr(style_start, '"');
+        if (name_length >= sizeof(icon_name) || !style_end ||
+            (size_t)(style_end - style_start) >= sizeof(icon_style)) break;
+        memcpy(icon_name, record + 9, name_length); icon_name[name_length] = '\0';
+        memcpy(icon_style, style_start, style_end - style_start); icon_style[style_end - style_start] = '\0';
+        snprintf(combined, sizeof(combined), "%s %s", icon_name, icon_style);
+        bool match = name[0] ? !strcmp(name, icon_name) && !strcmp(style, icon_style)
+                             : strstr(combined, search) != NULL;
+        if (match) {
+            size_t bytes = end - record;
+            if (used + bytes + 3 >= 128 * 1024) {
+                free(reply);
+                return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Icon search response too large");
+            }
+            if (matches++) reply[used++] = ',';
+            memcpy(reply + used, record, bytes);
+            used += bytes;
+        }
+        record = next ? next + 2 : NULL;
+    }
+    memcpy(reply + used, "]}", 2); used += 2;
+    esp_err_t err = httpd_resp_send(req, reply, used);
+    free(reply);
+    return err;
 }
 
 static esp_err_t config_get_handler(httpd_req_t *req)
@@ -839,6 +1056,11 @@ esp_err_t goopad_trigger(unsigned index)
     cJSON *secret = item ? cJSON_GetObjectItemCaseSensitive(item, "secret") : NULL;
     cJSON *sound = item ? cJSON_GetObjectItemCaseSensitive(item, "sound") : NULL;
     cJSON *mode = item ? cJSON_GetObjectItemCaseSensitive(item, "actionMode") : NULL;
+    if (cJSON_IsString(mode) && !strcmp(mode->valuestring, "widget")) {
+        cJSON_Delete(root);
+        xSemaphoreGive(s_config_lock);
+        return ESP_OK;
+    }
     esp_err_t sound_err = ESP_OK;
     if (cJSON_IsString(sound) && strcmp(sound->valuestring, "none")) {
         cJSON *file = cJSON_GetObjectItemCaseSensitive(item, "soundFile");
@@ -1123,6 +1345,15 @@ static esp_err_t status_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "audioBytes", g_app.audio_bytes_written);
     cJSON_AddNumberToObject(root, "audioPeak", g_app.audio_peak);
     cJSON_AddNumberToObject(root, "uptimeMs", esp_timer_get_time() / 1000);
+    cJSON_AddNumberToObject(root, "timeEpoch", time(NULL));
+    cJSON_AddNumberToObject(root, "renderedTiles", g_app.rendered_tiles);
+    cJSON_AddNumberToObject(root, "emptyTiles", g_app.empty_tiles);
+    cJSON_AddNumberToObject(root, "widgets", g_app.widget_count);
+    cJSON_AddNumberToObject(root, "gifs", g_app.gif_count);
+    cJSON_AddNumberToObject(root, "gifLoops", g_app.gif_loops);
+    char monitor[64];
+    goopad_monitor_text(monitor, sizeof(monitor));
+    cJSON_AddStringToObject(root, "pcMonitor", monitor);
     cJSON_AddBoolToObject(root, "audioBusy", hw_audio_busy());
     cJSON_AddNumberToObject(root, "brightness", board_backlight_get());
     cJSON_AddNumberToObject(root, "backlightDuty", board_backlight_duty());
@@ -1174,6 +1405,7 @@ static esp_err_t companion_status_handler(httpd_req_t *req)
     esp_http_client_config_t config = {
         .url = valid ? url->valuestring : NULL, .timeout_ms = 4000,
         .crt_bundle_attach = esp_crt_bundle_attach,
+        .disable_auto_redirect = true,
         .event_handler = companion_response, .user_data = &reply,
     };
     esp_http_client_handle_t client = valid && reply.data ? esp_http_client_init(&config) : NULL;
@@ -1205,11 +1437,155 @@ static esp_err_t companion_status_handler(httpd_req_t *req)
     return result;
 }
 
+void goopad_monitor_text(char *out, size_t capacity)
+{
+    portENTER_CRITICAL(&s_monitor_lock);
+    strlcpy(out, s_monitor_text, capacity);
+    portEXIT_CRITICAL(&s_monitor_lock);
+}
+
+static void monitor_task(void *arg)
+{
+    (void)arg;
+    char *config_json = heap_caps_malloc(CONFIG_MAX_BYTES + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    char *data = heap_caps_calloc(1, 2049, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!config_json || !data) {
+        free(config_json); free(data);
+        ESP_LOGE(TAG, "PC monitor memory unavailable");
+        portENTER_CRITICAL(&s_monitor_lock);
+        strlcpy(s_monitor_text, "Monitor memory error", sizeof(s_monitor_text));
+        portEXIT_CRITICAL(&s_monitor_lock);
+        vTaskDelete(NULL);
+        return;
+    }
+    while (true) {
+        goopad_get_config(config_json, CONFIG_MAX_BYTES + 1);
+        cJSON *root = cJSON_Parse(config_json);
+        cJSON *macros = root ? cJSON_GetObjectItemCaseSensitive(root, "macros") : NULL;
+        cJSON *target = NULL;
+        for (cJSON *item = macros ? macros->child : NULL; item; item = item->next) {
+            cJSON *mode = cJSON_GetObjectItemCaseSensitive(item, "actionMode");
+            cJSON *widget = cJSON_GetObjectItemCaseSensitive(item, "widget");
+            if (cJSON_IsString(mode) && !strcmp(mode->valuestring, "widget") &&
+                cJSON_IsString(widget) && !strcmp(widget->valuestring, "pc_monitor")) {
+                target = item; break;
+            }
+        }
+        char text[64] = "Set PC pairing";
+        if (!root) strlcpy(text, "Monitor config error", sizeof(text));
+        if (target) {
+            cJSON *url = cJSON_GetObjectItemCaseSensitive(target, "url");
+            cJSON *secret = cJSON_GetObjectItemCaseSensitive(target, "secret");
+            strlcpy(text, "PC unavailable", sizeof(text));
+            if (s_connected && cJSON_IsString(url) && cJSON_IsString(secret)) {
+                memset(data, 0, 2049);
+                companion_reply_t reply = {.data = data};
+                esp_http_client_config_t config = {
+                    .url = url->valuestring, .timeout_ms = 3000,
+                    .crt_bundle_attach = esp_crt_bundle_attach, .disable_auto_redirect = true,
+                    .event_handler = companion_response, .user_data = &reply,
+                };
+                esp_http_client_handle_t client = esp_http_client_init(&config);
+                if (client) {
+                    esp_http_client_set_header(client, "X-GooPad-Token", secret->valuestring);
+                    esp_err_t err = esp_http_client_perform(client);
+                    int status = esp_http_client_get_status_code(client);
+                    esp_http_client_cleanup(client);
+                    cJSON *snapshot = err == ESP_OK && status == 200 && !reply.overflow ? cJSON_Parse(data) : NULL;
+                    cJSON *cpu = snapshot ? cJSON_GetObjectItemCaseSensitive(snapshot, "cpuPercent") : NULL;
+                    cJSON *memory = snapshot ? cJSON_GetObjectItemCaseSensitive(snapshot, "memoryPercent") : NULL;
+                    if (cJSON_IsNumber(memory) && memory->valuedouble >= 0 && memory->valuedouble <= 100) {
+                        if (cJSON_IsNumber(cpu) && cpu->valuedouble >= 0 && cpu->valuedouble <= 100)
+                            snprintf(text, sizeof(text), "CPU %.0f%%\nRAM %.0f%%", cpu->valuedouble, memory->valuedouble);
+                        else if (cJSON_IsNull(cpu))
+                            snprintf(text, sizeof(text), "CPU sampling\nRAM %.0f%%", memory->valuedouble);
+                        else strlcpy(text, "Invalid PC data", sizeof(text));
+                    }
+                    cJSON_Delete(snapshot);
+                }
+            }
+        }
+        char previous[64];
+        goopad_monitor_text(previous, sizeof(previous));
+        if (strcmp(previous, text) && (strstr(text, "error") || strstr(text, "unavailable") || strstr(text, "Invalid")))
+            ESP_LOGW(TAG, "%s", text);
+        portENTER_CRITICAL(&s_monitor_lock);
+        strlcpy(s_monitor_text, text, sizeof(s_monitor_text));
+        portEXIT_CRITICAL(&s_monitor_lock);
+        cJSON_Delete(root);
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+}
+
+static esp_err_t time_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+    uint8_t body[128];
+    if (req->content_len <= 0 || req->content_len >= sizeof(body) ||
+        !receive_bytes(req, body, req->content_len))
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid time request");
+    body[req->content_len] = '\0';
+    cJSON *root = cJSON_Parse((char *)body);
+    cJSON *epoch = root ? cJSON_GetObjectItemCaseSensitive(root, "epoch") : NULL;
+    bool valid = cJSON_IsNumber(epoch) && epoch->valuedouble >= 1577836800 &&
+                 epoch->valuedouble <= 4102444800;
+    struct timeval now = {.tv_sec = valid ? (time_t)epoch->valuedouble : 0};
+    cJSON_Delete(root);
+    if (!valid) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid epoch");
+    if (settimeofday(&now, NULL) != 0) {
+        ESP_LOGE(TAG, "Could not set device time");
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not set time");
+    }
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
+}
+
+static esp_err_t icon_delete_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+    char query[32], key[20];
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "key", key, sizeof(key)) != ESP_OK || !valid_icon_key(key))
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid icon key");
+    xSemaphoreTake(s_config_lock, portMAX_DELAY);
+    cJSON *root = cJSON_Parse(s_config);
+    cJSON *macros = root ? cJSON_GetObjectItemCaseSensitive(root, "macros") : NULL;
+    bool used = false;
+    for (cJSON *item = macros ? macros->child : NULL; item; item = item->next) {
+        cJSON *icon = cJSON_GetObjectItemCaseSensitive(item, "iconImage");
+        if (cJSON_IsString(icon) && !strcmp(icon->valuestring, key)) used = true;
+    }
+    bool parsed = root != NULL;
+    cJSON_Delete(root);
+    xSemaphoreGive(s_config_lock);
+    if (!parsed) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not check asset references");
+    if (used) {
+        httpd_resp_set_status(req, "409 Conflict");
+        return httpd_resp_sendstr(req, "Icon is still used by the layout");
+    }
+    const char *suffixes[] = {"rgb565", "rgb565a8", "160.rgb565a8", "gif"};
+    bool deleted = false;
+    for (unsigned i = 0; i < sizeof(suffixes) / sizeof(suffixes[0]); i++) {
+        char path[64];
+        snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.%s", key, suffixes[i]);
+        if (remove(path) == 0) deleted = true;
+        else if (errno != ENOENT) {
+            ESP_LOGE(TAG, "Could not delete unused icon: errno=%d", errno);
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not delete icon");
+        }
+    }
+    if (!deleted) return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Icon not found");
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
+}
+
 static esp_err_t start_server(void)
 {
     if (s_server) return ESP_OK;
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
-    config.httpd.max_uri_handlers = 18;
+    config.httpd.max_uri_handlers = 20;
     config.httpd.core_id = 1;
     esp_err_t err = goopad_tls_configure(&config, s_ip_address);
     if (err == ESP_OK) err = httpd_ssl_start(&s_server, &config);
@@ -1228,6 +1604,8 @@ static esp_err_t start_server(void)
         {.uri = "/api/icons", .method = HTTP_GET, .handler = icons_handler},
         {.uri = "/api/icon", .method = HTTP_POST, .handler = icon_upload_handler},
         {.uri = "/api/icon", .method = HTTP_GET, .handler = icon_get_handler},
+        {.uri = "/api/icon", .method = HTTP_DELETE, .handler = icon_delete_handler},
+        {.uri = "/api/time", .method = HTTP_POST, .handler = time_handler},
         {.uri = "/api/sound", .method = HTTP_POST, .handler = sound_upload_handler},
         {.uri = "/api/sound", .method = HTTP_DELETE, .handler = sound_delete_handler},
         {.uri = "/api/controls", .method = HTTP_POST, .handler = controls_handler},
@@ -1281,6 +1659,8 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *event = data;
         s_connected = true;
+        esp_err_t time_err = esp_netif_sntp_start();
+        if (time_err != ESP_OK) ESP_LOGW(TAG, "Network time start: %s", esp_err_to_name(time_err));
         s_wifi_connecting = false;
         s_wifi_connect_attempts = 0;
         snprintf(s_ip_address, sizeof(s_ip_address), IPSTR, IP2STR(&event->ip_info.ip));
@@ -1320,11 +1700,16 @@ void goopad_wifi_join(const char *ssid, const char *password)
 
 void goopad_init(void)
 {
+    esp_sntp_config_t time_config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+    time_config.start = false;
+    ESP_ERROR_CHECK(esp_netif_sntp_init(&time_config));
     s_config = heap_caps_malloc(CONFIG_MAX_BYTES + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     ESP_ERROR_CHECK(s_config ? ESP_OK : ESP_ERR_NO_MEM);
     s_config_lock = xSemaphoreCreateMutex();
     ESP_ERROR_CHECK(s_config_lock ? ESP_OK : ESP_ERR_NO_MEM);
     load_config();
+    if (xTaskCreatePinnedToCore(monitor_task, "pc_monitor", 6144, NULL, 3, NULL, 1) != pdPASS)
+        ESP_LOGE(TAG, "Could not start PC monitor worker");
     ensure_web_key();
     nvs_handle_t controls;
     if (nvs_open(NVS_NS, NVS_READONLY, &controls) == ESP_OK) {

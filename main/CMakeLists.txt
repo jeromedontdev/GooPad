@@ -1,3 +1,13 @@
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/fa-icons.json"
+    "${CMAKE_CURRENT_LIST_DIR}/../tools/make_fa_index.py")
+
+execute_process(
+    COMMAND "${PYTHON}" "${CMAKE_CURRENT_LIST_DIR}/../tools/make_fa_index.py"
+        "${CMAKE_CURRENT_LIST_DIR}/fa-icons.json" "${CMAKE_CURRENT_LIST_DIR}/fa-index.json.gz"
+    COMMAND_ERROR_IS_FATAL ANY
+)
+
 idf_component_register(
     SRCS
         "main.c"
@@ -12,6 +22,7 @@ idf_component_register(
         "hw_gpio.c"
         "hw_wifi.c"
     EMBED_TXTFILES "index.html" "fa-icons.json"
+    EMBED_FILES "fa-index.json.gz"
     INCLUDE_DIRS "."
     REQUIRES
         driver

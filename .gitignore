@@ -8,3 +8,4 @@ dependencies.lock
 dist/
 __pycache__/
 *.py[cod]
+main/fa-index.json.gz

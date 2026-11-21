@@ -11,6 +11,9 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
+#include <sys/stat.h>
 
 #define ICON_BYTES (160 * 160 * 3)
 #define MAX_MACROS 32
@@ -42,11 +45,81 @@ static uint8_t *s_icon_buffers;
 static lv_image_dsc_t s_icon_images[MAX_MACROS];
 static uint8_t *s_background_pixels;
 static lv_image_dsc_t s_background_image;
+static uint8_t *s_gif_buffers[MAX_MACROS];
+static lv_image_dsc_t s_gif_images[MAX_MACROS];
+static lv_obj_t *s_gif_objects[MAX_MACROS];
+static int s_gif_pages[MAX_MACROS];
+static bool s_gif_paused[MAX_MACROS];
+static lv_obj_t *s_widget_labels[MAX_MACROS];
+static unsigned s_widget_types[MAX_MACROS];
+static int s_time_offset;
 static bool s_grid_shown;
 static bool s_loading_shown;
 static volatile bool s_scan_in_progress;
 static bool s_ota_running;
 static bool s_ota_armed;
+
+static void clear_dynamic_assets(void)
+{
+    s_pages = NULL;
+    s_info_overlay = NULL;
+    g_app.rendered_tiles = g_app.empty_tiles = g_app.widget_count = g_app.gif_count = g_app.gif_loops = 0;
+    for (unsigned i = 0; i < MAX_MACROS; i++) {
+        free(s_gif_buffers[i]);
+        s_gif_buffers[i] = NULL;
+        s_gif_objects[i] = NULL;
+        s_widget_labels[i] = NULL;
+        s_widget_types[i] = 0;
+        s_gif_paused[i] = true;
+    }
+}
+
+static void gif_loop_cb(lv_event_t *event)
+{
+    (void)event;
+    g_app.gif_loops++;
+}
+
+static bool macro_configured(cJSON *macro)
+{
+    if (!macro) return false;
+    cJSON *url = cJSON_GetObjectItemCaseSensitive(macro, "url");
+    cJSON *image = cJSON_GetObjectItemCaseSensitive(macro, "iconImage");
+    cJSON *sound = cJSON_GetObjectItemCaseSensitive(macro, "sound");
+    cJSON *mode = cJSON_GetObjectItemCaseSensitive(macro, "actionMode");
+    return cJSON_IsString(image) || (cJSON_IsString(url) && url->valuestring[0]) ||
+           (cJSON_IsString(sound) && strcmp(sound->valuestring, "none")) ||
+           (cJSON_IsString(mode) && !strcmp(mode->valuestring, "widget"));
+}
+
+static void update_widgets(void)
+{
+    time_t epoch = time(NULL);
+    bool synced = epoch >= 1577836800;
+    epoch += s_time_offset * 60;
+    struct tm now;
+    gmtime_r(&epoch, &now);
+    int scroll_x = s_pages ? lv_obj_get_scroll_x(s_pages) : 0;
+    for (unsigned i = 0; i < MAX_MACROS; i++) {
+        if (s_widget_labels[i]) {
+            char text[64];
+            if (s_widget_types[i] == 3) goopad_monitor_text(text, sizeof(text));
+            else if (!synced) strlcpy(text, "Sync time\nin the website", sizeof(text));
+            else strftime(text, sizeof(text), s_widget_types[i] == 1 ? "%H:%M:%S" : "%Y-%m-%d", &now);
+            if (strcmp(lv_label_get_text(s_widget_labels[i]), text))
+                lv_label_set_text(s_widget_labels[i], text);
+        }
+        if (s_gif_objects[i]) {
+            int left = s_gif_pages[i] * 480;
+            bool pause = left + 480 <= scroll_x || left >= scroll_x + 480 || s_info_overlay != NULL;
+            if (pause != s_gif_paused[i]) {
+                if (pause) lv_gif_pause(s_gif_objects[i]);
+                else lv_gif_resume(s_gif_objects[i]);
+                s_gif_paused[i] = pause;
+            }
+        }
+    }
+}
 
 static lv_color_t color(uint32_t value)
 {
@@ -492,6 +565,7 @@ static void build_setup_screen(void)
     s_loading_shown = false;
     s_password_visible = false;
     lv_obj_clean(s_screen);
+    clear_dynamic_assets();
     theme_screen();
     lv_obj_t *title = label(s_screen, "GooPad", 28, color(0xA5B4FC));
     lv_obj_set_pos(title, 18, 8);
@@ -571,6 +645,7 @@ static void build_loading_screen(void)
         lv_obj_set_hidden(s_keyboard, true);
     }
     lv_obj_clean(s_screen);
+    clear_dynamic_assets();
     theme_screen();
 
     lv_obj_t *title = label(s_screen, "GooPad", 28, color(0xA5B4FC));
@@ -627,6 +702,7 @@ static void build_grid_screen(void)
     strlcpy(s_rendered_config, s_config_buffer, 12001);
     s_grid_shown = true;
     lv_obj_clean(s_screen);
+    clear_dynamic_assets();
     theme_screen();
 
     cJSON *root = cJSON_Parse(s_config_buffer);
@@ -638,9 +714,17 @@ static void build_grid_screen(void)
     if (cols < 2 || cols > 4) cols = 3;
     if (rows < 2 || rows > 4) rows = 3;
     int total = cJSON_IsArray(macros) ? cJSON_GetArraySize(macros) : 0;
+    cJSON *hide_item = root ? cJSON_GetObjectItemCaseSensitive(root, "hideUnconfigured") : NULL;
+    cJSON *offset_item = root ? cJSON_GetObjectItemCaseSensitive(root, "timeOffsetMinutes") : NULL;
+    bool hide = cJSON_IsTrue(hide_item);
+    s_time_offset = cJSON_IsNumber(offset_item) ? offset_item->valueint : 0;
+    int indices[MAX_MACROS], visible = 0;
+    for (int i = 0; i < total && i < MAX_MACROS; i++) {
+        if (!hide || macro_configured(cJSON_GetArrayItem(macros, i))) indices[visible++] = i;
+    }
     int per_page = cols * rows;
-    int page_count = (total + per_page - 1) / per_page;
-    if (page_count < 2) page_count = 2;
+    int page_count = (visible + per_page - 1) / per_page;
+    if (page_count < (hide ? 1 : 2)) page_count = hide ? 1 : 2;
     cJSON *bg = root ? cJSON_GetObjectItemCaseSensitive(root, "background") : NULL;
     cJSON *device_theme = root ? cJSON_GetObjectItemCaseSensitive(root, "theme") : NULL;
     const char *theme_name = cJSON_IsString(device_theme)
@@ -750,8 +834,10 @@ static void build_grid_screen(void)
         lv_obj_set_style_pad_all(surface, 0, 0);
         lv_obj_set_scrollable(surface, false);
         for (int slot = 0; slot < per_page; slot++) {
-            int index = page * per_page + slot;
-            cJSON *macro = index < total ? cJSON_GetArrayItem(macros, index) : NULL;
+            int position = page * per_page + slot;
+            if (hide && position >= visible) continue;
+            int index = position < visible ? indices[position] : MAX_MACROS;
+            cJSON *macro = index < MAX_MACROS ? cJSON_GetArrayItem(macros, index) : NULL;
             lv_obj_t *tile = lv_button_create(surface);
             int width = cell_width;
             int height = cell_height;
@@ -790,7 +876,8 @@ static void build_grid_screen(void)
             lv_obj_set_style_pad_all(tile, 0, 0);
             lv_obj_set_style_shadow_width(tile, 0, 0);
             lv_obj_set_style_clip_corner(tile, true, 0);
-            if (macro) {
+            if (macro_configured(macro)) {
+                g_app.rendered_tiles++;
                 cJSON *name = cJSON_GetObjectItemCaseSensitive(macro, "name");
                 cJSON *icon = cJSON_GetObjectItemCaseSensitive(macro, "icon");
                 cJSON *accent = cJSON_GetObjectItemCaseSensitive(macro, "color");
@@ -803,8 +890,15 @@ static void build_grid_screen(void)
                     ? color((unsigned)strtoul(font_color->valuestring, NULL, 16))
                     : light_theme ? color(0x172033) : lv_color_white();
                 lv_obj_set_style_bg_color(tile, color(accent_value), 0);
-                lv_obj_add_event_cb(tile, tile_cb, LV_EVENT_CLICKED,
-                                    (void *)(uintptr_t)index);
+                cJSON *mode = cJSON_GetObjectItemCaseSensitive(macro, "actionMode");
+                cJSON *widget = cJSON_GetObjectItemCaseSensitive(macro, "widget");
+                bool is_widget = cJSON_IsString(mode) && !strcmp(mode->valuestring, "widget");
+                cJSON *url = cJSON_GetObjectItemCaseSensitive(macro, "url");
+                cJSON *sound = cJSON_GetObjectItemCaseSensitive(macro, "sound");
+                bool actionable = !is_widget && ((cJSON_IsString(url) && url->valuestring[0]) ||
+                                  (cJSON_IsString(sound) && strcmp(sound->valuestring, "none")));
+                if (actionable) lv_obj_add_event_cb(tile, tile_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)index);
+                else lv_obj_set_clickable(tile, false);
                 cJSON *custom_image = cJSON_GetObjectItemCaseSensitive(macro, "iconImage");
                 cJSON *image_format = cJSON_GetObjectItemCaseSensitive(macro, "iconFormat");
                 bool alpha = cJSON_IsString(image_format) &&
@@ -815,7 +909,54 @@ static void build_grid_screen(void)
                 if (icon_size < 16) icon_size = 16;
                 int icon_y = caption[0] ? -10 : 0;
                 bool image_drawn = false;
-                if (cJSON_IsString(custom_image) && g_app.sd.mounted && s_icon_buffers) {
+                if (is_widget) {
+                    g_app.widget_count++;
+                    unsigned type = cJSON_IsString(widget) && !strcmp(widget->valuestring, "pc_monitor") ? 3 :
+                                    cJSON_IsString(widget) && !strcmp(widget->valuestring, "date") ? 2 : 1;
+                    s_widget_types[index] = type;
+                    s_widget_labels[index] = label(tile, "", width < 140 ? 14 : 28, text_color);
+                    lv_obj_set_width(s_widget_labels[index], width - 16);
+                    lv_obj_set_style_text_align(s_widget_labels[index], LV_TEXT_ALIGN_CENTER, 0);
+                    lv_obj_align(s_widget_labels[index], LV_ALIGN_CENTER, 0, icon_y);
+                    image_drawn = true;
+                } else if (cJSON_IsString(custom_image) && cJSON_IsString(image_format) &&
+                           !strcmp(image_format->valuestring, "gif") && g_app.sd.mounted) {
+                    char path[64];
+                    snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.gif", custom_image->valuestring);
+                    struct stat info;
+                    if (stat(path, &info) == 0 && info.st_size >= 14 && info.st_size <= 128 * 1024) {
+                        s_gif_buffers[index] = heap_caps_malloc(info.st_size + 240 * 8, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                        FILE *file = fopen(path, "rb");
+                        bool loaded = file && s_gif_buffers[index] &&
+                                      fread(s_gif_buffers[index], 1, info.st_size, file) == (size_t)info.st_size;
+                        if (file) fclose(file);
+                        size_t gif_bytes = info.st_size;
+                        if (loaded) loaded = goopad_prepare_gif(s_gif_buffers[index], &gif_bytes, info.st_size + 240 * 8);
+                        if (loaded) {
+                            uint8_t *data = s_gif_buffers[index];
+                            int w = data[6] | data[7] << 8, h = data[8] | data[9] << 8;
+                            s_gif_images[index] = (lv_image_dsc_t) {
+                                .header = {.magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RAW, .w = w, .h = h},
+                                .data_size = gif_bytes, .data = data,
+                            };
+                            lv_obj_t *gif = lv_gif_create(tile);
+                            lv_gif_set_src(gif, &s_gif_images[index]);
+                            image_drawn = lv_gif_is_loaded(gif);
+                            if (image_drawn) {
+                                g_app.gif_count++;
+                                lv_obj_add_event_cb(gif, gif_loop_cb, LV_EVENT_READY, NULL);
+                                lv_image_set_scale(gif, icon_size * 256 / (w > h ? w : h));
+                                lv_obj_align(gif, LV_ALIGN_CENTER, 0, icon_y);
+                                s_gif_objects[index] = gif;
+                                s_gif_pages[index] = page;
+                                lv_gif_pause(gif);
+                            } else {
+                                lv_obj_delete(gif);
+                                ESP_LOGE(TAG, "Could not decode GIF for tile %d", index);
+                            }
+                        } else ESP_LOGE(TAG, "Could not read GIF for tile %d", index);
+                    } else ESP_LOGE(TAG, "GIF missing or invalid for tile %d", index);
+                } else if (cJSON_IsString(custom_image) && g_app.sd.mounted && s_icon_buffers) {
                     char path[64];
                     snprintf(path, sizeof(path), BSP_SD_MOUNT_POINT "/goopad/icon-%s.%s",
                              custom_image->valuestring, side == 160 ? "160.rgb565a8" : alpha ? "rgb565a8" : "rgb565");
@@ -867,15 +1008,11 @@ static void build_grid_screen(void)
                 }
             } else {
                 lv_obj_set_style_bg_color(tile, color(0x1F2937), 0);
-                bool swipe_test = page > 0 && slot == 0 && index >= total;
-                lv_obj_t *empty = label(tile, swipe_test ? "Swipe test" : "+",
-                                        swipe_test ? 16 : 24,
-                                        color(swipe_test ? 0xA5B4FC : 0x64748B));
-                lv_obj_center(empty);
-                if (swipe_test) lv_obj_set_clickable(tile, false);
+                lv_obj_set_clickable(tile, false);
             }
         }
     }
+    update_widgets();
     s_dots = lv_obj_create(s_screen);
     s_page_dot_count = (size_t)page_count;
     lv_obj_set_size(s_dots, page_count * 18, 14);
@@ -909,6 +1046,7 @@ static void refresh_cb(lv_timer_t *timer)
         if (!s_grid_shown || strcmp(s_config_buffer, s_rendered_config) != 0) {
             build_grid_screen();
         }
+        update_widgets();
     } else if (goopad_wifi_connecting()) {
         if (!s_loading_shown) build_loading_screen();
     } else if (s_grid_shown || s_loading_shown) {

@@ -33,7 +33,7 @@ a stable bookmark.
 ## Macros and customization
 
 Each tile supports an optional label, color, visual, and a plain-language action.
-Choose **Icon / emoji**, **Font Awesome**, or **Image** from its visual-type
+Choose **Icon / emoji**, **Font Awesome**, **Image**, or **Animated GIF** from its visual-type
 dropdown. Blank labels stay blank; the visual is enlarged and centered.
 **Save to device** is below the live preview.
 Save progress, confirmation, and errors appear only there. **Save appearance**
@@ -50,7 +50,11 @@ symbols map to the built-in LVGL icon font on the panel; unsupported glyphs
 fall back to the button label's initial. The editor also bundles 2,163
 searchable Font Awesome Free solid, regular, and brand icons. Enter Font
 Awesome codes such as `fa-server` or `fa-brands fa-github`, or search the
-bundled catalog. Font Awesome selections and uploaded images are converted to
+bundled catalog. The picker first downloads a small compressed name index and
+only fetches matching drawings. Selection progress stays inside the picker;
+direct-code progress uses the main page. Repeated selections reuse uploaded
+assets, and lossless run-length compression reduces icon-upload traffic.
+Font Awesome selections and uploaded images are converted to
 160×160 RGB565 with an 8-bit alpha plane and saved under
 `/goopad` on the SD card; a card is required to use them. The **Settings** page
 contains preset themes plus Custom background controls, website appearance, backups, firmware
@@ -69,6 +73,21 @@ The device loads the 460,800-byte image into PSRAM. Preset themes ignore the
 stored image; switching back to Custom restores it. Removing it from the layout
 requires saving. Images are stored separately on SD, so a config-only backup
 does not include the assets.
+
+Choose **Live widget** for a live clock, date, or PC CPU/RAM monitor.
+Widgets are display-only, not buttons. Clock/date use network time or time
+synced when the website opens; Settings includes a fixed UTC offset, initially
+matched to the browser. Update that offset after daylight-saving changes.
+PC monitoring uses the paired Companion and refreshes every five seconds.
+It requires the same LAN reachability as PC commands and shows an explicit
+unavailable/sampling message when no reading is available.
+
+Animated GIFs require SD and are limited to 160×160 pixels, 128 KB, 240 frames,
+and four GIF tiles per layout. Device frame delays are clamped to at least
+100 ms (10 fps); animations pause on hidden pages and behind the Info panel.
+The browser preview may animate faster than the device. Unconfigured tiles
+have no plus sign and cannot be tapped. **Hide unconfigured tiles** compacts
+configured actions and widgets without changing their action assignments.
 
 Each button can play a click, beep, chime, or alert through the board's I2S
 speaker, either alongside its web action or with **Play a sound only**.
@@ -106,8 +125,9 @@ packages into one directory and run
 Download **GooPadCompanion-Windows.zip** from the site's **About & help** tab or
 [the latest release](https://github.com/jeromedontdev/GooPad/releases/latest).
 Extract it and run `GooPadCompanion.exe` as a normal Windows user. No Python
-installation is needed for that app. Keep its window open or minimized; closing
-it stops the receiver. Its two Copy buttons provide the PC address and a private
+installation is needed for that app. Closing quits and minimizing uses the
+taskbar by default. You can independently change either button to **Hide in tray**;
+the receiver keeps running while hidden. Its two Copy buttons provide the PC address and a private
 pairing token. Paste these under website **Settings > Windows companion**, check
 the connection, then save. The last-result check also shows errors and whether
 PowerShell is enabled. Allow TCP port 8787 only on a trusted Private network.
@@ -133,17 +153,20 @@ check. Do not run Companion as Administrator. Its config and log are in
 
 | Mode | Starts | Stops | Available actions |
 | --- | --- | --- | --- |
-| Open the app manually | When you open it | Closing the app or signing out | All desktop actions |
-| **Start with Windows** checkbox | When this user signs in, minimized | Closing the app or signing out | Same desktop actions |
+| Open the app manually | When you open it | Quit Companion or sign out | All desktop actions |
+| **Start with Windows** checkbox | When this user signs in, minimized or hidden in tray | Quit Companion or sign out | Same desktop actions |
 
 **Desktop startup is recommended** for everyday macro-pad use. Hotkeys, media
 keys and typed text require your awake, logged-in, unlocked desktop. Minimize
-the app to keep it running; closing it stops the listener. Windows startup uses
+the app to keep it running, or select tray behavior for Close/Minimize.
+**Hide in the tray on Windows startup** starts without a taskbar window.
+Use the tray's **Open GooPad Companion** item to restore it and **Quit** to
+stop the listener, regardless of the Close preference. Windows startup uses
 only this user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry.
 For the packaged app it copies the executable into
 `%LOCALAPPDATA%\GooPad\bin`, so moving the extracted download does not break
 startup. Disabling the checkbox removes the startup entry, retaining that copy.
-After downloading an update, close the old app, open the new executable, and
+After downloading an update, **Quit** the old app, open the new executable, and
 uncheck/recheck this option to refresh its startup copy. Remove any old manual
 `shell:startup` shortcut to avoid launching two copies. When running from Python
 source, keep the source directory and interpreter at their registered paths.
@@ -222,9 +245,14 @@ machine). The board is an ESP32-S3-WROOM-1U-N16R8: 16 MB flash, 8 MB octal
 PSRAM, ST7701S RGB display, GT911 touch, and microSD slot.
 
 Run the existing Companion tests with `python -m unittest tests.test_companion`.
-The desktop Python receiver and Windows startup use the standard library.
+The console receiver and Windows startup use the standard library.
+The desktop tray uses pystray and Pillow; install source-GUI dependencies with
+`python -m pip install -r companion\requirements.txt`.
 Build the Windows download with
-`.\tools\make_companion.ps1`; PyInstaller must also be installed.
+`.\tools\make_companion.ps1`; PyInstaller must also be installed. The download
+includes dependency licenses and pystray source for replacing/rebuilding that
+LGPL library. The source GUI can be launched with
+`python companion\GooPadCompanion.py --gui --hidden`.
 For authenticated hardware regression checks (PowerShell 7), run
 `.\tests\Test-GooPadDevice.ps1 -Device https://<device-ip> -Credential (Get-Credential admin)`.
 This temporarily exercises nine grid sizes, five shapes, power clamps,

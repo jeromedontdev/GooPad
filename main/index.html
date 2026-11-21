@@ -39,6 +39,7 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <section class="panel"><h2>Button layout</h2><div class="fields">
 <div class="field"><label>Columns</label><select id="cols"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field"><label>Rows per page</label><select id="rows"><option>2</option><option selected>3</option><option>4</option></select></div>
+<div class="field wide"><label><input id="hideUnconfigured" type="checkbox"> Hide unconfigured tiles (compact the grid)</label></div>
 </div><h2 style="margin-top:22px">Macros <span class="hint" id="count"></span></h2>
 <div id="macros"></div><button id="add" style="margin-top:12px">＋ Add macro</button><p class="hint">Set up a button with a link, open a website on your Windows PC, or choose Advanced for custom requests.</p></section>
 <aside class="side"><section class="panel"><h2>Live preview</h2><div class="preview" id="preview" aria-label="Swipe horizontally to preview GooPad pages"></div><div class="preview-dots" id="previewDots" aria-label="Preview pages"></div><p class="hint">Swipe horizontally to test page scrolling. Dots show your current page.</p><button class="primary" id="save">Save to device</button><p id="saveStatus" class="save-status" role="status" aria-live="polite"></p></section>
@@ -48,6 +49,7 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <section class="panel"><h2>Device appearance</h2><div class="fields">
 <div class="field"><label for="deviceTheme">Device theme</label><select id="deviceTheme"><option value="midnight">Midnight</option><option value="ocean">Ocean</option><option value="forest">Forest</option><option value="light">Light</option><option value="custom">Custom</option></select></div>
 <div class="field" id="customBackground"><label for="background">Custom background</label><input id="background" type="color" value="#111827"></div>
+<div class="field"><label for="timeOffset">Clock UTC offset (minutes)</label><input id="timeOffset" type="number" min="-840" max="840" step="15"></div>
 </div><div id="backgroundUploadField" class="field hidden" style="margin-top:14px"><label for="backgroundUpload">Background image (SD card required, up to 15 MB)</label><input id="backgroundUpload" type="file" accept="image/*"><p class="hint">Images are center-cropped to fill the 480×480 screen. Transparent areas use your background color.</p><img id="backgroundSample" class="background-sample hidden" alt="Custom background"><span id="backgroundStatus" class="hint" role="status"></span><button id="removeBackground" type="button">Remove image</button></div><p class="hint">Presets use their own background palette. Choose Custom to edit the background; each macro can also override its font, tile, and outline colors.</p><button id="saveSettings" class="primary" type="button">Save appearance</button>
 <h2 style="margin-top:24px">Windows companion</h2><p class="hint">Run the Companion app on your PC, then use its two Copy buttons. <a href="#companionHelp" id="pairingHelp">Show setup help</a>.</p><div class="fields"><div class="field"><label for="companionAddress">PC address</label><input id="companionAddress" placeholder="192.168.1.50:8787" autocomplete="off"></div><div class="field"><label for="companionToken">Private pairing token</label><input id="companionToken" type="password" autocomplete="off" maxlength="64" placeholder="Paste Companion token"></div></div><button id="checkCompanion" type="button" style="margin-top:12px">Check connection / last result</button><p id="companionStatus" class="hint" role="status"></p><p class="hint">Save appearance also saves this pairing. New PC macros share it. Only use a trusted private LAN.</p></section>
 <aside class="side"><section class="panel"><h2>Website appearance</h2><p class="hint">Change the editor colors independently of the device.</p><button id="siteTheme" type="button">Use light website theme</button></section>
@@ -60,22 +62,24 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <section class="panel"><h2>Help and examples</h2>
 <details open><summary>Build a PC macro without JSON</summary><p>Choose a starter such as Copy, Paste, Screenshot, Play/Pause, or Mute. Each step can press a hotkey, send a media key, type text, wait, open a website, run PowerShell, or launch an app already approved on the PC. Use the arrow buttons to reorder steps. A sequence can contain up to 12 steps, with at most 10 seconds of waiting in total.</p><p>Example: add <strong>Ctrl+L</strong>, <strong>Type text</strong> with a website address, and <strong>Enter</strong> to use a focused browser. Or simply use <strong>Open website</strong> to open a link in the default browser. Add a short Wait if an app needs time between steps.</p></details>
 <details><summary>PowerShell and approved apps</summary><p>PowerShell is disabled by default. Enable it <strong>locally in Companion</strong> only if you trust your LAN and everyone with the pairing token. Then choose a PowerShell step and enter your command (up to 512 characters). Scripts run as your Windows user, with a 10-second timeout. Errors stop the rest of the sequence and appear in Companion and the connection/last-result check.</p><p>For fixed app launches or SSH, advanced users can add named actions in <code>%LOCALAPPDATA%\GooPad\companion.json</code>. Each action specifies a program and fixed arguments. Enter that name in an Approved PC app step. The device cannot change those arguments. See the source README for examples.</p></details>
-<details><summary>Keep Companion running / start with Windows</summary><p><strong>Manual:</strong> open Companion when you need it. <strong>Start with Windows (recommended):</strong> enable the app checkbox to open it minimized whenever your Windows user signs in. Both modes offer the same hotkeys, media keys, typed text, websites, approved apps and locally enabled PowerShell, running as your normal Windows user. PowerShell remains off until you enable it locally.</p><p>Minimize the app to keep it listening; closing it or signing out stops it. The PC must be awake and unlocked for keyboard macros. Automatic startup needs no administrator access and works only after sign-in. No Windows service is installed. The packaged app keeps a stable copy under <code>%LOCALAPPDATA%\GooPad\bin</code>, so moving your download does not break startup. Uncheck the option to disable automatic startup.</p></details>
+<details><summary>Keep Companion running / start with Windows</summary><p>Start with Windows opens Companion at user sign-in. Enable <strong>Hide in the tray on Windows startup</strong> to start without a taskbar window. Close and Minimize each have their own tray preference. Defaults remain Close = quit and Minimize = taskbar. Hidden Companion still receives commands; use its tray menu to Open or Quit.</p><p>Manual and automatic startup support the same actions, including locally enabled PowerShell. Keyboard macros require an awake, unlocked desktop. Signing out stops Companion. Startup needs no administrator access and no Windows service is installed. The packaged app uses a stable copy under <code>%LOCALAPPDATA%\GooPad\bin</code>. Uncheck Start with Windows to disable autostart.</p></details>
+<details><summary>Live widgets and PC monitoring</summary><p>Choose <strong>Live widget</strong> for a clock, date, or PC CPU/RAM display. Widgets do not run actions when tapped. Clock/date sync over Wi-Fi or when you open this website. The fixed UTC offset in Settings initially matches your browser; update it after daylight-saving changes. PC usage refreshes every five seconds and requires a paired, reachable Companion.</p></details>
+<details><summary>GIFs and empty tiles</summary><p>Animated GIF visuals require SD: at most 160x160 pixels, 128 KB, 240 frames, and four GIF tiles. The device caps playback at 10 fps and pauses off-screen animations; browser previews may be faster. Unconfigured tiles are blank and inactive, without a plus sign. Enable <strong>Hide unconfigured tiles</strong> to compact the grid while keeping action assignments intact.</p></details>
 <details><summary>Connection or action not working</summary><p>Confirm both devices are on the same trusted LAN, Companion is open, and its current address/token match Settings. Guest Wi-Fi can block communication. Check the Private-network firewall rule for TCP 8787. Reserve the PC's IP in your router if it changes. An old Companion supports only basic actions: download the latest app for the builder.</p><p>Only one PC sequence runs at a time; repeated taps while busy are rejected instead of overlapping keys. Check the app's last-result message. Windows blocks input into administrator apps, locked screens, and some games. Media-key handling depends on the media app. Try a normal Notepad window for a text/hotkey macro.</p></details>
 <details><summary>Backgrounds, saving, and security</summary><p>Select Custom in Settings to upload a background image; an SD card is required. Images are cropped to fill the screen. Choose a preset to temporarily use its palette instead. Save appearance returns to Live preview, where saving progress and errors appear only once.</p><p>Keep both passwords/tokens private. Never forward GooPad or Companion ports to the internet. The GooPad editor uses self-signed HTTPS; the Companion LAN link is HTTP, so its token is not encrypted in transit. Use only trusted private Wi-Fi. Backups and the development firmware's NVS are not encrypted.</p></details>
 </section></div>
 <p class="status" id="status" aria-live="polite"></p>
 </main>
-<dialog id="faDialog" class="fa-dialog" aria-labelledby="faTitle"><div class="fa-modal"><div class="fa-modal-head"><h2 id="faTitle">Font Awesome Free icons</h2><button id="faClose" type="button">Close</button></div><p class="hint">Type a name to filter the bundled icons, then select one to save it to GooPad.</p><input id="faSearch" type="search" placeholder="Search icons, e.g. server or github" aria-label="Search Font Awesome icons"><p class="hint" id="faCount">Type to search the bundled icon catalog.</p><div class="fa-results" id="faResults"></div><p class="hint">Font Awesome Free by Fonticons, licensed CC BY 4.0. <a href="https://fontawesome.com/search?m=free" target="_blank" rel="noopener noreferrer">Browse the official icon search</a>.</p></div></dialog>
+<dialog id="faDialog" class="fa-dialog" aria-labelledby="faTitle"><div class="fa-modal"><div class="fa-modal-head"><h2 id="faTitle">Font Awesome Free icons</h2><button id="faClose" type="button">Close</button></div><p class="hint">Type a name to filter the bundled icons, then select one to save it to GooPad.</p><input id="faSearch" type="search" placeholder="Search icons, e.g. server or github" aria-label="Search Font Awesome icons"><p class="hint" id="faCount">Type to search the bundled icon catalog.</p><p id="faStatus" class="hint" role="status" aria-live="polite"></p><div class="fa-results" id="faResults"></div><p class="hint">Font Awesome Free by Fonticons, licensed CC BY 4.0. <a href="https://fontawesome.com/search?m=free" target="_blank" rel="noopener noreferrer">Browse the official icon search</a>.</p></div></dialog>
 <footer>GooPad · Local-first macro controller · Configuration is stored on the device. Icons: <a href="https://fontawesome.com" target="_blank" rel="noopener noreferrer">Font Awesome Free</a>, CC BY 4.0.</footer>
 <script>
 const $=s=>document.querySelector(s), presets=[["Home","🏠"],["Light","💡"],["Music","🎵"],["Play","▶️"],["Pause","⏸️"],["Stop","⏹️"],["Volume","🔊"],["Mute","🔇"],["Next","⏭️"],["Back","⏮️"],["Web","🌐"],["Mail","✉️"],["Chat","💬"],["Camera","📷"],["Video","🎥"],["Photo","🖼️"],["Folder","📁"],["File","📄"],["Save","💾"],["Search","🔎"],["Settings","⚙️"],["Tools","🛠️"],["Lock","🔒"],["Unlock","🔓"],["Power","⏻"],["Refresh","🔄"],["Upload","⬆️"],["Download","⬇️"],["Copy","📋"],["Paste","📥"],["Cut","✂️"],["Undo","↩️"],["Redo","↪️"],["Star","⭐"],["Heart","❤️"],["Check","✅"],["Warning","⚠️"],["Info","ℹ️"],["Alert","🚨"],["Clock","🕒"],["Calendar","📅"],["Timer","⏱️"],["Network","📶"],["Wi-Fi","📡"],["Bluetooth","ᛒ"],["Cloud","☁️"],["Sun","☀️"],["Moon","🌙"],["Weather","🌦️"],["Temperature","🌡️"],["Car","🚗"],["Bike","🚲"],["Train","🚆"],["Plane","✈️"],["Rocket","🚀"],["Game","🎮"],["Controller","🕹️"],["Microphone","🎙️"],["Headphones","🎧"],["Speaker","🔈"],["Podcast","🎙️"],["Book","📖"],["Note","📝"],["Pen","🖊️"],["Brush","🖌️"],["Palette","🎨"],["Code","💻"],["Terminal","⌨️"],["Database","🗄️"],["Bug","🐞"],["Robot","🤖"],["Clipboard","📋"],["Chart","📊"],["Money","💰"],["Cart","🛒"],["Gift","🎁"],["Coffee","☕"],["Food","🍽️"],["Water","💧"],["Plant","🌱"],["Fire","🔥"],["Party","🎉"],["Bell","🔔"],["Alarm","⏰"],["Pin","📍"],["Map","🗺️"],["Flag","🚩"],["Globe","🌍"],["Key","🔑"],["Shield","🛡️"],["Eye","👁️"],["User","👤"],["Users","👥"],["Add","➕"],["Remove","➖"],["Close","✖️"],["Menu","☰"],["Grid","▦"],["List","☷"],["Arrow up","⬆"],["Arrow down","⬇"],["Arrow left","⬅"],["Arrow right","➡"],["Expand","⛶"],["Brightness","🔆"],["Contrast","◐"],["Color","🌈"],["Print","🖨️"],["Scan","▤"],["QR","▦"],["Phone","📱"],["Tablet","▣"],["Monitor","🖥️"],["Keyboard","⌨️"],["Mouse","🖱️"],["USB","🔌"],["Battery","🔋"],["Plug","🔌"],["Home automation","🏡"],["Door","🚪"],["Fan","🌀"],["Thermostat","🌡️"],["Vacuum","🧹"],["Coffee maker","☕"],["TV","📺"],["Projector","📽️"],["Presentation","📽️"],["Meeting","👥"],["Focus","🎯"],["Sleep","😴"],["Away","🚶"],["Work","🧰"],["Personal","👤"],["Macro","⚡"],["Webhook","🪝"],["HTTP","🔗"],["SSH","🔐"],["GitHub","🐙"],["Docker","🐳"],["Windows","⊞"],["Linux","🐧"],["Apple",""],["Android","🤖"],["Discord","🎮"],["Slack","💬"],["YouTube","▶"],["Twitch","🟣"],["Spotify","🟢"],["Netflix","🎬"],["Tidal","〰️"],["Home Assistant","🏠"],["Hue","💡"],["Sonos","🔊"],["OBS","🎥"],["Stream","📡"],["Record","⏺️"],["Screenshot","📸"],["Window","▣"],["Desktop","🖥️"],["Task","☑️"],["Run","⚡"],["Stopwatch","⏱️"],["Lock screen","🔒"],["Logout","↪️"],["Restart","🔄"],["Shutdown","⏻"],["Server","🗄️"],["Router","📡"],["Ethernet","🔌"],["Signal","📶"],["Satellite","🛰️"],["Sunrise","🌅"],["Sunset","🌇"],["Rain","🌧️"],["Snow","❄️"],["Storm","⛈️"],["Rainbow","🌈"],["Mountain","⛰️"],["Beach","🏖️"],["Tree","🌳"],["Leaf","🍃"],["Cat","🐈"],["Dog","🐕"],["Bird","🐦"],["Fish","🐟"],["Apple fruit","🍎"],["Strawberry","🍓"],["Pizza","🍕"],["Burger","🍔"],["Cake","🍰"],["Sports","⚽"],["Basketball","🏀"],["Tennis","🎾"],["Trophy","🏆"],["Medal","🏅"],["Running","🏃"],["Swim","🏊"],["Music note","🎼"],["Drum","🥁"],["Guitar","🎸"],["Violin","🎻"],["Trumpet","🎺"],["Ticket","🎟️"],["Theater","🎭"],["Art","🖼️"],["Writing","✍️"],["Language","🗣️"],["Translate","🔤"],["Puzzle","🧩"],["Dice","🎲"],["Chess","♟️"],["Cards","🃏"],["Target","🎯"],["Compass","🧭"],["Tools box","🧰"],["Hammer","🔨"],["Wrench","🔧"],["Gear","⚙️"],["Factory","🏭"],["Package","📦"],["Inbox","📥"],["Outbox","📤"],["Bookmark","🔖"],["Tag","🏷️"],["Link","🔗"],["Chain","⛓️"],["Paperclip","📎"],["Magnifier","🔍"],["Filter","🔽"],["Sort","↕️"],["Slider","🎚️"],["Equalizer","🎛️"],["Wave","〰️"],["Chart up","📈"],["Chart down","📉"],["Calendar day","🗓️"],["Hourglass","⌛"],["Stopwatch digital","⏲️"],["Map pin","📌"],["Compass rose","🧭"],["Earth Americas","🌎"],["Earth Asia","🌏"],["Handshake","🤝"],["Thumbs up","👍"],["Thumbs down","👎"],["Smile","😊"],["Thinking","🤔"],["Idea","💡"],["Sparkles","✨"],["Lightning","⚡"],["Magic","🪄"],["Crystal ball","🔮"],["Crown","👑"],["Flag checkered","🏁"],["Traffic light","🚦"],["Construction","🚧"],["Emergency","🆘"],["Medical","⚕️"],["First aid","🩹"],["Hospital","🏥"],["Home key","🗝️"],["Wallet","👛"],["Credit card","💳"],["Receipt","🧾"],["Bank","🏦"],["Calculator","🧮"],["Abacus","🧮"],["Toolbox","🧰"],["Hammer wrench","🛠️"],["Trash","🗑️"],["Recycle","♻️"],["Water drop","💦"],["Power plug","🔌"],["Battery low","🪫"],["Battery full","🔋"]];
 let cfg={cols:3,rows:3,theme:"midnight",background:"111827",shape:"rounded",macros:[]}, selectedIconInput=null,faIcons=null,faLoading=null,faTargetIndex=-1,faBusy=false,pendingUploads=0;
-function msg(t,bad=false){$("#status").textContent=t;$("#status").style.color=bad?"#fca5a5":"#34d399"}
+function msg(t,bad=false){const target=$("#faDialog").open?$("#faStatus"):$("#status");target.textContent=t;target.style.color=bad?"#fca5a5":"#34d399"}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 const themeBackgrounds={midnight:"111827",ocean:"0B1B2A",forest:"10251D",light:"F1F5F9"};
 function updateThemeFields(){const custom=$("#deviceTheme").value==="custom";$("#customBackground").classList.toggle("hidden",!custom);$("#backgroundUploadField").classList.toggle("hidden",!custom);$("#background").disabled=!custom;if(!custom)$("#background").value="#"+themeBackgrounds[$("#deviceTheme").value]}
-function setForm(){ $("#cols").value=cfg.cols;$("#rows").value=cfg.rows;$("#background").value="#"+(cfg.background||"111827").replace("#","");$("#deviceTheme").value=cfg.theme||"midnight";$("#companionAddress").value=cfg.companionAddress||"";$("#companionToken").value=cfg.companionToken||"";updateThemeFields();render()}
+function setForm(){ $("#cols").value=cfg.cols;$("#rows").value=cfg.rows;$("#hideUnconfigured").checked=cfg.hideUnconfigured===true;$("#timeOffset").value=cfg.timeOffsetMinutes??-new Date().getTimezoneOffset();$("#background").value="#"+(cfg.background||"111827").replace("#","");$("#deviceTheme").value=cfg.theme||"midnight";$("#companionAddress").value=cfg.companionAddress||"";$("#companionToken").value=cfg.companionToken||"";updateThemeFields();render()}
 function rawPixelPreview(pixels,side,alpha=false){
  const count=side*side;if(pixels.length!==count*(alpha?3:2))throw Error("Invalid image size.");
  const canvas=document.createElement("canvas");canvas.width=canvas.height=side;const context=canvas.getContext("2d"),image=context.createImageData(side,side);
@@ -101,6 +105,7 @@ async function uploadBackground(input){
 }
 async function uploadMacroIcon(input,index,macro){const file=input.files[0];if(file)await uploadIconImage(file,index,macro)}
 async function uploadIconImage(file,index,macro,faIcon=null){
+ if(file.type==="image/gif")return uploadGif(file,index,macro);
  if(!file.type.startsWith("image/")){msg("Choose an image file.",true);return false}
  pendingUploads++;
  msg("Preparing high-resolution icon…");
@@ -121,7 +126,9 @@ async function uploadIconImage(file,index,macro,faIcon=null){
   const rgba=context.getImageData(0,0,side,side).data,pixels=new Uint8Array(pixelCount*3);
   for(let i=0;i<pixelCount;i++){const r=rgba[i*4],g=rgba[i*4+1],b=rgba[i*4+2],v=((r>>3)<<11)|((g>>2)<<5)|(b>>3);pixels[i*2]=v&255;pixels[i*2+1]=v>>8;pixels[pixelCount*2+i]=rgba[i*4+3]}
   const bytes=crypto.getRandomValues(new Uint8Array(8)),key="i"+Array.from(bytes,v=>v.toString(16).padStart(2,"0")).join("");
-  const response=await fetch("/api/icon?key="+key,{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:pixels});
+  const packed=packIconRle(pixels,side),compressed=packed.length<pixels.length;
+  msg("Uploading icon to SD…");
+  const response=await fetch("/api/icon?key="+key,{method:"POST",headers:{"Content-Type":compressed?"application/x-goopad-rle":"application/octet-stream"},body:compressed?packed:pixels});
   if(!response.ok)throw Error((await response.text())||response.statusText);
   macro.iconImage=key;macro.iconFormat="rgb565a8";macro.iconSize=side;macro.iconSource=faIcon?"fontawesome":"image";macro.imagePreview=previewCanvas.toDataURL("image/png");
   const card=document.querySelectorAll(".macro")[index];
@@ -131,6 +138,33 @@ async function uploadIconImage(file,index,macro,faIcon=null){
   if(label)label.textContent=faIcon?"Selected: "+faIcon:"Custom image selected";
   preview();msg("Image uploaded to SD. Save the layout to apply it.");return true
  }catch(error){msg("Image upload failed: "+error.message,true);return false}
+ finally{pendingUploads--}
+}
+function packIconRle(pixels,side){
+ const count=side*side,output=[71,80,82,49,side&255,side>>8];
+ for(let i=0;i<count;){
+  const lo=pixels[i*2],hi=pixels[i*2+1],alpha=pixels[count*2+i];let run=1;
+  while(i+run<count&&run<65535&&pixels[(i+run)*2]===lo&&pixels[(i+run)*2+1]===hi&&pixels[count*2+i+run]===alpha)run++;
+  output.push(run&255,run>>8,lo,hi,alpha);i+=run;
+ }
+ return new Uint8Array(output)
+}
+async function uploadGif(file,index,macro){
+ if(file.size>128*1024){msg("GIFs must be at most 128 KB and 160×160 pixels.",true);return false}
+ pendingUploads++;
+ try{
+  const data=new Uint8Array(await file.arrayBuffer()),signature=new TextDecoder().decode(data.slice(0,6));
+  const width=data[6]|data[7]<<8,height=data[8]|data[9]<<8;
+  if(!["GIF89a","GIF87a"].includes(signature)||!width||!height||width>160||height>160)throw Error("Choose a GIF at most 160×160 pixels.");
+  if(cfg.macros.filter(m=>m!==macro&&m.iconFormat==="gif").length>=4)throw Error("Use at most four GIF tiles per layout.");
+  msg("Uploading animation to SD…");
+  const key="i"+Array.from(crypto.getRandomValues(new Uint8Array(8)),v=>v.toString(16).padStart(2,"0")).join("");
+  const response=await fetch("/api/icon?key="+key,{method:"POST",headers:{"Content-Type":"image/gif"},body:data});
+  if(!response.ok)throw Error(await response.text());
+  macro.iconImage=key;macro.iconFormat="gif";macro.iconSize=160;macro.iconSource="gif";
+  macro.imagePreview="/api/icon?key="+key+"&format=gif";delete macro.faIcon;delete macro.faCode;
+  render();msg("GIF uploaded. Save the layout to apply it. Device animations are limited to 10 fps.");return true
+ }catch(error){msg("GIF upload failed: "+error.message,true);return false}
  finally{pendingUploads--}
 }
 function encodeSoundWav(audio){
@@ -171,15 +205,17 @@ function render(){
   const card=document.createElement("article");card.className="macro";
   card.innerHTML=`<div class="macro-head"><b>Button ${i+1}${m.name?" · "+esc(m.name):""}</b><button class="danger" data-delete="${i}">Remove</button></div><div class="macro-fields">
   <div class="field"><label>Button label (optional)</label><input data-k="name" value="${esc(m.name)}" maxlength="24" placeholder="Leave blank for an image-only button"></div>
-  <div class="field"><label>Visual type</label><select data-k="iconSource"><option value="emoji">Icon / emoji</option><option value="fontawesome">Font Awesome</option><option value="image">Image</option></select></div>
+  <div class="field"><label>Visual type</label><select data-k="iconSource"><option value="emoji">Icon / emoji</option><option value="fontawesome">Font Awesome</option><option value="image">Image</option><option value="gif">Animated GIF</option></select></div>
   <div class="field wide" data-visual="emoji"><label>Icon / emoji</label><input data-k="icon" value="${esc(m.icon)}" maxlength="8"><input data-emoji-search type="search" placeholder="Search icons / emoji, e.g. music"><div class="picker" data-emoji-results></div><span class="hint" data-emoji-count></span></div>
   <div class="field wide" data-visual="fontawesome"><label>Font Awesome code</label><div class="icon-code-row"><input data-fa-code value="${esc(m.faCode||"")}" placeholder="fa-server or fa-brands fa-github"><button type="button" data-fa-apply>Use code</button><button type="button" data-fa="${i}">Search</button></div><span class="hint" data-fa-label>${m.faIcon?"Selected: "+esc(m.faIcon):"Enter a code or search. SD card required."}</span></div>
   <div class="field wide" data-visual="image"><label>Image (transparent PNG recommended; SD card required)</label><input data-k="imageUpload" type="file" accept="image/*"></div>
+  <div class="field wide" data-visual="gif"><label>Animated GIF (SD card required)</label><input data-k="gifUpload" type="file" accept=".gif,image/gif"><span class="hint">Up to 160×160, 128 KB, 240 frames; four GIF tiles per layout. Animations pause on hidden pages and run at most 10 fps.</span></div>
   <div class="field"><label>Tile shape</label><select data-k="shape"><option value="rounded">Rounded</option><option value="square">Square</option><option value="circle">Circle</option><option value="pill">Pill</option><option value="soft">Soft corners</option></select></div><div class="field"><label>Tile color</label><input data-k="color" type="color" value="#${m.color}"></div><div class="field"><label>Font color</label><input data-k="textColor" type="color" value="#${m.textColor}"></div>
   <div class="field"><label><input data-k="outline" type="checkbox" ${m.outline!==false?"checked":""}> Show outline</label><input data-k="outlineColor" type="color" value="#${esc(m.outlineColor||"A5B4FC")}"></div>
   <div class="field"><label>Button sound (device speaker)</label><select data-k="sound"><option value="none">None</option><option value="click">Click</option><option value="beep">Beep</option><option value="chime">Chime</option><option value="alert">Alert</option><option value="file">Uploaded WAV / MP3</option></select></div>
   <div class="field wide" data-sound-upload><label>Upload sound (WAV / MP3, at most 30 seconds)</label><input data-k="soundUpload" type="file" accept=".wav,.mp3,audio/wav,audio/mpeg"><span class="hint" data-sound-name>${esc(m.soundName||"Choose a file. Audio is converted in your browser and stored on SD.")}</span></div>
-  <div class="field wide"><label>What should this button do?</label><select data-k="actionMode"><option value="simple_link">Open a link or trigger a service</option><option value="pc_macro">Windows PC macro (guided builder)</option><option value="pc_open_url">Open a website on my Windows PC</option><option value="sound">Play a sound only</option><option value="advanced">Custom web request (Advanced)</option></select></div>
+  <div class="field wide"><label>What should this button do?</label><select data-k="actionMode"><option value="simple_link">Open a link or trigger a service</option><option value="widget">Live widget (clock, date, PC monitor)</option><option value="pc_macro">Windows PC macro (guided builder)</option><option value="pc_open_url">Open a website on my Windows PC</option><option value="sound">Play a sound only</option><option value="advanced">Custom web request (Advanced)</option></select></div>
+  <div class="field wide mode-field" data-mode-field="widget"><label>Widget</label><select data-k="widget"><option value="clock">Clock</option><option value="date">Date</option><option value="pc_monitor">PC CPU / RAM</option></select><span class="hint">Display-only. PC monitoring uses the pairing in Settings. Clocks use network time or time synced from this browser; set the UTC offset in Settings.</span></div>
   <div class="field wide mode-field" data-mode-field="pc_macro"><label>Start with a common action</label><select data-pc-preset><option value="">Choose a starter…</option><option value="copy">Copy</option><option value="paste">Paste</option><option value="screenshot">Screenshot</option><option value="play">Media play / pause</option><option value="mute">Mute</option><option value="text">Type a text snippet</option><option value="powershell">PowerShell command</option></select><p class="hint">Uses the PC pairing in Settings. Steps run in order on that PC. Keyboard input goes to its focused app.</p><div data-pc-steps></div><button data-pc-add type="button">Add step</button><p class="hint" data-pc-summary></p></div>
   <div class="field wide mode-field" data-mode-field="simple_link"><label>Website or trigger link</label><input data-k="url" type="url" placeholder="https://example.com/your-trigger" value="${mode==="simple_link"?esc(m.url):""}"><span class="hint">Paste the link supplied by the service. Leave blank for an unconfigured tile.</span></div>
   <div class="field wide mode-field" data-mode-field="sound"><span class="hint">Choose a button sound above. No website or PC is required.</span></div>
@@ -192,6 +228,7 @@ function render(){
   card.querySelector('[data-k="shape"]').value=m.shape;
   card.querySelector('[data-k="sound"]').value=m.sound||"none";
   card.querySelector('[data-k="iconSource"]').value=m.iconSource;
+  card.querySelector('[data-k="widget"]').value=m.widget||"clock";
   card.querySelector("[data-sound-upload]").classList.toggle("hidden",m.sound!=="file");
   card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",field.dataset.visual!==m.iconSource));
   updateModeFields(card,mode);
@@ -210,7 +247,15 @@ function render(){
  });
  $("#count").textContent=`(${cfg.macros.length}/32)`;preview()
 }
-function updateModeFields(card,mode){card.querySelectorAll("[data-mode-field]").forEach(field=>field.classList.toggle("hidden",field.dataset.modeField!==mode))}
+function updateModeFields(card,mode){
+ card.querySelectorAll("[data-mode-field]").forEach(field=>field.classList.toggle("hidden",field.dataset.modeField!==mode));
+ const widget=mode==="widget",source=card.querySelector('[data-k="iconSource"]');
+ source.closest(".field").classList.toggle("hidden",widget);
+ card.querySelectorAll("[data-visual]").forEach(field=>field.classList.toggle("hidden",widget||field.dataset.visual!==source.value));
+ const sound=card.querySelector('[data-k="sound"]');
+ sound.closest(".field").classList.toggle("hidden",widget);
+ card.querySelector("[data-sound-upload]").classList.toggle("hidden",widget||sound.value!=="file")
+}
 const pcKeyNames=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ",..."0123456789",...Array.from({length:24},(_,i)=>"F"+(i+1)),"ENTER","TAB","ESC","SPACE","BACKSPACE","DELETE","INSERT","HOME","END","PAGEUP","PAGEDOWN","LEFT","RIGHT","UP","DOWN","PRINTSCREEN"];
 const pcTypes={hotkey:"Press a hotkey",media:"Send a media key",text:"Type text",wait:"Wait",open:"Open website",powershell:"Run PowerShell (local permission required)",action:"Launch an approved PC app"};
 const mediaNames={play_pause:"Play / pause",next:"Next track",previous:"Previous track",stop:"Stop",mute:"Mute",volume_up:"Volume up",volume_down:"Volume down"};
@@ -281,15 +326,51 @@ function preparePcMacro(m,index){
 }
 function drawEmojiResults(card){const query=card.querySelector("[data-emoji-search]").value.trim().toLowerCase(),matches=presets.filter(([name,icon])=>!query||name.toLowerCase().includes(query)||icon.includes(query)),results=card.querySelector("[data-emoji-results]");results.replaceChildren();matches.slice(0,24).forEach(([name,icon])=>{const button=document.createElement("button");button.type="button";button.textContent=icon;button.title=name;button.onclick=()=>{const input=card.querySelector('[data-k="icon"]');input.value=icon;input.dispatchEvent(new Event("input"))};results.append(button)});card.querySelector("[data-emoji-count]").textContent=`${matches.length} matches${matches.length>24?"; refine your search":""}`}
 function updatePreviewDots(){const p=$("#preview"),page=Math.round(p.scrollLeft/Math.max(1,p.clientWidth));$("#previewDots").querySelectorAll("span").forEach((dot,index)=>dot.setAttribute("aria-current",String(index===page)))}
+function macroConfigured(m){return !!m&&(m.actionMode==="widget"||!!m.iconImage||!!String(m.url||"").trim()||!!m.sound&&m.sound!=="none")}
 function preview(){
  const p=$("#preview"),dots=$("#previewDots");p.replaceChildren();dots.replaceChildren();p.style.background="#"+(themeBackgrounds[cfg.theme]||cfg.background||"111827");
  if(cfg.theme==="custom"&&cfg.backgroundPreview){p.style.backgroundImage=`url("${cfg.backgroundPreview}")`;p.style.backgroundSize="100% auto";p.style.backgroundPosition="center 57.1429%"}
- const cols=
-Number($("#cols").value)||3,rows=Number($("#rows").value)||3,cap=cols*rows,count=Math.max(2,Math.ceil(cfg.macros.length/cap));for(let pageIndex=0;pageIndex<count;pageIndex++){const page=document.createElement("div");page.className="preview-page";page.style.setProperty("--cols",cols);page.style.setProperty("--rows",rows);for(let slot=0;slot<cap;slot++){const m=cfg.macros[pageIndex*cap+slot];if(!m&&!(pageIndex===1&&slot===0&&cfg.macros.length<=cap))continue;const cell=document.createElement("div");cell.className="preview-cell";const b=document.createElement("button");if(!m){b.disabled=true;b.textContent="Swipe test";b.style.background="#1f2937";b.style.color="#a5b4fc";cell.append(b);page.append(cell);continue}b.style.background="#"+(m.color||"4F46E5");b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.style.border=m.outline===false?"0":"2px solid #"+(m.outlineColor||({ocean:"67E8F9",forest:"6EE7B7",light:"334155"}[cfg.theme]||"A5B4FC"));b.dataset.shape=m.shape||"rounded";b.classList.toggle("image-only",!m.name);if(m.imagePreview){const img=document.createElement("img");img.src=m.imagePreview;img.alt="";b.append(img)}else{const icon=document.createElement("span");icon.className="ico";icon.textContent=m.iconSource!=="emoji"&&m.iconSource?m.iconImage?"…":"?":m.icon||"";b.append(icon)}if(m.name){const name=document.createElement("small");name.textContent=m.name;b.append(name)}cell.append(b);page.append(cell)}p.append(page);const dot=document.createElement("span");dot.setAttribute("role","img");dot.setAttribute("aria-label",`Preview page ${pageIndex+1}`);dots.append(dot)}p.scrollLeft=0;updatePreviewDots()}
+ const cols=Number($("#cols").value)||3,rows=Number($("#rows").value)||3,cap=cols*rows,hide=$("#hideUnconfigured").checked;
+ const macros=hide?cfg.macros.filter(macroConfigured):cfg.macros,count=Math.max(hide?1:2,Math.ceil(macros.length/cap));
+ for(let pageIndex=0;pageIndex<count;pageIndex++){
+  const page=document.createElement("div");page.className="preview-page";page.style.setProperty("--cols",cols);page.style.setProperty("--rows",rows);
+  for(let slot=0;slot<cap;slot++){
+   const m=macros[pageIndex*cap+slot];if(hide&&!m)continue;
+   const cell=document.createElement("div"),b=document.createElement("button");cell.className="preview-cell";
+   b.dataset.shape=m?.shape||"rounded";b.style.border=m?.outline===false?"0":"2px solid #"+(m?.outlineColor||({ocean:"67E8F9",forest:"6EE7B7",light:"334155"}[cfg.theme]||"A5B4FC"));
+   if(!macroConfigured(m)){b.disabled=true;b.style.background="#1f2937"}
+   else{
+    b.style.background="#"+(m.color||"4F46E5");b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.classList.toggle("image-only",!m.name);
+    if(m.actionMode==="widget"){const widget=document.createElement("span");widget.dataset.widget=m.widget||"clock";widget.style.whiteSpace="pre-line";widget.style.fontSize="clamp(12px,2vw,24px)";b.append(widget)}
+    else if(m.imagePreview){const img=document.createElement("img");img.src=m.imagePreview;img.alt="";b.append(img)}
+    else{const icon=document.createElement("span");icon.className="ico";icon.textContent=m.iconSource!=="emoji"&&m.iconSource?m.iconImage?"…":"?":m.icon||"";b.append(icon)}
+    if(m.name){const name=document.createElement("small");name.textContent=m.name;b.append(name)}
+   }
+   cell.append(b);page.append(cell);
+  }
+  p.append(page);const dot=document.createElement("span");dot.setAttribute("role","img");dot.setAttribute("aria-label",`Preview page ${pageIndex+1}`);dots.append(dot);
+ }
+ p.scrollLeft=0;updatePreviewDots();updateWidgetPreview()
+}
+let pcMonitorPreview="CPU --%\nRAM --%";
+function updateWidgetPreview(){
+ const offset=Number($("#timeOffset").value);
+ if(!Number.isInteger(offset)||offset < -840||offset > 840){$("#preview").querySelectorAll("[data-widget]").forEach(element=>element.textContent="Invalid UTC offset");return}
+ const time=new Date(Date.now()+offset*60000).toISOString();
+ $("#preview").querySelectorAll("[data-widget]").forEach(element=>element.textContent=element.dataset.widget==="clock"?time.slice(11,19):element.dataset.widget==="date"?time.slice(0,10):pcMonitorPreview)
+}
+setInterval(updateWidgetPreview,1000);
+setInterval(async()=>{
+ if(!cfg.macros.some(m=>m.actionMode==="widget"&&m.widget==="pc_monitor")||$("#faDialog").open)return;
+ try{const connection=pcConnection($("#companionAddress").value,$("#companionToken").value),data=await api("/api/companion",{method:"POST",body:JSON.stringify({url:connection.origin+"/monitor",token:connection.token})});if(!(data.cpuPercent===null||Number.isFinite(data.cpuPercent)&&data.cpuPercent>=0&&data.cpuPercent<=100)||!Number.isFinite(data.memoryPercent)||data.memoryPercent<0||data.memoryPercent>100)throw Error("Companion returned invalid CPU/RAM readings.");pcMonitorPreview=`CPU ${data.cpuPercent??"sampling"}${data.cpuPercent==null?"":"%"}\nRAM ${data.memoryPercent}%`}
+ catch(error){pcMonitorPreview="PC unavailable\n"+error.message.slice(0,40)}
+ updateWidgetPreview()
+},5000);
 async function api(url,options={}){const r=await fetch(url,{cache:"no-store",...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});if(!r.ok)throw Error((await r.text())||r.statusText);return r.status===204?null:r.json()}
 async function loadIconPreviews(){
  for(const macro of cfg.macros){
   if(!macro.iconImage)continue;
+  if(macro.iconFormat==="gif"){macro.imagePreview="/api/icon?key="+encodeURIComponent(macro.iconImage)+"&format=gif";continue}
   try{
    const side=macro.iconSize===160?160:32,count=side*side;
    const response=await fetch("/api/icon?key="+encodeURIComponent(macro.iconImage)+"&format="+(macro.iconFormat||"rgb565")+"&size="+side,{cache:"force-cache"});
@@ -304,7 +385,14 @@ async function loadIconPreviews(){
  }
  preview()
 }
-async function init(){try{const [config,status]=await Promise.all([api("/api/config"),api("/api/status")]);cfg=config;setForm();$("#device").textContent=`Connected · ${status.ssid} · ${location.host}`;await loadIconPreviews()}catch(e){$("#device").textContent="GooPad unavailable — check Wi-Fi and admin password";msg("Could not load configuration: "+e.message,true)}}
+async function init(){try{const [config,status]=await Promise.all([api("/api/config"),api("/api/status")]);cfg=config;setForm();$("#device").textContent=`Connected · ${status.ssid} · ${location.host}`;await api("/api/time",{method:"POST",body:JSON.stringify({epoch:Math.floor(Date.now()/1000)})});await loadIconPreviews()}catch(e){$("#device").textContent="GooPad unavailable — check Wi-Fi and admin password";msg("Could not load configuration: "+e.message,true)}}
+const faGlyphs=new Map(),faAssets=new Map();let faSearchVersion=0,faSearchTimer;
+async function faGlyph(icon){
+ const key=icon.style+":"+icon.name;if(icon.path)return icon;if(faGlyphs.has(key))return faGlyphs.get(key);
+ const data=await api("/api/icons?name="+encodeURIComponent(icon.name)+"&style="+encodeURIComponent(icon.style));
+ if(!Array.isArray(data.icons)||data.icons.length!==1||!Array.isArray(data.icons[0].path))throw Error("The selected icon is unavailable.");
+ faGlyphs.set(key,data.icons[0]);return data.icons[0]
+}
 async function ensureFaIcons(){
  if(faIcons)return;
  if(!faLoading)faLoading=(async()=>{const response=await fetch("/api/icons",{cache:"force-cache"});if(!response.ok)throw Error((await response.text())||response.statusText);const catalog=await response.json();if(!Array.isArray(catalog.icons))throw Error("The Font Awesome icon catalog is invalid.");faIcons=catalog.icons})().finally(()=>faLoading=null);
@@ -313,32 +401,44 @@ async function ensureFaIcons(){
 async function openFaPicker(index){
  if(faBusy)return;
  faTargetIndex=index;$("#faSearch").value="";$("#faResults").replaceChildren();$("#faCount").textContent="Loading icon catalog…";
+ $("#faStatus").textContent="";
  if(!$("#faDialog").open)$("#faDialog").showModal();
  $("#faSearch").disabled=true;
  try{await ensureFaIcons();if($("#faDialog").open){drawFaResults();$("#faSearch").focus()}}
  catch(error){$("#faCount").textContent="Could not load icons: "+error.message;msg("Could not load Font Awesome icons: "+error.message,true)}
  finally{$("#faSearch").disabled=false}
 }
-function drawFaResults(){
- const results=$("#faResults"),query=$("#faSearch").value.trim().toLowerCase();results.replaceChildren();
+async function drawFaResults(){
+ const version=++faSearchVersion,results=$("#faResults"),query=$("#faSearch").value.trim().toLowerCase().replace(/\s+/g,"-");results.replaceChildren();
  if(!faIcons)return;
  if(!query){$("#faCount").textContent=`${faIcons.length.toLocaleString()} bundled icons. Search by name, e.g. house or github.`;return}
- const matches=faIcons.filter(icon=>(icon.name+" "+icon.style).includes(query)),shown=matches.slice(0,40);
- $("#faCount").textContent=`Showing ${shown.length} of ${matches.length.toLocaleString()} matches${matches.length>40?"; refine your search":""}.`;
+ const matches=faIcons.filter(icon=>(icon.name+" "+icon.style).includes(query));let shown=matches.slice(0,24);
+ try{
+  if(shown.some(icon=>!faGlyphs.has(icon.style+":"+icon.name))){$("#faCount").textContent="Loading matching icons…";const data=await api("/api/icons?q="+encodeURIComponent(query));if(!Array.isArray(data.icons)||data.icons.some(icon=>!Array.isArray(icon.path)))throw Error("The icon search response is invalid.");for(const icon of data.icons)faGlyphs.set(icon.style+":"+icon.name,icon)}
+  if(version!==faSearchVersion||!$("#faDialog").open)return;
+  shown=shown.map(icon=>faGlyphs.get(icon.style+":"+icon.name)).filter(Boolean);
+ }catch(error){if(version===faSearchVersion)msg("Could not load matching icons: "+error.message,true);return}
+ $("#faCount").textContent=`Showing ${shown.length} of ${matches.length.toLocaleString()} matches${matches.length>24?"; refine your search":""}.`;
  shown.forEach(icon=>{const button=document.createElement("button");button.type="button";button.innerHTML=`<svg viewBox="0 0 ${Number(icon.width)} ${Number(icon.height)}" aria-hidden="true">${icon.path.map(path=>`<path fill="currentColor" d="${esc(path)}"/>`).join("")}</svg><span>${esc(icon.name)} · ${esc(icon.style)}</span>`;button.title="Select "+icon.name+" ("+icon.style+")";button.onclick=()=>chooseFaIcon(icon);results.append(button)})
 }
 async function chooseFaIcon(icon){
  if(faBusy)return;
  const macro=cfg.macros[faTargetIndex];if(!macro)return msg("Choose a macro before selecting an icon.",true);
  faBusy=true;$("#faResults").inert=true;$("#faCount").textContent="Uploading selected icon…";
+ try{
+ const key=icon.style+":"+icon.name;icon=await faGlyph(icon);
  const paths=icon.path.map(path=>`<path fill="#fff" d="${path}"/>`).join("");
  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 ${icon.width} ${icon.height}">${paths}</svg>`;
- try{if(await uploadIconImage(new Blob([svg],{type:"image/svg+xml"}),faTargetIndex,macro,icon.style+":"+icon.name)){
+ if(faAssets.has(key)){Object.assign(macro,faAssets.get(key));render();msg("Selected saved icon. Save the layout to apply it.")}
+ else if(await uploadIconImage(new Blob([svg],{type:"image/svg+xml"}),faTargetIndex,macro,key)){
+  faAssets.set(key,{iconImage:macro.iconImage,iconFormat:macro.iconFormat,iconSize:macro.iconSize,iconSource:"fontawesome",imagePreview:macro.imagePreview,faIcon:key});
+ }else return;
   macro.faCode=icon.style==="brands"?`fa-brands fa-${icon.name}`:icon.style==="regular"?`fa-regular fa-${icon.name}`:`fa-${icon.name}`;
   const code=document.querySelectorAll(".macro")[faTargetIndex]?.querySelector("[data-fa-code]");
   if(code)code.value=macro.faCode;
-  $("#faDialog").close()
- }}finally{faBusy=false;$("#faResults").inert=false;if($("#faDialog").open)drawFaResults()}
+  $("#faCount").textContent="Selected "+icon.name+". Search again or close the picker.";
+ }catch(error){msg("Could not select icon: "+error.message,true)}
+ finally{faBusy=false;$("#faResults").inert=false;if($("#faCount").textContent==="Uploading selected icon…")$("#faCount").textContent="Choose an icon or search again."}
 }
 async function upgradeLegacyFaIcons(){
  const legacy=cfg.macros.filter(m=>m.faIcon&&(m.iconFormat!=="rgb565a8"||m.iconSize!==160));
@@ -346,8 +446,9 @@ async function upgradeLegacyFaIcons(){
  await ensureFaIcons();
  for(const macro of legacy){
   const [style,name]=macro.faIcon.split(":");
-  const icon=faIcons.find(icon=>icon.name===name&&icon.style===style);
+  let icon=faIcons.find(icon=>icon.name===name&&icon.style===style);
   if(!icon)throw Error("Reselect the legacy Font Awesome icon: "+macro.faIcon);
+  icon=await faGlyph(icon);
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 ${icon.width} ${icon.height}">${icon.path.map(path=>`<path fill="#fff" d="${path}"/>`).join("")}</svg>`;
   if(!await uploadIconImage(new Blob([svg],{type:"image/svg+xml"}),cfg.macros.indexOf(macro),macro,macro.faIcon))throw Error("Could not upgrade the legacy icon.");
  }
@@ -374,6 +475,12 @@ function parseWebUrl(value,label){
  return parsed.href
 }
 function prepareMacroAction(m,index){
+ if(m.actionMode==="widget"){
+  m.widget=m.widget||"clock";m.sound="none";m.method="GET";m.action="http";m.body="";
+  if(m.widget==="pc_monitor"){const connection=pcConnection(cfg.companionAddress,cfg.companionToken);m.url=connection.origin+"/monitor";m.secret=connection.token}
+  else{m.url="";m.secret=""}
+  return;
+ }
  if(m.sound==="file"&&!m.soundFile)throw Error(`Button ${index+1}: upload a sound file first.`);
  if(m.actionMode==="sound"){
   if(!m.sound||m.sound==="none")throw Error(`Button ${index+1}: choose a sound.`);
@@ -405,9 +512,17 @@ $("#add").onclick=()=>{if(cfg.macros.length>=32)return msg("Maximum 32 macros.",
 $("#save").onclick=async()=>{
  if(pendingUploads){$("#saveStatus").textContent="Wait for the upload to finish before saving.";return}
  cfg.cols=Number($("#cols").value);cfg.rows=Number($("#rows").value);cfg.background=$("#background").value.slice(1).toUpperCase();cfg.theme=$("#deviceTheme").value;
+ cfg.hideUnconfigured=$("#hideUnconfigured").checked;cfg.timeOffsetMinutes=Number($("#timeOffset").value);
  cfg.companionAddress=$("#companionAddress").value.trim();cfg.companionToken=$("#companionToken").value.trim();
  const saveButton=$("#save"),settingsButton=$("#saveSettings"),status=$("#saveStatus");saveButton.disabled=settingsButton.disabled=true;saveButton.textContent=settingsButton.textContent="Saving…";saveButton.setAttribute("aria-busy","true");settingsButton.setAttribute("aria-busy","true");status.classList.remove("error");status.textContent="Saving configuration to GooPad…";$("#status").textContent="";
- try{await new Promise(resolve=>requestAnimationFrame(resolve));cfg.macros.forEach(prepareMacroAction);await upgradeLegacyFaIcons();const {backgroundPreview,...settings}=cfg,stored={...settings,macros:cfg.macros.map(({imagePreview,pcSteps,...macro})=>macro)},body=JSON.stringify(stored);if(new TextEncoder().encode(body).length>12000)throw Error("Configuration exceeds 12 KB. Shorten PC sequences or reduce the number of macros.");await api("/api/config",{method:"POST",body});status.textContent="Saved to device.";preview()}
+ try{
+  if(!Number.isInteger(cfg.timeOffsetMinutes)||cfg.timeOffsetMinutes < -840||cfg.timeOffsetMinutes > 840)throw Error("Choose a UTC offset between -840 and 840 minutes.");
+  await new Promise(resolve=>requestAnimationFrame(resolve));cfg.macros.forEach(prepareMacroAction);
+  await upgradeLegacyFaIcons();
+  const {backgroundPreview,...settings}=cfg,stored={...settings,macros:cfg.macros.map(({imagePreview,pcSteps,...macro})=>macro)},body=JSON.stringify(stored);
+  if(new TextEncoder().encode(body).length>12000)throw Error("Configuration exceeds 12 KB. Shorten PC sequences or reduce the number of macros.");
+  await api("/api/config",{method:"POST",body});status.textContent="Saved to device.";preview()
+ }
  catch(e){status.textContent="Save failed: "+e.message;status.classList.add("error")}
  finally{saveButton.disabled=settingsButton.disabled=false;saveButton.textContent="Save to device";settingsButton.textContent="Save appearance";saveButton.removeAttribute("aria-busy");settingsButton.removeAttribute("aria-busy")}
 };
@@ -472,7 +587,8 @@ $("#preview").addEventListener("scrollend",updatePreviewDots);
  previewElement.addEventListener("pointercancel",stopDrag);
  previewElement.addEventListener("click",event=>{if(suppressClick){event.preventDefault();event.stopPropagation();suppressClick=false}},true);
 }
-$("#faSearch").oninput=drawFaResults;$("#faClose").onclick=()=>{if(!faBusy)$("#faDialog").close()};
+$("#faSearch").oninput=()=>{clearTimeout(faSearchTimer);faSearchVersion++;$("#faResults").replaceChildren();faSearchTimer=setTimeout(drawFaResults,180)};$("#faClose").onclick=()=>{if(!faBusy)$("#faDialog").close()};
+$("#hideUnconfigured").onchange=preview;$("#timeOffset").oninput=updateWidgetPreview;
 init();
 </script>
 </body></html>

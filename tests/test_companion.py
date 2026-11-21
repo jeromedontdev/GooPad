@@ -247,6 +247,35 @@ class CompanionTests(unittest.TestCase):
                 COMPANION.press_keys(["CTRL", "SHIFT", "C"])
             self.assertEqual(send.call_count, 6)
 
+    def test_system_controls_require_local_permission_and_final_position(self):
+        config = {"actions": {}}
+        step = {"type": "system", "value": "shutdown"}
+        with self.assertRaises(PermissionError):
+            COMPANION.validate_steps({"steps": [step]}, config)
+        config["allow_system_controls"] = True
+        self.assertEqual(COMPANION.validate_steps({"steps": [step]}, config), [step])
+        for steps in ([step, {"type": "wait", "value": 0}],
+                      [{"type": "system", "value": "arbitrary"}]):
+            with self.assertRaises(ValueError):
+                COMPANION.validate_steps({"steps": steps}, config)
+        with patch.object(COMPANION, "system_control") as control:
+            COMPANION.execute_steps([step], config)
+            control.assert_called_once_with("shutdown")
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows system controls")
+    def test_shutdown_and_cancel_use_fixed_arguments_without_shell(self):
+        result = COMPANION.subprocess.CompletedProcess([], 0)
+        with patch.object(COMPANION.subprocess, "run", return_value=result) as run:
+            COMPANION.system_control("restart")
+            args = run.call_args.args[0]
+            self.assertEqual(args[1:4], ["/r", "/t", "60"])
+            self.assertFalse(run.call_args.kwargs["shell"])
+            COMPANION.system_control("cancel_shutdown")
+            self.assertEqual(run.call_args.args[0][1:], ["/a"])
+        with patch.object(COMPANION.subprocess, "run", return_value=COMPANION.subprocess.CompletedProcess([], 1)):
+            with self.assertRaises(OSError):
+                COMPANION.system_control("cancel_shutdown")
+
     def test_unicode_text_sends_utf16_units(self):
         with patch.object(COMPANION, "send_input") as send:
             COMPANION.type_text("A\U0001f600")
@@ -311,10 +340,12 @@ class SensorTests(unittest.TestCase):
 
     def test_sensor_values_preserve_missing_readings_and_reject_invalid_numbers(self):
         reading = {"gpuPercent": 25, "gpuMemoryUsedBytes": 4000,
-                   "cpuTemperatureC": None, "gpuTemperatureC": 65}
+                   "cpuTemperatureC": None, "gpuTemperatureC": 65,
+                   "downloadBytesPerSec": 1000, "uploadBytesPerSec": 500, "fanRpm": None}
         self.assertEqual(COMPANION.hardware_metrics(reading), reading)
         for field, value in (("gpuPercent", True), ("gpuPercent", 101),
-                             ("cpuTemperatureC", float("nan")), ("gpuMemoryUsedBytes", -1)):
+                             ("cpuTemperatureC", float("nan")), ("gpuMemoryUsedBytes", -1),
+                             ("fanRpm", -1), ("downloadBytesPerSec", float("inf"))):
             with self.subTest(field=field, value=value), self.assertRaises(ValueError):
                 COMPANION.hardware_metrics({**reading, field: value})
         with self.assertRaises(ValueError):
@@ -332,7 +363,8 @@ class SensorTests(unittest.TestCase):
 
     def test_invalid_nvidia_temperature_does_not_poison_other_gpu_readings(self):
         reading = {"gpuPercent": 25, "gpuMemoryUsedBytes": 4000,
-                   "cpuTemperatureC": None, "gpuTemperatureC": None}
+                   "cpuTemperatureC": None, "gpuTemperatureC": None,
+                   "downloadBytesPerSec": None, "uploadBytesPerSec": None, "fanRpm": None}
         replies = [
             COMPANION.subprocess.CompletedProcess([], 0, stdout=json.dumps(reading)),
             COMPANION.subprocess.CompletedProcess([], 0, stdout="nan\n"),
@@ -376,7 +408,16 @@ class SensorTests(unittest.TestCase):
                     [pscustomobject]@{DedicatedUsage=6000}
                     [pscustomobject]@{DedicatedUsage=4000}
                 }
+                'Win32_PerfFormattedData_Tcpip_NetworkInterface' {
+                    [pscustomobject]@{Name='Ethernet';BytesReceivedPersec=1000;BytesSentPersec=200}
+                    [pscustomobject]@{Name='Loopback';BytesReceivedPersec=9000;BytesSentPersec=9000}
+                }
                 'Sensor' {
+                    if ($Filter -eq "SensorType='Fan'") {
+                        [pscustomobject]@{Name='Fan';Value=1200}
+                        [pscustomobject]@{Name='Fan 2';Value=1800}
+                        break
+                    }
                     [pscustomobject]@{Parent='/intelcpu/0';Name='CPU Package';Value=70}
                     [pscustomobject]@{Parent='/intelcpu/0';Name='CPU Core';Value=60}
                     [pscustomobject]@{Parent='/nvidiagpu/0';Name='GPU Core';Value=65}
@@ -391,7 +432,8 @@ class SensorTests(unittest.TestCase):
             capture_output=True, text=True, timeout=10, check=True)
         values = COMPANION.hardware_metrics(json.loads(completed.stdout))
         self.assertEqual(values, {"gpuPercent": 35, "gpuMemoryUsedBytes": 10000,
-                                  "cpuTemperatureC": 70, "gpuTemperatureC": 65})
+                                  "cpuTemperatureC": 70, "gpuTemperatureC": 65,
+                                  "downloadBytesPerSec": 1000, "uploadBytesPerSec": 200, "fanRpm": 1800})
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows startup integration")

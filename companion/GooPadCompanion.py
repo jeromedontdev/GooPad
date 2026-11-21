@@ -43,11 +43,19 @@ MONITOR_PREVIOUS = None
 HARDWARE_LOCK = threading.Lock()
 HARDWARE_BUSY = False
 HARDWARE_LAST = 0.0
-HARDWARE_FIELDS = ("gpuPercent", "gpuMemoryUsedBytes", "cpuTemperatureC", "gpuTemperatureC")
+HARDWARE_FIELDS = ("gpuPercent", "gpuMemoryUsedBytes", "cpuTemperatureC", "gpuTemperatureC",
+                   "downloadBytesPerSec", "uploadBytesPerSec", "fanRpm")
 HARDWARE_CACHE = {**dict.fromkeys(HARDWARE_FIELDS), "hardwareStatus": "Sampling PC sensors"}
 HARDWARE_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
-$result = @{gpuPercent=$null; gpuMemoryUsedBytes=$null; cpuTemperatureC=$null; gpuTemperatureC=$null}
+$result = @{gpuPercent=$null; gpuMemoryUsedBytes=$null; cpuTemperatureC=$null; gpuTemperatureC=$null; downloadBytesPerSec=$null; uploadBytesPerSec=$null; fanRpm=$null}
+try {
+    $interfaces = @(Get-CimInstance Win32_PerfFormattedData_Tcpip_NetworkInterface | Where-Object Name -notmatch 'loopback')
+    if ($interfaces.Count) {
+        $result.downloadBytesPerSec = ($interfaces | Measure-Object BytesReceivedPersec -Sum).Sum
+        $result.uploadBytesPerSec = ($interfaces | Measure-Object BytesSentPersec -Sum).Sum
+    }
+} catch [Microsoft.Management.Infrastructure.CimException] { $result.networkError = 'Network counters unavailable' }
 try {
     $engines = @(Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine)
     $memory = @(Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory)
@@ -65,15 +73,17 @@ try {
 foreach ($namespace in @('root\LibreHardwareMonitor', 'root\OpenHardwareMonitor')) {
     try {
         $sensors = @(Get-CimInstance -Namespace $namespace -ClassName Sensor -Filter "SensorType='Temperature'")
+        $fans = @(Get-CimInstance -Namespace $namespace -ClassName Sensor -Filter "SensorType='Fan'")
         $cpu = @($sensors | Where-Object Parent -match '^/(intelcpu|amdcpu|cpu)/')
         $gpu = @($sensors | Where-Object Parent -match '^/[^/]*gpu/')
         $package = @($cpu | Where-Object Name -eq 'CPU Package')
         $core = @($gpu | Where-Object Name -eq 'GPU Core')
         if ($package.Count) { $cpu = $package }
         if ($core.Count) { $gpu = $core }
-        if ($cpu.Count) { $result.cpuTemperatureC = ($cpu | Measure-Object Value -Maximum).Maximum }
-        if ($gpu.Count) { $result.gpuTemperatureC = ($gpu | Measure-Object Value -Maximum).Maximum }
-        if ($sensors.Count) { break }
+        if ($cpu.Count -and $null -eq $result.cpuTemperatureC) { $result.cpuTemperatureC = ($cpu | Measure-Object Value -Maximum).Maximum }
+        if ($gpu.Count -and $null -eq $result.gpuTemperatureC) { $result.gpuTemperatureC = ($gpu | Measure-Object Value -Maximum).Maximum }
+        if ($fans.Count -and $null -eq $result.fanRpm) { $result.fanRpm = ($fans | Measure-Object Value -Maximum).Maximum }
+        if ($null -ne $result.cpuTemperatureC -and $null -ne $result.gpuTemperatureC -and $null -ne $result.fanRpm) { break }
     } catch [Microsoft.Management.Infrastructure.CimException] { $result.sensorError = 'Temperature provider unavailable' }
 }
 $result | ConvertTo-Json -Compress
@@ -93,6 +103,7 @@ MEDIA_KEYS = {
     "play_pause": 0xB3, "next": 0xB0, "previous": 0xB1, "stop": 0xB2,
     "mute": 0xAD, "volume_up": 0xAF, "volume_down": 0xAE,
 }
+SYSTEM_ACTIONS = {"shutdown", "restart", "cancel_shutdown", "sleep", "hibernate", "lock", "monitor_off"}
 
 
 class MouseInput(ctypes.Structure):
@@ -135,6 +146,8 @@ def load_config():
         raise ValueError(f"'actions' must be an object in {CONFIG_PATH}")
     if type(config.get("allow_powershell", False)) is not bool:
         raise ValueError("'allow_powershell' must be true or false")
+    if type(config.get("allow_system_controls", False)) is not bool:
+        raise ValueError("'allow_system_controls' must be true or false")
     for key, choices in (("close_behavior", ("tray", "quit")),
                          ("minimize_behavior", ("tray", "taskbar"))):
         if key in config and config[key] not in choices:
@@ -246,7 +259,9 @@ def hardware_metrics(payload):
     result = {}
     for key in HARDWARE_FIELDS:
         value = payload[key]
-        limits = (0, 100) if key == "gpuPercent" else (0, 1e15) if key == "gpuMemoryUsedBytes" else (-50, 200)
+        limits = ((0, 100) if key == "gpuPercent" else (0, 1e15) if key == "gpuMemoryUsedBytes"
+                  else (0, 1e12) if key in ("downloadBytesPerSec", "uploadBytesPerSec")
+                  else (0, 100000) if key == "fanRpm" else (-50, 200))
         if value is not None and (type(value) not in (int, float) or not math.isfinite(value)
                                   or not limits[0] <= value <= limits[1]):
             raise ValueError(f"Invalid PC sensor value: {key}")
@@ -263,7 +278,7 @@ def query_hardware():
         raise OSError("Windows hardware counter query failed")
     payload = json.loads(process.stdout)
     result = hardware_metrics(payload)
-    for key in ("gpuError", "sensorError"):
+    for key in ("gpuError", "sensorError", "networkError"):
         if key in payload:
             logging.debug("PC sensor availability: %s", payload[key])
     nvidia = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "nvidia-smi.exe"
@@ -390,7 +405,7 @@ def validate_steps(payload, config):
     if not isinstance(steps, list) or not 1 <= len(steps) <= MAX_STEPS:
         raise ValueError(f"Choose between 1 and {MAX_STEPS} steps")
     delay = 0
-    for step in steps:
+    for index, step in enumerate(steps):
         if not isinstance(step, dict):
             raise ValueError("Each step must be an action")
         kind = step.get("type")
@@ -420,6 +435,13 @@ def validate_steps(payload, config):
                 raise PermissionError("Enable PowerShell locally in the Companion app first")
             if not isinstance(value, str) or not value.strip() or len(value) > 512:
                 raise ValueError("PowerShell commands must contain 1-512 characters")
+        elif kind == "system":
+            if not config.get("allow_system_controls", False):
+                raise PermissionError("Enable system controls locally in the Companion app first")
+            if not isinstance(value, str) or value not in SYSTEM_ACTIONS:
+                raise ValueError("Choose a supported system control")
+            if index != len(steps) - 1:
+                raise ValueError("A system control must be the last step")
         elif kind == "action":
             if not isinstance(value, str) or value not in config["actions"]:
                 raise ValueError("Choose an action configured on this PC")
@@ -443,6 +465,39 @@ def configured_command(action):
     return [program, *arguments], directory
 
 
+def system_control(action):
+    if os.name != "nt":
+        raise OSError("System controls require Windows")
+    if action in ("shutdown", "restart", "cancel_shutdown"):
+        executable = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "shutdown.exe"
+        args = ["/a"] if action == "cancel_shutdown" else [
+            "/s" if action == "shutdown" else "/r", "/t", "60",
+            "/c", "GooPad requested a power action. Cancel with shutdown /a."]
+        result = subprocess.run([str(executable), *args], shell=False, timeout=10,
+                                capture_output=True, text=True,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if result.returncode:
+            raise OSError(f"Windows power command failed (exit {result.returncode})")
+    elif action == "lock":
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        if not user32.LockWorkStation():
+            raise ctypes.WinError(ctypes.get_last_error())
+    elif action == "monitor_off":
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+        user32.PostMessageW.restype = ctypes.c_int
+        if not user32.PostMessageW(0xFFFF, 0x0112, 0xF170, 2):
+            raise ctypes.WinError(ctypes.get_last_error())
+    elif action in ("sleep", "hibernate"):
+        power = ctypes.WinDLL("powrprof", use_last_error=True)
+        power.SetSuspendState.argtypes = [ctypes.c_ubyte, ctypes.c_ubyte, ctypes.c_ubyte]
+        power.SetSuspendState.restype = ctypes.c_ubyte
+        if not power.SetSuspendState(action == "hibernate", False, False):
+            raise ctypes.WinError(ctypes.get_last_error())
+    else:
+        raise ValueError("Unsupported system control")
+
+
 def execute_steps(steps, config):
     for step in steps:
         kind, value = step["type"], step.get("value")
@@ -462,6 +517,8 @@ def execute_steps(steps, config):
         elif kind == "action":
             command, directory = configured_command(config["actions"][value])
             subprocess.Popen(command, cwd=directory, shell=False, close_fds=True)
+        elif kind == "system":
+            system_control(value)
         elif kind == "powershell":
             script = "$ErrorActionPreference='Stop'\n" + value
             script += "\nif ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
@@ -746,7 +803,7 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
     window_icons = [ImageTk.PhotoImage(tray_image),
                     ImageTk.PhotoImage(companion_icon(32))]
     root.iconphoto(True, *window_icons)
-    root.geometry("540x500")
+    root.geometry("540x535")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=20)
     frame.pack(fill="both", expand=True)
@@ -781,6 +838,29 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
 
     ttk.Checkbutton(frame, text="Allow PowerShell commands (off by default)",
                     variable=allowed, command=change_permission).pack(anchor="w", pady=10)
+    system_allowed = tk.BooleanVar(value=config.get("allow_system_controls", False))
+
+    def change_system_permission():
+        enabled = system_allowed.get()
+        if enabled and not messagebox.askyesno(
+            "Allow PC power and monitor controls?",
+            "A paired GooPad can lock, sleep, hibernate, restart or shut down this PC.\n"
+            "Restart and shutdown force applications closed after a 60-second warning; unsaved work may be lost.\n"
+            "Only enable this on a trusted network.",
+        ):
+            system_allowed.set(False)
+            return
+        try:
+            latest = load_config()
+            latest["allow_system_controls"] = enabled
+            CONFIG_PATH.write_text(json.dumps(latest, indent=2), encoding="utf-8")
+            config["allow_system_controls"] = enabled
+        except (OSError, ValueError) as error:
+            system_allowed.set(config.get("allow_system_controls", False))
+            messagebox.showerror("Could not save permission", str(error))
+
+    ttk.Checkbutton(frame, text="Allow PC power and monitor controls (off by default)",
+                    variable=system_allowed, command=change_system_permission).pack(anchor="w", pady=4)
     startup = tk.BooleanVar(value=windows_startup.startup_enabled())
 
     def change_startup():

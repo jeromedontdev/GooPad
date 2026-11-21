@@ -4,6 +4,7 @@
 
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
@@ -61,6 +62,8 @@ static lv_point_precise_t s_widget_points[MAX_MACROS][2][2];
 static unsigned s_widget_graphic_modes[MAX_MACROS], s_widget_sizes[MAX_MACROS];
 static int s_widget_widths[MAX_MACROS], s_widget_heights[MAX_MACROS], s_widget_minutes[MAX_MACROS], s_widget_sides[MAX_MACROS];
 static int s_widget_meter_values[MAX_MACROS];
+static int64_t s_countdown_targets[MAX_MACROS], s_stopwatch_elapsed[MAX_MACROS], s_stopwatch_started[MAX_MACROS];
+static bool s_stopwatch_running[MAX_MACROS], s_stopwatch_long_press[MAX_MACROS];
 static void fit_widget_text(unsigned index, const char *text);
 static void update_widget_graphic(unsigned index, const struct tm *now, bool synced);
 static int s_time_offset;
@@ -91,6 +94,8 @@ static void clear_dynamic_assets(void)
         s_widget_graphic_modes[i] = 0;
         s_widget_minutes[i] = -1;
         s_widget_meter_values[i] = -2;
+        s_countdown_targets[i] = s_stopwatch_elapsed[i] = s_stopwatch_started[i] = 0;
+        s_stopwatch_running[i] = s_stopwatch_long_press[i] = false;
         s_gif_paused[i] = true;
     }
 }
@@ -110,7 +115,8 @@ static bool macro_configured(cJSON *macro)
     cJSON *mode = cJSON_GetObjectItemCaseSensitive(macro, "actionMode");
     return cJSON_IsString(image) || (cJSON_IsString(url) && url->valuestring[0]) ||
            (cJSON_IsString(sound) && strcmp(sound->valuestring, "none")) ||
-           (cJSON_IsString(mode) && !strcmp(mode->valuestring, "widget"));
+           (cJSON_IsString(mode) && (!strcmp(mode->valuestring, "widget") ||
+                                    !strcmp(mode->valuestring, "page_navigation")));
 }
 
 static void update_widgets(void)
@@ -124,7 +130,24 @@ static void update_widgets(void)
     for (unsigned i = 0; i < MAX_MACROS; i++) {
         if (s_widget_labels[i]) {
             char text[64];
-            if (s_widget_types[i] == 3)
+            if (s_widget_types[i] == 4) {
+                if (!synced) strlcpy(text, "Sync time\nin the website", sizeof(text));
+                else {
+                    int64_t remaining = s_countdown_targets[i] - (int64_t)time(NULL);
+                    if (remaining < 0) remaining = 0;
+                    if (remaining >= 86400) snprintf(text, sizeof(text), "%lldd\n%02lld:%02lld",
+                        (long long)(remaining / 86400), (long long)(remaining / 3600 % 24), (long long)(remaining / 60 % 60));
+                    else snprintf(text, sizeof(text), "%02lld:%02lld:%02lld",
+                        (long long)(remaining / 3600), (long long)(remaining / 60 % 60), (long long)(remaining % 60));
+                }
+            } else if (s_widget_types[i] == 5) {
+                int64_t elapsed = s_stopwatch_elapsed[i] + (s_stopwatch_running[i] ? esp_timer_get_time() - s_stopwatch_started[i] : 0);
+                int64_t seconds = elapsed / 1000000;
+                snprintf(text, sizeof(text), "%02lld:%02lld:%02lld",
+                    (long long)(seconds / 3600), (long long)(seconds / 60 % 60), (long long)(seconds % 60));
+            } else if (s_widget_types[i] >= 6)
+                goopad_live_widget_text(i, text, sizeof(text));
+            else if (s_widget_types[i] == 3)
                 goopad_pc_stat_text(s_widget_stats[i], s_widget_fahrenheit[i], text, sizeof(text));
             else if (!synced) strlcpy(text, "Sync time\nin the website", sizeof(text));
             else strftime(text, sizeof(text), s_widget_formats[i], &now);
@@ -231,7 +254,7 @@ static void fit_widget_text(unsigned index, const char *text)
         if (sizes[i] > s_widget_sizes[index]) continue;
         lv_point_t bounds;
         lv_text_get_size(&bounds, text, fonts[i], 0, 0,
-                        s_widget_types[index] == 3 ? s_widget_widths[index] : LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+                        (s_widget_types[index] == 3 || s_widget_types[index] >= 6) ? s_widget_widths[index] : LV_COORD_MAX, LV_TEXT_FLAG_NONE);
         if (bounds.x <= s_widget_widths[index] && bounds.y <= s_widget_heights[index]) {
             chosen = fonts[i];
             break;
@@ -239,7 +262,7 @@ static void fit_widget_text(unsigned index, const char *text)
     }
     lv_obj_set_style_text_font(s_widget_labels[index], chosen, 0);
     lv_obj_set_style_text_line_space(s_widget_labels[index], 0, 0);
-    lv_label_set_long_mode(s_widget_labels[index], s_widget_types[index] == 3 ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_CLIP);
+    lv_label_set_long_mode(s_widget_labels[index], (s_widget_types[index] == 3 || s_widget_types[index] >= 6) ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_CLIP);
     lv_obj_set_height(s_widget_labels[index], LV_SIZE_CONTENT);
     lv_obj_set_style_max_height(s_widget_labels[index], s_widget_heights[index], 0);
 }
@@ -897,6 +920,44 @@ static void tile_cb(lv_event_t *event)
     if (err != ESP_OK) ESP_LOGW(TAG, "button %u: %s", index, esp_err_to_name(err));
 }
 
+static void page_navigation_cb(lv_event_t *event)
+{
+    uintptr_t data = (uintptr_t)lv_event_get_user_data(event);
+    unsigned index = data & 0xff;
+    unsigned direction = data >> 8;
+    if (!s_pages) return;
+    esp_err_t err = goopad_navigation_sound(index);
+    if (err != ESP_OK) ESP_LOGW(TAG, "button %u sound: %s", index, esp_err_to_name(err));
+    int width = lv_obj_get_width(s_pages);
+    int count = lv_obj_get_child_count(s_pages);
+    if (width > 0 && count > 0) {
+        int page = (lv_obj_get_scroll_x(s_pages) + width / 2) / width;
+        if (direction == 3) page = 0;
+        else if (direction == 1 && page < count - 1) page++;
+        else if (direction == 2 && page > 0) page--;
+        lv_obj_scroll_to_x(s_pages, page * width, LV_ANIM_ON);
+    }
+}
+
+static void stopwatch_cb(lv_event_t *event)
+{
+    unsigned index = (unsigned)(uintptr_t)lv_event_get_user_data(event);
+    lv_event_code_t code = lv_event_get_code(event);
+    if (code == LV_EVENT_PRESSED) s_stopwatch_long_press[index] = false;
+    else if (code == LV_EVENT_LONG_PRESSED) {
+        s_stopwatch_elapsed[index] = 0;
+        s_stopwatch_running[index] = false;
+        s_stopwatch_long_press[index] = true;
+        update_widgets();
+    } else if (code == LV_EVENT_CLICKED && !s_stopwatch_long_press[index]) {
+        int64_t now = esp_timer_get_time();
+        if (s_stopwatch_running[index]) s_stopwatch_elapsed[index] += now - s_stopwatch_started[index];
+        else s_stopwatch_started[index] = now;
+        s_stopwatch_running[index] = !s_stopwatch_running[index];
+        update_widgets();
+    }
+}
+
 static void page_scroll_cb(lv_event_t *event)
 {
     (void)event;
@@ -974,6 +1035,24 @@ static void build_grid_screen(void)
     } else if (light_theme) {
         accent_color = 0x334155;
         theme_background = 0xF1F5F9;
+    } else if (!strcmp(theme_name, "slate")) {
+        accent_color = 0xCBD5E1;
+        theme_background = 0x202B3A;
+    } else if (!strcmp(theme_name, "violet")) {
+        accent_color = 0xD8B4FE;
+        theme_background = 0x241938;
+    } else if (!strcmp(theme_name, "ember")) {
+        accent_color = 0xFDBA74;
+        theme_background = 0x2F1B1A;
+    } else if (!strcmp(theme_name, "berry")) {
+        accent_color = 0xFDA4C4;
+        theme_background = 0x301729;
+    } else if (!strcmp(theme_name, "teal")) {
+        accent_color = 0x5EEAD4;
+        theme_background = 0x102F31;
+    } else if (!strcmp(theme_name, "black")) {
+        accent_color = 0xE2E8F0;
+        theme_background = 0x000000;
     }
     unsigned background = !strcmp(theme_name, "custom") && cJSON_IsString(bg)
         ? (unsigned)strtoul(bg->valuestring, NULL, 16) : theme_background;
@@ -1125,11 +1204,23 @@ static void build_grid_screen(void)
                 cJSON *mode = cJSON_GetObjectItemCaseSensitive(macro, "actionMode");
                 cJSON *widget = cJSON_GetObjectItemCaseSensitive(macro, "widget");
                 bool is_widget = cJSON_IsString(mode) && !strcmp(mode->valuestring, "widget");
+                bool is_navigation = cJSON_IsString(mode) && !strcmp(mode->valuestring, "page_navigation");
+                cJSON *tile_gradient = cJSON_GetObjectItemCaseSensitive(macro, "tileGradient");
+                if (!is_widget && cJSON_IsString(tile_gradient)) {
+                    lv_obj_set_style_bg_grad_color(tile, color((unsigned)strtoul(tile_gradient->valuestring, NULL, 16)), 0);
+                    lv_obj_set_style_bg_grad_dir(tile, LV_GRAD_DIR_VER, 0);
+                }
                 cJSON *url = cJSON_GetObjectItemCaseSensitive(macro, "url");
                 cJSON *sound = cJSON_GetObjectItemCaseSensitive(macro, "sound");
                 bool actionable = !is_widget && ((cJSON_IsString(url) && url->valuestring[0]) ||
                                   (cJSON_IsString(sound) && strcmp(sound->valuestring, "none")));
-                if (actionable) lv_obj_add_event_cb(tile, tile_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)index);
+                if (is_navigation) {
+                    cJSON *direction = cJSON_GetObjectItemCaseSensitive(macro, "pageDirection");
+                    unsigned value = cJSON_IsString(direction) && !strcmp(direction->valuestring, "previous") ? 2 :
+                                     cJSON_IsString(direction) && !strcmp(direction->valuestring, "first") ? 3 : 1;
+                    lv_obj_add_event_cb(tile, page_navigation_cb, LV_EVENT_CLICKED, (void *)((uintptr_t)index | (value << 8)));
+                }
+                else if (actionable) lv_obj_add_event_cb(tile, tile_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)index);
                 else lv_obj_set_clickable(tile, false);
                 cJSON *custom_image = cJSON_GetObjectItemCaseSensitive(macro, "iconImage");
                 cJSON *image_format = cJSON_GetObjectItemCaseSensitive(macro, "iconFormat");
@@ -1138,14 +1229,28 @@ static void build_grid_screen(void)
                 cJSON *size_item = cJSON_GetObjectItemCaseSensitive(macro, "iconSize");
                 int side = alpha && cJSON_IsNumber(size_item) && size_item->valueint == 160 ? 160 : 32;
                 int icon_size = (width < height ? width : height) - (caption[0] ? 32 : 20);
+                cJSON *visual_scale = cJSON_GetObjectItemCaseSensitive(macro, "visualScale");
+                if (cJSON_IsNumber(visual_scale)) icon_size = icon_size * visual_scale->valueint / 100;
                 if (icon_size < 16) icon_size = 16;
                 int icon_y = caption[0] ? -10 : 0;
                 bool image_drawn = false;
                 if (is_widget) {
                     g_app.widget_count++;
-                    unsigned type = cJSON_IsString(widget) && !strcmp(widget->valuestring, "pc_monitor") ? 3 :
+                    unsigned type = cJSON_IsString(widget) && !strcmp(widget->valuestring, "weather") ? 6 :
+                                    cJSON_IsString(widget) && !strcmp(widget->valuestring, "stock") ? 7 :
+                                    cJSON_IsString(widget) && !strcmp(widget->valuestring, "crypto") ? 8 :
+                                    cJSON_IsString(widget) && !strcmp(widget->valuestring, "stopwatch") ? 5 :
+                                    cJSON_IsString(widget) && !strcmp(widget->valuestring, "countdown") ? 4 :
+                                    cJSON_IsString(widget) && !strcmp(widget->valuestring, "pc_monitor") ? 3 :
                                     cJSON_IsString(widget) && !strcmp(widget->valuestring, "date") ? 2 : 1;
                     s_widget_types[index] = type;
+                    if (type == 4) {
+                        cJSON *target = cJSON_GetObjectItemCaseSensitive(macro, "countdownAt");
+                        s_countdown_targets[index] = cJSON_IsNumber(target) ? (int64_t)target->valuedouble : 0;
+                    } else if (type == 5) {
+                        lv_obj_set_clickable(tile, true);
+                        lv_obj_add_event_cb(tile, stopwatch_cb, LV_EVENT_ALL, (void *)(uintptr_t)index);
+                    }
                     cJSON *format = cJSON_GetObjectItemCaseSensitive(macro, type == 2 ? "dateFormat" : "clockFormat");
                     s_widget_formats[index] = goopad_widget_time_format(type == 2,
                         cJSON_IsString(format) ? format->valuestring : type == 2 ? "iso" : "24h");
@@ -1185,8 +1290,11 @@ static void build_grid_screen(void)
                     int header = panel ? 20 : 0;
                     if (panel) {
                         static const char *stat_titles[] = {"PC STATS", "CPU", "RAM", "RAM USED", "GPU",
-                                                             "GPU RAM", "CPU TEMP", "GPU TEMP"};
-                        const char *title = type == 1 ? "CLOCK" : type == 2 ? "DATE" : stat_titles[s_widget_stats[index]];
+                                                             "GPU RAM", "CPU TEMP", "GPU TEMP",
+                                                             "DOWNLOAD", "UPLOAD", "FAN"};
+                        const char *title = type == 1 ? "CLOCK" : type == 2 ? "DATE" : type == 4 ? "COUNTDOWN" :
+                                            type == 5 ? "STOPWATCH" : type == 6 ? "WEATHER" : type == 7 ? "STOCK" :
+                                            type == 8 ? "CRYPTO" : stat_titles[s_widget_stats[index]];
                         lv_obj_t *heading = label(tile, title, 14, color(graphic_accent));
                         lv_obj_set_style_text_font(heading, &lv_font_montserrat_10, 0);
                         lv_obj_set_style_text_letter_space(heading, 1, 0);

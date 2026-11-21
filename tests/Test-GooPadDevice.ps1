@@ -88,8 +88,11 @@ $invalid.macros[0].Remove('gifFit')
 foreach ($setting in @(
     @{clockFormat='23h'}, @{dateFormat='custom'}, @{pcStat='unknown'}, @{temperatureUnit='K'},
     @{widgetTheme='unknown'}, @{widgetGraphic='galaxy'}, @{widgetTextSize='28'},
-    @{widgetTextSize=29}, @{widgetAccent='nothex'}, @{widgetGradient='nothex'},
-    @{widgetLayout='unknown'}, @{widgetLayout=123},
+    @{widgetTextSize=29}, @{widgetAccent='nothex'}, @{widgetGradient='nothex'}, @{tileGradient='nothex'}, @{visualScale=49}, @{pageDirection='invalid'},
+    @{widgetLayout='unknown'}, @{widgetLayout=123}, @{countdownAt='tomorrow'}, @{widget='countdown'},
+    @{homeToken="bad`r`nvalue"}, @{homeToken=('x' * 513)},
+    @{widget='weather'}, @{weatherLatitude=91}, @{weatherLongitude=-181},
+    @{widget='stock'}, @{widget='crypto'}, @{marketSymbol='BTC&bad'}, @{stockKey="bad`r`nkey"},
     @{widget='clock'; widgetGraphic='calendar'},
     @{widget='pc_monitor'; pcStat='gpu_temp'; widgetGraphic='ring'}
     @{emojiRender='unknown'}, @{emojiImageKey=123}
@@ -113,7 +116,7 @@ $stats = (Request '/api/status').Content | ConvertFrom-Json
 if ($stats.renderedPages -lt 1 -or $stats.renderedPages -gt [math]::Ceiling(32 / ([int]$invalid.cols * [int]$invalid.rows))) {
     throw 'Invalid native rendered-page count.'
 }
-foreach ($key in @('summary','cpu','ram','ram_used','gpu','gpu_memory','cpu_temp','gpu_temp')) {
+foreach ($key in @('summary','cpu','ram','ram_used','gpu','gpu_memory','cpu_temp','gpu_temp','net_down','net_up','fan')) {
     if (!$stats.pcStats.$key -or $stats.pcStats.$key.Length -gt 64) { throw "Missing PC stat: $key" }
 }
 foreach ($key in @('cpu_temp','gpu_temp')) {

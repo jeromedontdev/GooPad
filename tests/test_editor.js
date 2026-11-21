@@ -2,6 +2,8 @@ globalThis.runGooPadEditorTests = async function () {
  if (location.protocol !== "file:") throw Error("Run only against the local editor, never a device.");
  const original = structuredClone(cfg), confirmOriginal = globalThis.confirm, fetchOriginal = globalThis.fetch;
  const monitorOriginal = [pcMonitorPreview, pcStatsPreview, pcStatsFPreview];
+ const siteThemeOriginal = document.querySelector("#siteTheme").value;
+ const savedSiteThemeOriginal = localStorage.getItem("goopad-site-theme");
  let checks = 0, layouts = 0;
  const check = (value, message) => { checks++; if (!value) throw Error(message) };
  const make = i => ({...emptyMacro(), name:"W"+i, actionMode:"widget", widget:"clock"});
@@ -15,6 +17,10 @@ globalThis.runGooPadEditorTests = async function () {
   el.value = value; el.dispatchEvent(new Event("change"));
  };
  try {
+  for(const theme of ["dark","light","ocean","forest","violet","ember"]){
+   const control=document.querySelector("#siteTheme");control.value=theme;control.dispatchEvent(new Event("change"));
+   check(document.body.dataset.siteTheme===theme && document.body.classList.contains("light")===(theme==="light") && localStorage.getItem("goopad-site-theme")===theme,"Website theme persists: "+theme);
+  }
   for (const page of [0,1,2]) {
    reset({}); scrollPreviewPage(page); document.querySelector("#addPage").click();
    check(cfg.pageCount === 4 && currentPreviewPage() === page+1, "Insertion/selection after current page");
@@ -24,6 +30,12 @@ globalThis.runGooPadEditorTests = async function () {
    document.querySelector("#removePage").click();
    check(cfg.pageCount === 3 && cfg.macros[6].name === "W6", "Removing an empty inserted page");
   }
+  reset({cols:2,rows:2,pageCount:1,macros:[make(0)]});
+  document.querySelector("#pageTemplate").value="fusion";document.querySelector("#insertTemplate").click();
+  check(cfg.pageCount===2 && cfg.macros[0].name==="W0" && cfg.macros[4].name==="Toolbox" && cfg.macros[5].pcSteps[0].keys[0]==="F", "App page inserts without overwriting existing tiles");
+  reset({cols:2,rows:2,pageCount:8,macros:Array.from({length:32},(_,i)=>make(i))});
+  const fullBefore=JSON.stringify(cfg);document.querySelector("#pageTemplate").value="github";document.querySelector("#insertTemplate").click();
+  check(JSON.stringify(cfg)===fullBefore,"App template cannot displace existing tiles past capacity");
   reset({}); scrollPreviewPage(1);
   globalThis.confirm = () => false; document.querySelector("#removePage").click();
   check(cfg.pageCount === 3 && cfg.macros.length === 18, "Cancel deletion preserves page");
@@ -149,6 +161,21 @@ globalThis.runGooPadEditorTests = async function () {
   check(document.querySelector('[data-k="widgetGradient"]').disabled && cfg.macros[0].widgetGradient==="335577", "Preset preserves custom gradient");
   change("widgetTheme","custom");
   check(document.querySelector('[data-k="widgetGradient"]').value==="#335577", "Custom gradient restored");
+  change("actionMode","page_navigation");
+  change("pageDirection","previous");change("tileGradient","#AA7744");change("visualScale","75");
+  prepareMacroAction(cfg.macros[0],0);
+  check(macroConfigured(cfg.macros[0]) && cfg.macros[0].pageDirection==="previous" && cfg.macros[0].url==="", "Page navigation persists as a local action");
+  check(document.querySelector("[data-test-action]").disabled && document.querySelector('[data-tile="0"]').style.backgroundImage.includes("linear-gradient"), "Navigation preview shows tile gradient and disables remote testing");
+  check(cfg.macros[0].visualScale===75 && document.querySelector('[data-tile="0"] .ico').style.transform==="scale(0.75)", "Visual size persists and updates the preview");
+  cfg.macros[0].pageDirection="elsewhere";
+  let badDirection=false;try{prepareMacroAction(cfg.macros[0],0)}catch{badDirection=true}
+  check(badDirection,"Invalid page navigation rejected");
+  change("pageDirection","next");change("actionMode","widget");
+  for(const [theme,background] of Object.entries(themeBackgrounds)){
+   const control=document.querySelector("#deviceTheme");control.value=theme;control.dispatchEvent(new Event("change"));
+   check(cfg.theme===theme && document.querySelector("#background").value.toUpperCase()==="#"+background, "Device theme background: "+theme);
+  }
+  document.querySelector("#deviceTheme").value="midnight";document.querySelector("#deviceTheme").dispatchEvent(new Event("change"));
   change("clockFormat","12h_plain");
   check(widgetTimeText(cfg.macros[0],new Date("2026-11-21T14:30:45Z"))==="02:30", "12-hour without AM/PM");
   change("clockFormat","12h_plain_seconds");
@@ -159,6 +186,48 @@ globalThis.runGooPadEditorTests = async function () {
   check(cfg.macros[0].widgetGraphic==="text", "Temperature is not a percentage gauge");
   change("widget","clock");
   check(document.querySelector("[data-test-action]").disabled,"Display-only widgets cannot test actions");
+  change("widget","countdown");
+  let countdownRejected=false;try{prepareMacroAction(cfg.macros[0],0)}catch{countdownRejected=true}
+  check(countdownRejected,"Countdown requires a date");
+  change("countdownAt","2030-01-01T12:30");
+  prepareMacroAction(cfg.macros[0],0);
+  check(Number.isInteger(cfg.macros[0].countdownAt) && widgetTimeText({widget:"countdown",countdownAt:1577836800},new Date()).startsWith("00:00:00"),"Countdown stores absolute seconds and stops at zero");
+  change("widget","stopwatch");
+  check(widgetTimeText(cfg.macros[0],new Date())==="00:00:00","Stopwatch preview starts at zero");
+  change("widget","weather");
+  let weatherRejected=false;try{prepareMacroAction(cfg.macros[0],0)}catch{weatherRejected=true}
+  check(weatherRejected,"Weather requires coordinates");
+  change("weatherLatitude","40.71");change("weatherLongitude","-74.01");change("temperatureUnit","F");
+  prepareMacroAction(cfg.macros[0],0);
+  check(cfg.macros[0].weatherLatitude===40.71 && cfg.macros[0].weatherLongitude===-74.01 && cfg.macros[0].temperatureUnit==="F","Weather coordinates and units are stored");
+  change("weatherLatitude","91");
+  weatherRejected=false;try{prepareMacroAction(cfg.macros[0],0)}catch{weatherRejected=true}
+  check(weatherRejected,"Out-of-range weather coordinates rejected");
+  change("widget","stock");change("marketSymbol","aapl");
+  let stockRejected=false;try{prepareMacroAction(cfg.macros[0],0)}catch{stockRejected=true}
+  check(stockRejected,"Stock requires an API key");
+  change("stockKey","test123");prepareMacroAction(cfg.macros[0],0);
+  check(cfg.macros[0].marketSymbol==="AAPL" && cfg.macros[0].stockKey==="test123","Stock symbol normalized and key saved");
+  change("widget","crypto");change("marketSymbol","BTC&bad");
+  let cryptoRejected=false;try{prepareMacroAction(cfg.macros[0],0)}catch{cryptoRejected=true}
+  check(cryptoRejected,"Unsafe crypto symbol rejected");
+  change("marketSymbol","btc");prepareMacroAction(cfg.macros[0],0);
+  check(cfg.macros[0].marketSymbol==="BTC","Crypto symbol normalized");
+  change("widget","clock");
+  cfg.companionAddress="https://192.0.2.20:8787";cfg.companionToken="x".repeat(32);cfg.companionCertificate=certificate;
+  const systemMacro={...emptyMacro(),actionMode:"pc_macro",pcSteps:[{type:"system",value:"monitor_off"}]};
+  preparePcMacro(systemMacro,0);
+  check(JSON.parse(systemMacro.body).steps[0].value==="monitor_off", "PC monitor control is serialized");
+  systemMacro.pcSteps.push({type:"wait",value:0});
+  let systemRejected=false;try{preparePcMacro(systemMacro,0)}catch{systemRejected=true}
+  check(systemRejected,"PC system control must be the final step");
+  const home={...emptyMacro(),actionMode:"home_assistant",homeAddress:"https://home.example.com",homeEntity:"switch.lamp",homeToken:"test-token",homeOperation:"toggle"};
+  prepareMacroAction(home,0);
+  check(home.url==="https://home.example.com/api/services/switch/toggle" && home.method==="POST" && JSON.parse(home.body).entity_id==="switch.lamp" && home.secret==="", "Home Assistant switch creates authenticated action");
+  for(const bad of [{homeAddress:"http://example.com"},{homeEntity:"switch.bad/path"},{homeToken:"bad\r\nheader"}]){
+   let rejected=false;try{prepareMacroAction({...home,...bad},0)}catch{rejected=true}
+   check(rejected,"Home Assistant rejects insecure or invalid inputs");
+  }
   let stored;
   globalThis.fetch = async (url, options) => url==="/api/config"
    ? (stored=JSON.parse(options.body), new Response("{}",{status:200,headers:{"Content-Type":"application/json"}}))
@@ -179,7 +248,8 @@ globalThis.runGooPadEditorTests = async function () {
   for(const cols of [2,3,4]) for(const rows of [2,3,4])
    for(const shape of ["rounded","square","circle","pill","soft"])
     for(const size of [0,12,14,16,20,28,40]) for(const name of ["","Label"]) {
-     cfg={...cfg,cols,rows,pageCount:1,macros:examples.map(extra=>({...emptyMacro(),...extra,actionMode:"widget",widgetTheme:["custom",...Object.keys(widgetThemes)][layouts%14],widgetLayout:"panel",widgetTextSize:size,shape,name}))};
+     const themes=["custom",...Object.keys(widgetThemes)];
+     cfg={...cfg,cols,rows,pageCount:1,macros:examples.map(extra=>({...emptyMacro(),...extra,actionMode:"widget",widgetTheme:themes[layouts%themes.length],widgetLayout:"panel",widgetTextSize:size,shape,name}))};
      document.querySelector("#cols").value=cols; document.querySelector("#rows").value=rows; preview();
      for(const el of document.querySelectorAll("#preview .widget")) {
       layouts++;
@@ -197,6 +267,9 @@ globalThis.runGooPadEditorTests = async function () {
   document.querySelector("#preview").dispatchEvent(new DragEvent("dragend",{bubbles:true}));
   globalThis.confirm=confirmOriginal; globalThis.fetch=fetchOriginal;
   [pcMonitorPreview,pcStatsPreview,pcStatsFPreview]=monitorOriginal;
+  document.querySelector("#siteTheme").value=siteThemeOriginal;document.querySelector("#siteTheme").dispatchEvent(new Event("change"));
+  if(savedSiteThemeOriginal===null)localStorage.removeItem("goopad-site-theme");
+  else localStorage.setItem("goopad-site-theme",savedSiteThemeOriginal);
   cfg=original; selectedTile=-1; setForm();
  }
 };

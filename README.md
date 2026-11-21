@@ -29,6 +29,9 @@ touch display into a Wi-Fi macro pad. It is built with ESP-IDF 6.1 and LVGL
 The browser editor is served from the device and remains available at its
 current DHCP address. Reserve an address for GooPad in your router if you want
 a stable bookmark.
+If nonvolatile storage cannot be initialized, startup stops rather than erasing
+Wi-Fi credentials and configuration. Check the serial log and recover a backup
+before deliberately reinitializing storage.
 
 ## Macros and customization
 
@@ -91,11 +94,17 @@ Start within the top 32 pixels and pull down at least 64 pixels.
 The menu's Settings has display-brightness, sound-volume, and SD firmware-update
 controls. Appearance and themes are configured only from the website. Brightness
 and volume changes take effect immediately; **Save settings** persists them.
-The display has Midnight, Ocean, Forest,
-and Light palettes, custom background colors, and per-macro font colors and
+Website themes are independent of device themes and are saved in the current browser.
+The display has Midnight, Ocean, Forest, Light, Slate, Violet, Ember, Berry,
+Teal, and Black palettes, custom background colors, and per-macro font colors and
 rounded, square, circle, pill, or soft-corner tile shapes. Up to 32 macros are stored locally;
 grid size controls how many appear on each page. Each macro can choose an
-outline color or remove its outline. Preset themes always use their own
+outline color or remove its outline. Action tiles also support a custom
+two-color vertical gradient and three icon/image sizes; set both colors alike
+for a solid tile. GIFs set to fill the tile ignore the visual-size setting.
+**Navigate GooPad pages** makes a tile go to the next, previous, or first page,
+without requiring a PC or network. Navigation stops at the ends and can
+optionally play the tile's sound. Preset themes always use their own
 background; choose **Custom** for your own background. Custom also accepts an
 uploaded image (up to 15 MB input, SD required). The browser center-crops it to
 480x480 RGB565 and fills transparent pixels with the selected background color.
@@ -113,8 +122,8 @@ day/month/year, and short month/day; the default remains year-month-day. Date pr
 scales to the tile's dimensions. Clock/date use network time or time
 synced when the website opens; Settings includes a fixed UTC offset, initially
 matched to the browser. Update that offset after daylight-saving changes.
-Each widget has thirteen color presets, including Midnight glass, Cloud,
-Lavender, Mint, Coral, and Graphite, or Custom to use your own tile, gradient
+Each widget has 25 color presets, including Midnight glass, Cloud,
+Lavender, Mint, Aurora, Ember, Arctic, and Berry, or Custom to use your own tile, gradient
 end, text, outline and graphic-accent colors. Switching away from Custom
 preserves those colors for switching back. The optional **Modern card** layout
 adds a compact heading and accent to larger rounded or square tiles, and falls
@@ -129,7 +138,9 @@ to keep readings inside the tile. Tiny tiles simplify graphics to text when
 necessary. Device graphics use lightweight LVGL vectors, not uploaded assets.
 PC stats use the paired Companion. Choose CPU/RAM combined, CPU usage,
 RAM percentage or used GiB, GPU usage, dedicated GPU RAM used, CPU temperature,
-or GPU temperature per tile. Temperature tiles support Celsius/Fahrenheit.
+or GPU temperature, download/upload speed, or fastest reported fan RPM per tile.
+Temperature tiles support Celsius/Fahrenheit. Network speed sums non-loopback
+interfaces and fan readings require LibreHardwareMonitor or OpenHardwareMonitor.
 CPU/RAM refresh every five seconds; cached GPU/sensor readings update about
 every ten seconds, without blocking incoming PC commands.
 The web preview reads the device's cached result without blocking its web
@@ -149,6 +160,34 @@ Some sensors require **that sensor app** to run as administrator; keep GooPad
 Companion running as your normal user. No remote web server is needed.
 Unsupported sensors display **Unavailable**, not a fake zero; CPU package/GPU
 core readings are preferred, with the highest matching temperature used if needed.
+
+Additional widgets include countdown (an absolute date/time; synchronized clock
+required) and stopwatch. Tap the stopwatch to start/pause, hold to reset; it
+resets when the layout reloads or the device restarts.
+
+Weather uses latitude/longitude and Celsius or Fahrenheit. Weather data by
+[Open-Meteo.com](https://open-meteo.com/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/):
+temperatures are rounded and weather codes summarized. The free endpoint is for
+non-commercial use and transmits the coordinates to Open-Meteo. Weather refreshes
+every 15 minutes. Crypto uses Coinbase USD spot prices every five minutes.
+Stock prices use an Alpha Vantage key and refresh every six hours per tile.
+Alpha Vantage's free quota is 25 requests per day shared by the key: several
+tiles or frequent reboots may exhaust it, and quotes may be delayed. The stock
+key is stored in device configuration and backups; protect both. Live widgets
+use verified HTTPS and show unavailable on errors or provider limits. They are
+informational, not financial advice.
+
+Premade Photoshop, GitHub, Excel, OBS Studio and Autodesk Fusion pages insert
+after the current page without replacing existing tiles. Shortcuts act on the
+focused Windows application; OBS streaming/recording shortcuts must be set in OBS.
+
+Home Assistant switch/light tiles support toggle, on and off through its REST
+API. Enter a long-lived access token and an HTTPS address with a publicly
+trusted certificate; HTTP and self-signed certificates are not supported. The
+token is stored in the device configuration and backups. These controls do not
+show live switch state. This action only controls entities available to Home
+Assistant. Direct Apple Home pairing using virtual switches is possible, but
+is not yet implemented in GooPad.
 
 Animated GIFs require SD and are limited to 160×160 pixels, 128 KB, 240 frames,
 and four GIF tiles per layout. Device frame delays are clamped to at least
@@ -233,6 +272,13 @@ as your Windows user. Each command is limited to 512 characters and 10 seconds;
 a failed step stops the sequence and is reported in the app/log and last-result
 check. Do not run Companion as Administrator. Its config and log are in
 `%LOCALAPPDATA%\GooPad`.
+
+PC power and monitor controls are separately disabled by default and must be
+enabled locally in Companion. They include lock, monitor off, sleep, hibernate,
+shutdown, restart, and cancelling a scheduled shutdown/restart. Shutdown and
+restart wait 60 seconds and then force-close applications; unsaved work can be
+lost. Sleep may hibernate depending on Windows settings. Anyone with the paired
+token can invoke enabled system controls, so only enable them on trusted networks.
 
 #### Manual or automatic Windows startup
 

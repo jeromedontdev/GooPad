@@ -156,11 +156,12 @@ bool goopad_configured(void);
 void goopad_get_config(char *out, size_t capacity);
 esp_err_t goopad_install_ota_from_sd(void);
 esp_err_t goopad_trigger(unsigned index);
+esp_err_t goopad_navigation_sound(unsigned index);
 const char *goopad_initial_password(void);
 esp_err_t goopad_set_controls(int brightness, int volume);
 void goopad_get_address(char *out, size_t capacity);
 void goopad_monitor_text(char *out, size_t capacity);
-#define GOOPAD_PC_STAT_COUNT 8
+#define GOOPAD_PC_STAT_COUNT 11
 int goopad_pc_stat_index(const char *key);
 const char *goopad_pc_stat_key(unsigned index);
 void goopad_pc_stat_text(unsigned index, bool fahrenheit, char *out, size_t capacity);
@@ -171,6 +172,7 @@ typedef struct {
 const goopad_widget_style_t *goopad_widget_style(const char *key);
 bool goopad_widget_graphic_valid(const char *graphic, const char *widget, const char *stat);
 bool goopad_pc_stat_value(unsigned index, double *out);
+void goopad_live_widget_text(unsigned index, char *out, size_t capacity);
 bool goopad_prepare_gif(uint8_t *data, size_t *size, size_t capacity);
 
 /* hw_*.c */

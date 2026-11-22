@@ -156,6 +156,7 @@ globalThis.runGooPadEditorTests = async function () {
   check(getComputedStyle(notice).color!==progressColor, "Upload errors have a distinct color");
   globalThis.fetch=fetchOriginal;
   reset({pageCount:1,macros:[{...make(0),color:"123456",textColor:"FEDCBA",tileName:"Legacy"}]}); selectTile(0);
+  check(document.querySelector(".macro-fields").firstElementChild.querySelector('[data-k="actionMode"]'), "Button type is the first tile setting");
   change("name","Visible");
   check(cfg.macros[0].name==="Visible" && !document.querySelector('[data-k="tileName"]'), "Optional button label remains; tile naming removed");
   for(const theme of Object.keys(widgetThemes)) {

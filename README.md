@@ -39,7 +39,8 @@ Each tile supports an optional label, color, visual, and a plain-language action
 Choose **Icon / emoji**, **Font Awesome**, **Image**, or **Animated GIF** from its visual-type
 dropdown. Blank labels stay blank; the visual is enlarged and centered.
 The live preview is the editor's centerpiece: select any tile, including an
-empty slot, to edit it. Only that tile's controls are shown. You can configure
+empty slot, to edit it. Choose the button type at the top of its settings.
+Only that tile's controls are shown. You can configure
 positions in any order. **Button label** is optional on-screen text; tiles have
 no separate editor name.
 **Clear tile** leaves other positions untouched. Drag a preview tile onto an

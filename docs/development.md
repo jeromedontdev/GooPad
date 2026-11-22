@@ -32,6 +32,9 @@ report: it must fit the 4 MiB app slot. The root `sdkconfig` is local and may
 already contain choices. For a fresh build, `sdkconfig.defaults` seeds the
 configuration; inspect `CONFIG_GOOPAD_HOMEKIT`, `CONFIG_NVS_BDL_STACK`, flash
 and PSRAM settings rather than assuming an old build includes HomeKit.
+For the updater's PSRAM-backed TLS, also confirm
+`CONFIG_MBEDTLS_HARDWARE_AES` is disabled in the active configuration; existing
+`sdkconfig` files do not automatically inherit changed defaults.
 `idf.py set-target` can reset configuration; do not run it casually against an
 existing configured workspace. Keep the SDK and the build's `SDKCONFIG`
 consistent. `main/CMakeLists.txt` embeds the editor and generates the compressed

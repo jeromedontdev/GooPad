@@ -58,7 +58,9 @@ build directory matches the current source, SDK or configuration.
    may remain unavailable.
 2. `goopad_init()` loads the saved JSON into PSRAM, creates locks and monitoring
    workers, loads device controls and credentials, registers Wi-Fi events and
-   starts the station. The display presents onboarding if not connected.
+   starts the station. Connections scan all channels and prefer the strongest
+   matching access point, including when joining a network during onboarding.
+   The display presents onboarding if not connected.
 3. On DHCP assignment, `wifi_event()` starts HTTPS and, when enabled, the
    HomeKit startup task. Failed Wi-Fi connections are retried up to the
    configured limit. HTTPS embeds the editor and icon catalogs in the binary.
@@ -78,7 +80,12 @@ build directory matches the current source, SDK or configuration.
 The editor restores an SD backup by reading `/api/backup` and posting it
 through the normal validated `/api/config` save path. The update check and
 download run on the device, avoiding browser cross-origin download failures;
-only a newer stable release's app-only asset is accepted.
+only a newer stable release's app-only asset is accepted. The HTTP transmit
+buffer must accommodate the full bounded GitHub asset redirect URL and request
+line; signed redirect URLs can exceed ESP-IDF's default buffer.
+TLS allocates in PSRAM and uses software AES: hardware AES requires temporary
+internal DMA buffers that can fail under concurrent display and network load.
+Neither setting disables certificate or image verification.
 
 The editor and firmware each validate input. Browser validation improves UX;
 firmware validation is the security and persistence boundary. Keep both in

@@ -2543,6 +2543,8 @@ void goopad_init(void)
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     if (s_ssid[0]) {
         wifi_config_t config = {0};
+        config.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+        config.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
         strlcpy((char *)config.sta.ssid, s_ssid, sizeof(config.sta.ssid));
         read_string("wifi", (char *)config.sta.password, sizeof(config.sta.password));
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &config));

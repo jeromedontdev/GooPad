@@ -50,6 +50,8 @@ static esp_http_client_handle_t new_client(const char *url, http_event_handle_cb
     esp_http_client_config_t config = {
         .url = url, .timeout_ms = 15000, .crt_bundle_attach = esp_crt_bundle_attach,
         .disable_auto_redirect = true, .event_handler = event, .user_data = data,
+        // GitHub's signed asset redirect can exceed ESP-IDF's 512-byte request buffer.
+        .buffer_size_tx = !strncmp(url, ASSET_PREFIX, strlen(ASSET_PREFIX)) ? REDIRECT_MAX_BYTES + 16 : 0,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client && esp_http_client_set_header(client, "User-Agent", "GooPad") != ESP_OK) {
@@ -183,6 +185,7 @@ esp_err_t goopad_update_install(const char *version)
     esp_http_client_handle_t client = new_client(url, capture_redirect, redirect);
     esp_ota_handle_t ota = 0;
     bool started = false;
+    const char *stage = "redirect";
     psa_hash_operation_t hash = PSA_HASH_OPERATION_INIT;
     if (!client) { result = ESP_ERR_NO_MEM; goto done; }
     result = ESP_FAIL;
@@ -193,37 +196,62 @@ esp_err_t goopad_update_install(const char *version)
     esp_http_client_cleanup(client);
     client = new_client(redirect->url, NULL, NULL);
     if (!client) { result = ESP_ERR_NO_MEM; goto done; }
+    stage = "asset headers";
     int64_t length;
     if (esp_http_client_open(client, 0) != ESP_OK ||
         (length = esp_http_client_fetch_headers(client)) < 0 ||
         esp_http_client_get_status_code(client) != 200 || length != (int64_t)release.size) goto done;
+    stage = "OTA begin";
     result = esp_ota_begin(partition, release.size, &ota);
     if (result != ESP_OK) goto done;
     started = true;
     result = ESP_FAIL;
-    if (psa_crypto_init() != PSA_SUCCESS || psa_hash_setup(&hash, PSA_ALG_SHA_256) != PSA_SUCCESS) goto done;
+    stage = "hash setup";
+    psa_status_t hash_status = psa_crypto_init();
+    if (hash_status == PSA_SUCCESS) hash_status = psa_hash_setup(&hash, PSA_ALG_SHA_256);
+    if (hash_status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "SHA-256 setup failed: %ld", (long)hash_status);
+        goto done;
+    }
     size_t received = 0;
+    stage = "asset download";
     while (received < release.size) {
         size_t remaining = release.size - received;
         int n = esp_http_client_read(client, (char *)buffer, (int)(remaining < 4096 ? remaining : 4096));
-        if (n <= 0 || psa_hash_update(&hash, buffer, (size_t)n) != PSA_SUCCESS ||
-            esp_ota_write(ota, buffer, (size_t)n) != ESP_OK) goto done;
+        if (n <= 0) {
+            ESP_LOGE(TAG, "Asset read failed at %u bytes: %d", (unsigned)received, n);
+            goto done;
+        }
+        if (psa_hash_update(&hash, buffer, (size_t)n) != PSA_SUCCESS) {
+            stage = "hash update";
+            goto done;
+        }
+        esp_err_t write_result = esp_ota_write(ota, buffer, (size_t)n);
+        if (write_result != ESP_OK) {
+            stage = "OTA write";
+            result = write_result;
+            goto done;
+        }
         received += (size_t)n;
     }
     uint8_t digest[32];
     size_t digest_length = 0;
+    stage = "asset verification";
     if (!esp_http_client_is_complete_data_received(client) ||
         psa_hash_finish(&hash, digest, sizeof(digest), &digest_length) != PSA_SUCCESS ||
         digest_length != sizeof(digest) || memcmp(digest, release.digest, sizeof(digest))) goto done;
+    stage = "OTA validation";
     result = esp_ota_end(ota);
     started = false;
     if (result != ESP_OK) goto done;
     esp_app_desc_t description;
+    stage = "version verification";
     result = esp_ota_get_partition_description(partition, &description);
     if (result != ESP_OK || strcmp(description.version, release.version)) {
         result = ESP_ERR_INVALID_VERSION;
         goto done;
     }
+    stage = "boot selection";
     result = esp_ota_set_boot_partition(partition);
 done:
     if (started) esp_ota_abort(ota);
@@ -231,6 +259,6 @@ done:
     if (client) esp_http_client_cleanup(client);
     free(redirect);
     free(buffer);
-    if (result != ESP_OK) ESP_LOGE(TAG, "Release installation failed: %s", esp_err_to_name(result));
+    if (result != ESP_OK) ESP_LOGE(TAG, "Release installation failed at %s: %s", stage, esp_err_to_name(result));
     return result;
 }

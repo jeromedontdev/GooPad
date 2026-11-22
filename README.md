@@ -234,7 +234,9 @@ Choose **GIF size → Fill whole tile** to zoom proportionally and crop to the
 tile shape, with any button label overlaid. **Fit inside tile** preserves the
 existing centered-icon sizing. This changes display size, not upload limits.
 TLS allocations use PSRAM to avoid exhausting internal RAM when browsers
-open multiple HTTPS connections. The HTTPS session pool is bounded at six
+open multiple HTTPS connections, and software AES avoids additional internal
+DMA-buffer pressure. Wi-Fi connections prefer the strongest matching access
+point found across channels. The HTTPS session pool is bounded at six
 connections, leaving socket capacity for server control and outbound commands.
 Unconfigured device tiles have no plus sign and cannot be tapped.
 **Hide unconfigured tiles** compacts
@@ -433,7 +435,8 @@ device's swipe-down information panel.
   If a newer version is available, confirm to download and install its
   app-only image. GooPad needs internet access and an accurate clock for
   certificate verification. It checks the release's SHA-256 digest and image
-  version before switching slots.
+  version before switching slots. If an older version cannot download an
+  update, download the release's app-only binary and use **Upload firmware**.
 * On the **device's** info-panel Settings page, install `/goopad.bin` from
   the mounted SD card.
 * **Change admin password** is available in website Settings. Use 8-64

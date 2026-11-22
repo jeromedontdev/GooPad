@@ -7,6 +7,6 @@ endif()
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # Version reported by esp_app_get_description() and shown in the boot log.
-set(PROJECT_VER "0.7.1")
+set(PROJECT_VER "0.7.2")
 
 project(GooPad)

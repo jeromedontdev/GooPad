@@ -119,6 +119,8 @@ esp_err_t hw_wifi_connect(const char *ssid, const char *password)
     err = wifi_start_locked();
     if (err == ESP_OK) {
         wifi_config_t config = {0};
+        config.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+        config.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
         strlcpy((char *)config.sta.ssid, ssid, sizeof(config.sta.ssid));
         strlcpy((char *)config.sta.password, password, sizeof(config.sta.password));
         err = esp_wifi_set_config(WIFI_IF_STA, &config);

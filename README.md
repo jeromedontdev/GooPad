@@ -6,6 +6,10 @@ touch display into a Wi-Fi macro pad. It is built with ESP-IDF 6.1 and LVGL
 
 ![GooPad logo](web/logo.svg)
 
+For maintainers: [architecture and code map](docs/architecture.md),
+[development and recovery](docs/development.md), and
+[API and data contracts](docs/api.md).
+
 ## First boot
 
 1. Power the board and use its touch-screen keyboard to enter Wi-Fi details.
@@ -413,17 +417,18 @@ the OTA partition table. Later updates use an application-only image.
 
 ## Build and flash
 
-Install ESP-IDF 6.1 and its tools, then from PowerShell in this directory:
+Install ESP-IDF 6.1 and its tools, then build from PowerShell in this directory:
 
 ```powershell
-& C:\esp\v6.1\esp-idf\export.bat
-idf.py set-target esp32s3
-idf.py build
-idf.py -p COM9 flash monitor
+& C:\esp\v6.1\esp-idf\export.ps1
+idf.py -B C:\Temp\GooPad-idf-build build
 ```
 
-Use the USB-C/CH340 serial port shown by Windows (COM9 on the development
-machine). The board is an ESP32-S3-WROOM-1U-N16R8: 16 MB flash, 8 MB octal
+For an existing configured device, use the app-only OTA image; do not casually
+erase or full-flash its NVS or HomeKit storage. See the
+[developer guide](docs/development.md#safe-update-first-flash-and-release)
+for build configuration, backups, first installation and recovery. The board
+is an ESP32-S3-WROOM-1U-N16R8: 16 MB flash, 8 MB octal
 PSRAM, ST7701S RGB display, GT911 touch, and microSD slot.
 
 Run Companion tests in an isolated Python environment:
@@ -431,7 +436,7 @@ Run Companion tests in an isolated Python environment:
 ```powershell
 python -m venv build\companion-test-venv
 .\build\companion-test-venv\Scripts\python.exe -m pip install -r companion\requirements.txt
-.\build\companion-test-venv\Scripts\python.exe -m unittest tests.test_companion
+.\build\companion-test-venv\Scripts\python.exe -m unittest discover -s tests -p test_companion.py
 ```
 
 Isolation avoids globally installed `pip_system_certs` injecting client
@@ -453,6 +458,8 @@ Add `-TileVisibilityOnly` instead to run the focused native empty-tile fixtures
 with snapshot restoration and built-in emoji checks, without the broader audio/power/asset tests.
 These checks require firmware 0.6.0 or later and refuse older schemas before
 sending invalid-input tests that older firmware might otherwise accept.
+They skip TLS certificate verification and are intended only for a trusted LAN;
+they do not verify device identity.
 Browser editor regressions are in [tests/test_editor.js](tests/test_editor.js).
 Open the local [editor](main/index.html), load that script as a classic script,
 and call `runGooPadEditorTests()` in its console. It uses synthetic layouts and
@@ -463,14 +470,12 @@ actual text bounds across all grids, shapes and text sizes.
 To create a full-flash image and an app-only OTA image:
 
 ```powershell
-.\tools\make_release.ps1
+.\tools\make_release.ps1 -BuildDir C:\Temp\GooPad-idf-build
 ```
 
-To also flash the merged image:
-
-```powershell
-.\tools\make_release.ps1 -Port COM4
-```
+The script reads flash parameters from the root `sdkconfig`, which must match
+the selected build. Its `-Port` option writes the merged image and is intended
+for fresh boards or explicitly planned recovery, not routine updates.
 
 ## Security notes
 

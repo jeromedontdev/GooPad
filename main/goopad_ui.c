@@ -85,6 +85,8 @@ static lv_color_t color(uint32_t value);
 
 static void clear_dynamic_assets(void)
 {
+    /* Called after LVGL objects are deleted; discard their pointers and free
+     * separately owned GIF buffers before rebuilding the screen. */
     s_pages = NULL;
     s_info_overlay = NULL;
     g_app.rendered_tiles = g_app.empty_tiles = g_app.widget_count = g_app.gif_count = g_app.gif_loops = 0;
@@ -140,6 +142,8 @@ static bool macro_configured(cJSON *macro)
 
 static void update_widgets(void)
 {
+    /* This runs on the LVGL thread. Workers expose snapshots rather than
+     * touching LVGL objects directly. */
     time_t epoch = time(NULL);
     bool synced = epoch >= 1577836800;
     epoch += s_time_offset * 60;
@@ -1043,6 +1047,8 @@ static void build_grid_screen(void)
     bool hide = cJSON_IsTrue(hide_item);
     bool hide_empty = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "hideEmptyTiles"));
     s_time_offset = cJSON_IsNumber(offset_item) ? offset_item->valueint : 0;
+    /* Visible positions map back to original macro indices; compacting the
+     * grid must never redirect a tile press to a different saved action. */
     int indices[MAX_MACROS], visible = 0;
     for (int i = 0; i < total && i < MAX_MACROS; i++) {
         if (!hide || macro_configured(cJSON_GetArrayItem(macros, i))) indices[visible++] = i;

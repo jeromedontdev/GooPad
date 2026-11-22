@@ -14,6 +14,8 @@ static const char *TAG = "goopad_tls";
 static unsigned char s_cert[2048];
 static unsigned char s_key[512];
 
+/* The HTTPS server holds these buffers for its lifetime. Keep the existing
+ * NVS identity across reboots and upgrades so clients can continue trusting it. */
 esp_err_t goopad_tls_configure(httpd_ssl_config_t *config, const char *ip)
 {
     nvs_handle_t nvs;

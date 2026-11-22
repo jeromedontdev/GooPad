@@ -21,6 +21,8 @@
 #define READY 0xfc
 #define META_MAGIC UINT32_C(0x47504831)
 
+/* The signature and monotonic flash-bit states form an ownership record.
+ * The following 64 KiB is an NVS block device, not a mounted SPIFFS volume. */
 static const char *TAG = "homekit_storage";
 static const uint8_t signature[] = {
     'G', 'o', 'o', 'P', 'a', 'd', '-', 'H', 'A', 'P', '-', 'N', 'V', 'S', 1, 0
@@ -31,6 +33,8 @@ static bool initialized;
 
 static bool fits(uint64_t offset, size_t length)
 {
+    /* NVS offsets are relative to the reserved store, not the parent
+     * partition; use subtraction to reject overflow as well as overrun. */
     return offset <= STORE_SIZE && length <= STORE_SIZE - offset;
 }
 
@@ -107,6 +111,8 @@ esp_err_t goopad_homekit_storage_init(void)
         ESP_LOGE(TAG, "Storage partition contains data outside the reserved area");
         return err;
     }
+    /* Claim only erased storage. CLAIMED allows initialization to resume
+     * after interruption; READY requires the committed NVS marker below. */
     if (blank_header || state == 0xff) {
         err = check_erased(base + SECTOR_SIZE, parent->size);
         if (err != ESP_OK) return err;

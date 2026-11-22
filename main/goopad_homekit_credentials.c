@@ -16,6 +16,8 @@ typedef struct {
 
 static esp_err_t identity_absent(void)
 {
+    /* Never generate a replacement setup ID over an existing HAP identity:
+     * doing so could silently invalidate the controller's pairing. */
     nvs_handle_t identity;
     esp_err_t err = nvs_open_from_partition(GOOPAD_HOMEKIT_NVS_PARTITION, "hap_main", NVS_READONLY, &identity);
     if (err == ESP_ERR_NVS_NOT_FOUND) return ESP_OK;
@@ -43,6 +45,7 @@ esp_err_t goopad_homekit_generate_code(char code[11])
     if (!code) return ESP_ERR_INVALID_ARG;
     for (int attempt = 0; attempt < 256; attempt++) {
         uint32_t random = esp_random();
+        /* Reject the incomplete modulo range to avoid biasing setup codes. */
         if (random >= UINT32_C(4200000000)) continue;
         uint32_t value = random % UINT32_C(100000000);
         snprintf(code, 11, "%03u-%02u-%03u",

@@ -144,6 +144,8 @@ async function uploadMacroIcon(input,index,macro){
  input.disabled=true;
  try{await uploadIconImage(file,index,macro)}finally{input.disabled=false;input.value=""}
 }
+// Convert once in the browser: the device stores little-endian RGB565 followed
+// by an alpha plane. The temporary preview is not part of the saved config.
 async function uploadIconImage(file,index,macro,faIcon=null,emoji=false){
  if(file.type==="image/gif"||/\.gif$/i.test(file.name||""))return uploadGif(file,index,macro);
  if(macro.iconSource==="gif"){uploadMessage(index,"Choose an animated GIF file.",true);return false}
@@ -191,6 +193,7 @@ function packIconRle(pixels,side){
  return new Uint8Array(output)
 }
 async function upgradeEmojiIcons(){
+ // Reuse the existing SD asset unless the glyph or its rasterization color changed.
  for(const [index,macro] of cfg.macros.entries()){
   if(macro.actionMode==="widget"||macro.iconSource!=="emoji"||macro.emojiRender!=="image"||!String(macro.icon||"").trim())continue;
   const key=macro.icon+"|"+(macro.textColor||"FFFFFF");
@@ -259,6 +262,7 @@ async function uploadSound(input,macro){
  finally{if(decoder)await decoder.close();input.disabled=false;pendingUploads--}
 }
 function render(){
+ // Only the selected tile gets editing controls; cfg remains the shared draft.
  const root=$("#macros");root.replaceChildren();
  cfg.macros.forEach((m,i)=>{
   const savedMode=m.actionMode||"advanced",mode=savedMode==="simple_link"?"advanced":savedMode;
@@ -483,6 +487,7 @@ function storedPageCount(cap){const needed=Math.max(1,Math.ceil(cfg.macros.lengt
 function macroConfigured(m){return !!m&&(m.actionMode==="widget"||m.actionMode==="page_navigation"||m.actionMode==="homekit"||!!m.iconImage||!!String(m.url||"").trim()||m.actionMode==="home_assistant"&&!!String(m.homeEntity||"").trim()||m.actionMode==="pc_open_url"&&!!String(m.pcTarget||"").trim()||m.actionMode==="pc_macro"&&!!m.pcSteps?.length||!!m.sound&&m.sound!=="none")}
 function defaultIconColor(m){return m.iconSource==="fontawesome"?"FFFFFF":m.textColor||(cfg.theme==="light"?"172033":"FFFFFF")}
 function preview(){
+ // Compact layouts display a filtered list but retain the original macro index.
  $("#count").textContent=`(${cfg.macros.filter(macroConfigured).length}/32 configured)`;
  const p=$("#preview"),dots=$("#previewDots"),previousPage=currentPreviewPage();p.replaceChildren();dots.replaceChildren();p.style.background="#"+(themeBackgrounds[cfg.theme]||cfg.background||"111827");
  if(cfg.theme==="custom"&&cfg.backgroundPreview){p.style.backgroundImage=`url("${cfg.backgroundPreview}")`;p.style.backgroundSize="100% auto";p.style.backgroundPosition="center 57.1429%"}
@@ -709,6 +714,7 @@ function parseWebUrl(value,label){
  return parsed.href
 }
 function prepareMacroAction(m,index){
+ // Translate guided choices into the durable wire format before device validation.
  if(m.actionMode!=="home_assistant"&&!m.homeToken)delete m.homeToken;
  if(m.actionMode!=="homekit"){delete m.homekitId;delete m.homekitName}
  if(m.actionMode==="widget"){
@@ -795,6 +801,7 @@ $("#removePage").onclick=()=>{
 };
 $("#prevPage").onclick=()=>scrollPreviewPage(currentPreviewPage()-1);$("#nextPage").onclick=()=>scrollPreviewPage(currentPreviewPage()+1);
 $("#save").onclick=async()=>{
+ // Upload derived assets first, then save references; never persist preview data.
  if(pendingUploads){$("#saveStatus").textContent="Wait for the upload to finish before saving.";return}
  cfg.cols=Number($("#cols").value);cfg.rows=Number($("#rows").value);cfg.background=$("#background").value.slice(1).toUpperCase();cfg.theme=$("#deviceTheme").value;
  cfg.hideUnconfigured=$("#hideUnconfigured").checked;cfg.hideEmptyTiles=$("#hideEmptyTiles").checked;cfg.timeOffsetMinutes=Number($("#timeOffset").value);

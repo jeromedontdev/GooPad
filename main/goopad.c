@@ -201,6 +201,8 @@ static bool receive_bytes(httpd_req_t *req, uint8_t *out, size_t bytes)
 
 static bool decode_icon_rle(const uint8_t *input, size_t length, uint8_t *output, unsigned side)
 {
+    /* GPR1 stores runs of little-endian RGB565 plus alpha; the decoded
+     * image has a color plane followed by a separate alpha plane. */
     if (length < 6 || memcmp(input, "GPR1", 4) || (side != 32 && side != 160)) return false;
     size_t count = side * side, pixel = 0;
     for (size_t offset = 6; offset < length; offset += 5) {
@@ -218,6 +220,8 @@ static bool decode_icon_rle(const uint8_t *input, size_t length, uint8_t *output
 
 bool goopad_prepare_gif(uint8_t *data, size_t *size, size_t capacity)
 {
+    /* Validate the entire stream and ensure every frame has a >=100 ms delay
+     * before handing the data to LVGL. Missing timing blocks may grow it. */
     size_t length = *size;
     if (length > capacity || length < 14 || (memcmp(data, "GIF89a", 6) && memcmp(data, "GIF87a", 6))) return false;
     unsigned width = data[6] | data[7] << 8, height = data[8] | data[9] << 8;
@@ -566,6 +570,8 @@ static bool constant_time_equal(const char *a, const char *b, size_t n)
 
 static bool authorized(httpd_req_t *req)
 {
+    /* Browser requests with an Origin must be same-origin. Non-browser clients
+     * may omit it, but still need the device's Basic credentials over HTTPS. */
     char origin[96];
     char host[64];
     if (httpd_req_get_hdr_value_str(req, "Origin", origin, sizeof(origin)) == ESP_OK) {
@@ -664,6 +670,8 @@ static bool companion_target(const cJSON *root, const char *url)
 
 static void client_tls(esp_http_client_config_t *config, const char *certificate)
 {
+    /* Companion uses its paired CA and fixed DNS identity even at an IP URL;
+     * other HTTPS targets use the public CA bundle. Never follow redirects. */
     config->cert_pem = certificate;
     config->common_name = certificate ? COMPANION_TLS_NAME : NULL;
     config->crt_bundle_attach = certificate ? NULL : esp_crt_bundle_attach;
@@ -834,6 +842,8 @@ static bool homekit_switches(cJSON *root, goopad_homekit_switch_t *switches, siz
 
 static bool homekit_topology_changed(cJSON *old_root, cJSON *new_root, bool *changed)
 {
+    /* Tile position is not identity: reordering must not restart the bridge
+     * or change a HomeKit accessory ID. Name and membership changes do. */
     goopad_homekit_switch_t old[GOOPAD_HOMEKIT_MAX_SWITCHES], next[GOOPAD_HOMEKIT_MAX_SWITCHES];
     size_t old_count, next_count;
     if (!homekit_switches(old_root, old, &old_count) ||
@@ -1223,6 +1233,8 @@ static esp_err_t config_post_handler(httpd_req_t *req)
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not compare HomeKit switches");
     }
 #endif
+    /* Persist before publishing the new in-memory snapshot: a failed NVS
+     * commit must not make the display and saved configuration diverge. */
     nvs_handle_t nvs;
     err = nvs_open(NVS_NS, NVS_READWRITE, &nvs);
     if (err == ESP_OK) {
@@ -1382,6 +1394,8 @@ static void macro_task(void *arg)
 
 static esp_err_t trigger_action(unsigned index, bool navigation)
 {
+    /* Take a configuration snapshot while locked. The worker must not retain
+     * cJSON pointers after the tree is freed or perform network I/O under it. */
     xSemaphoreTake(s_config_lock, portMAX_DELAY);
     cJSON *root = cJSON_Parse(s_config);
     cJSON *macros = root ? cJSON_GetObjectItemCaseSensitive(root, "macros") : NULL;
@@ -1613,6 +1627,8 @@ static void restart_task(void *arg)
 
 static esp_err_t activate_ota(esp_ota_handle_t handle, httpd_req_t *req)
 {
+    /* The running slot stays intact until the complete inactive image passes
+     * esp_ota_end; only then may the boot selector be changed. */
     esp_err_t err = esp_ota_end(handle);
     if (err == ESP_OK) {
         const esp_partition_t *next = esp_ota_get_next_update_partition(NULL);
@@ -2323,6 +2339,8 @@ static esp_err_t start_server(void)
     esp_err_t err = goopad_tls_configure(&config, s_ip_address);
     if (err == ESP_OK) err = httpd_ssl_start(&s_server, &config);
     if (err != ESP_OK) return err;
+    /* max_uri_handlers above must accommodate this complete route table,
+     * including both methods of optional HomeKit routes. */
     const httpd_uri_t routes[] = {
         {.uri = "/", .method = HTTP_GET, .handler = index_handler},
         {.uri = "/api/config", .method = HTTP_GET, .handler = config_get_handler},
@@ -2395,6 +2413,8 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
             ESP_LOGE(TAG, "Wi-Fi reconnect failed to start: %s", esp_err_to_name(err));
         }
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
+        /* Network services and HomeKit need an assigned address. Start them
+         * outside the event callback to avoid blocking the Wi-Fi event loop. */
         ip_event_got_ip_t *event = data;
         s_connected = true;
         esp_err_t time_err = esp_netif_sntp_start();

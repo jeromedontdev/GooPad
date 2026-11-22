@@ -158,6 +158,8 @@ def load_config():
 
 
 def tls_identity(directory, address):
+    # A missing half of an existing identity is an error, not permission to
+    # rotate it: the device pins the paired certificate.
     directory.mkdir(parents=True, exist_ok=True)
     cert_path, key_path = directory / "tls-cert.pem", directory / "tls-key.pem"
     if cert_path.exists() != key_path.exists():
@@ -224,6 +226,8 @@ class SecureHTTPServer(ThreadingHTTPServer):
             raise
 
     def finish_request(self, request, client_address):
+        # Handshake in the request thread so a stalled TLS client cannot block
+        # the listener from accepting other connections.
         request.do_handshake()
         super().finish_request(request, client_address)
 
@@ -316,6 +320,8 @@ def refresh_hardware():
 
 
 def hardware_snapshot():
+    # Sensor subprocesses can be slow; serve the last snapshot while one
+    # background refresh runs instead of blocking every monitor request.
     global HARDWARE_BUSY, HARDWARE_LAST
     with HARDWARE_LOCK:
         if not HARDWARE_BUSY and time.monotonic() - HARDWARE_LAST >= 10:
@@ -401,6 +407,8 @@ def type_text(text):
 
 
 def validate_steps(payload, config):
+    # Validate the entire sequence and local permissions before starting any
+    # effects. The browser's builder is not a trusted security boundary.
     steps = payload.get("steps") if isinstance(payload, dict) else None
     if not isinstance(steps, list) or not 1 <= len(steps) <= MAX_STEPS:
         raise ValueError(f"Choose between 1 and {MAX_STEPS} steps")
@@ -619,6 +627,8 @@ class Handler(BaseHTTPRequestHandler):
         return self.respond(200, "GooPad companion is running")
 
     def authenticated_config(self):
+        # Browser-origin requests cannot call the receiver directly; GooPad is
+        # the authenticated intermediary for browser-triggered actions.
         if self.headers.get("Origin"):
             self.respond(403, "Send PC actions through GooPad, not directly from a browser")
             return None
@@ -664,6 +674,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(400, f"Invalid PC macro: {error}")
             if not RUN_LOCK.acquire(blocking=False):
                 return self.respond(429, "A PC macro is already running")
+            # The worker owns RUN_LOCK until all steps finish, including on
+            # failure. Do not wait for keyboard input or processes in HTTP.
             worker = threading.Thread(target=run_steps, args=(steps, config), daemon=True)
             try:
                 worker.start()

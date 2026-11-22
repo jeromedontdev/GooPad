@@ -48,6 +48,8 @@ typedef struct {
 static pairing_request_t pairing_request;
 static portMUX_TYPE pairing_request_lock = portMUX_INITIALIZER_UNLOCKED;
 
+/* Server work can finish after the caller times out, so its request and
+ * completion semaphore must outlive the caller's stack. */
 static void open_pairing_work(void *arg)
 {
     pairing_request_t *request = arg;
@@ -78,6 +80,8 @@ static void open_pairing_work(void *arg)
     }
     portEXIT_CRITICAL(&pairing_request_lock);
     if (opened && result != ESP_OK) {
+        /* A late worker must not leave a pairing window open after reporting
+         * timeout. Mark completion only after the window has been closed. */
         if (hap_set_pair_setup_window(0) != HAP_SUCCESS || hap_abort_pair_setup() != HAP_SUCCESS)
             ESP_LOGE("homekit", "Could not close expired pairing request");
         portENTER_CRITICAL(&pairing_request_lock);
@@ -159,6 +163,8 @@ static switch_entry_t *find_switch(const char *id)
 
 static esp_err_t prune_old_aids(void)
 {
+    /* Retain IDs for surviving switches; prune only obsolete mappings so
+     * repeated replacement does not exhaust the dedicated HomeKit store. */
     nvs_handle_t nvs;
     esp_err_t err = nvs_open_from_partition(GOOPAD_HOMEKIT_NVS_PARTITION, "hap_aids", NVS_READWRITE, &nvs);
     if (err != ESP_OK) return err;
@@ -216,6 +222,8 @@ static void toggle_worker(void *arg)
         if (xQueueReceive(toggle_queue, &entry, portMAX_DELAY) != pdTRUE) continue;
         bool reported = false;
         for (;;) {
+            /* Serialize local presses through the HAP server's work queue;
+             * remote writes also run there, preserving their ordering. */
             if (hap_queue_server_work(toggle_server_work, entry) == HAP_SUCCESS) {
                 while (xSemaphoreTake(work_done, pdMS_TO_TICKS(5000)) != pdTRUE) {
                     if (!reported) {
@@ -297,6 +305,7 @@ esp_err_t goopad_homekit_start(const goopad_homekit_switch_t *switches, size_t c
         entries[i].definition = switches[i];
     }
     entry_count = count;
+    /* A stable ID order makes the topology hash independent of tile order. */
     qsort(entries, count, sizeof(entries[0]), compare_switches);
     for (size_t i = 1; i < count; i++)
         if (!strcmp(entries[i - 1].definition.id, entries[i].definition.id)) return ESP_ERR_INVALID_ARG;

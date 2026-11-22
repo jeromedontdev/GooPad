@@ -118,6 +118,8 @@ controller. A setup ID is persistent; a fresh setup code is generated.
 Pairing identity and controller data are in the separate HomeKit store, not
 the SD config backup. Changing a switch's stable ID or deleting pairing data
 can require Home setup/automation repair.
+The advertised HomeKit firmware revision comes from the ESP-IDF app
+description's `PROJECT_VER`, set in the top-level CMake file.
 
 The vendored SDK is selected for ESP-IDF 6.1+; `CONFIG_GOOPAD_HOMEKIT` also
 requires NVS block-device support. The component manifest's lower IDF floor

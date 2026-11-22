@@ -8,6 +8,7 @@
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
+#include <esp_app_desc.h>
 #include <esp_log.h>
 #include <esp_timer.h>
 #include <hap.h>
@@ -33,6 +34,7 @@ static esp_err_t work_result;
 static bool started;
 static bool startup_attempted;
 static char last_setup_code[11];
+static char firmware_revision[sizeof(esp_app_get_description()->version)];
 
 typedef struct {
     uint32_t seconds;
@@ -332,9 +334,10 @@ esp_err_t goopad_homekit_start(const goopad_homekit_switch_t *switches, size_t c
     if (hap_set_setup_code(setup_code) != HAP_SUCCESS) return ESP_FAIL;
     memcpy(last_setup_code, setup_code, sizeof(last_setup_code));
     if (hap_set_setup_id(setup_id) != HAP_SUCCESS) return ESP_FAIL;
+    strlcpy(firmware_revision, esp_app_get_description()->version, sizeof(firmware_revision));
     hap_acc_cfg_t cfg = {
         .name = "GooPad", .manufacturer = "GooPad", .model = "GooPad",
-        .serial_num = "GooPad", .fw_rev = "0.6.2", .pv = "1.1.0",
+        .serial_num = "GooPad", .fw_rev = firmware_revision, .pv = "1.1.0",
         .identify_routine = identify, .cid = HAP_CID_BRIDGE,
     };
     hap_acc_t *bridge = hap_acc_create(&cfg);

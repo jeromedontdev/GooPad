@@ -1,0 +1,10 @@
+menu "GooPad"
+
+config GOOPAD_HOMEKIT
+    bool "Apple Home bridge"
+    depends on NVS_BDL_STACK
+    default y
+    help
+        Enable the Apple Home bridge and its separately owned NVS storage.
+
+endmenu

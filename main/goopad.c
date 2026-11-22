@@ -7,6 +7,12 @@
 #include "esp_http_server.h"
 #include "esp_https_server.h"
 #include "goopad_tls.h"
+#ifdef CONFIG_GOOPAD_HOMEKIT
+#include "goopad_homekit.h"
+#include "goopad_homekit_credentials.h"
+#include "goopad_homekit_storage.h"
+#include "sodium/utils.h"
+#endif
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_netif.h"
@@ -89,6 +95,12 @@ static bool s_monitor_valid[GOOPAD_PC_STAT_COUNT];
 static bool s_monitor_sampling;
 static portMUX_TYPE s_live_lock = portMUX_INITIALIZER_UNLOCKED;
 static char s_live_text[32][64];
+#ifdef CONFIG_GOOPAD_HOMEKIT
+static volatile bool s_homekit_active;
+static volatile bool s_homekit_starting;
+static volatile esp_err_t s_homekit_error = ESP_ERR_INVALID_STATE;
+static void restart_task(void *arg);
+#endif
 static const char *s_pc_stat_keys[GOOPAD_PC_STAT_COUNT] = {
     "summary", "cpu", "ram", "ram_used", "gpu", "gpu_memory", "cpu_temp", "gpu_temp",
     "net_down", "net_up", "fan"
@@ -789,6 +801,58 @@ static esp_err_t controls_handler(httpd_req_t *req)
     return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
 
+#ifdef CONFIG_GOOPAD_HOMEKIT
+static bool homekit_id_valid(const char *id)
+{
+    if (!id || strlen(id) != 15 || id[0] != 's') return false;
+    for (size_t i = 1; i < 15; i++)
+        if (!((id[i] >= '0' && id[i] <= '9') || (id[i] >= 'a' && id[i] <= 'f'))) return false;
+    return true;
+}
+
+static bool homekit_switches(cJSON *root, goopad_homekit_switch_t *switches, size_t *count)
+{
+    cJSON *macros = cJSON_GetObjectItemCaseSensitive(root, "macros");
+    if (!cJSON_IsArray(macros)) return false;
+    *count = 0;
+    for (cJSON *item = macros->child; item; item = item->next) {
+        cJSON *mode = cJSON_GetObjectItemCaseSensitive(item, "actionMode");
+        if (!cJSON_IsString(mode) || strcmp(mode->valuestring, "homekit")) continue;
+        cJSON *id = cJSON_GetObjectItemCaseSensitive(item, "homekitId");
+        cJSON *name = cJSON_GetObjectItemCaseSensitive(item, "homekitName");
+        if (!cJSON_IsString(id) || !homekit_id_valid(id->valuestring) ||
+            !cJSON_IsString(name) || !name->valuestring[0] || strlen(name->valuestring) > 24 ||
+            *count >= GOOPAD_HOMEKIT_MAX_SWITCHES) return false;
+        for (size_t i = 0; i < *count; i++)
+            if (!strcmp(switches[i].id, id->valuestring)) return false;
+        strlcpy(switches[*count].id, id->valuestring, sizeof(switches[*count].id));
+        strlcpy(switches[*count].name, name->valuestring, sizeof(switches[*count].name));
+        (*count)++;
+    }
+    return true;
+}
+
+static bool homekit_topology_changed(cJSON *old_root, cJSON *new_root, bool *changed)
+{
+    goopad_homekit_switch_t old[GOOPAD_HOMEKIT_MAX_SWITCHES], next[GOOPAD_HOMEKIT_MAX_SWITCHES];
+    size_t old_count, next_count;
+    if (!homekit_switches(old_root, old, &old_count) ||
+        !homekit_switches(new_root, next, &next_count)) return false;
+    *changed = old_count != next_count;
+    for (size_t i = 0; !*changed && i < old_count; i++) {
+        bool found = false;
+        for (size_t j = 0; j < next_count; j++) {
+            if (!strcmp(old[i].id, next[j].id) && !strcmp(old[i].name, next[j].name)) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) *changed = true;
+    }
+    return true;
+}
+#endif
+
 static bool validate_config(const char *json)
 {
     cJSON *root = cJSON_Parse(json);
@@ -929,7 +993,11 @@ static bool validate_config(const char *json)
                                     (!strcmp(action_mode->valuestring, "simple_link") ||
                                      !strcmp(action_mode->valuestring, "sound") ||
                                      !strcmp(action_mode->valuestring, "page_navigation") ||
-                                     !strcmp(action_mode->valuestring, "widget")))))) &&
+                                     !strcmp(action_mode->valuestring, "widget")
+#ifdef CONFIG_GOOPAD_HOMEKIT
+                                     || !strcmp(action_mode->valuestring, "homekit")
+#endif
+                                     ))))) &&
                 cJSON_IsString(action) &&
                 (strcmp(action->valuestring, "webhook") == 0 ||
                  strcmp(action->valuestring, "http") == 0) &&
@@ -949,7 +1017,11 @@ static bool validate_config(const char *json)
                                    !strcmp(action_mode->valuestring, "page_navigation") ||
                                    !strcmp(action_mode->valuestring, "widget") ||
                                    !strcmp(action_mode->valuestring, "home_assistant") ||
-                                   !strcmp(action_mode->valuestring, "advanced")))) &&
+                                   !strcmp(action_mode->valuestring, "advanced")
+#ifdef CONFIG_GOOPAD_HOMEKIT
+                                   || !strcmp(action_mode->valuestring, "homekit")
+#endif
+                                   ))) &&
                 (!(cJSON_IsString(action_mode) && !strcmp(action_mode->valuestring, "home_assistant")) ||
                  (valid_home_token(home_token) && cJSON_IsString(url) && !strncmp(url->valuestring, "https://", 8) &&
                   cJSON_IsString(method) && !strcmp(method->valuestring, "POST"))) &&
@@ -1014,6 +1086,11 @@ static bool validate_config(const char *json)
                 (!tile_color || valid_hex_color(tile_color));
         if (!valid) break;
     }
+#ifdef CONFIG_GOOPAD_HOMEKIT
+    goopad_homekit_switch_t switches[GOOPAD_HOMEKIT_MAX_SWITCHES];
+    size_t switch_count;
+    if (valid) valid = homekit_switches(root, switches, &switch_count);
+#endif
     cJSON_Delete(root);
     return valid;
 }
@@ -1129,6 +1206,21 @@ static esp_err_t config_post_handler(httpd_req_t *req)
         free(body);
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid GooPad config");
     }
+#ifdef CONFIG_GOOPAD_HOMEKIT
+    cJSON *new_root = cJSON_Parse(body);
+    xSemaphoreTake(s_config_lock, portMAX_DELAY);
+    cJSON *old_root = cJSON_Parse(s_config);
+    xSemaphoreGive(s_config_lock);
+    bool topology_changed = false;
+    bool topology_valid = new_root && old_root &&
+                          homekit_topology_changed(old_root, new_root, &topology_changed);
+    cJSON_Delete(new_root);
+    cJSON_Delete(old_root);
+    if (!topology_valid) {
+        free(body);
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not compare HomeKit switches");
+    }
+#endif
     nvs_handle_t nvs;
     err = nvs_open(NVS_NS, NVS_READWRITE, &nvs);
     if (err == ESP_OK) {
@@ -1146,6 +1238,16 @@ static esp_err_t config_post_handler(httpd_req_t *req)
     xSemaphoreGive(s_config_lock);
     free(body);
     httpd_resp_set_type(req, "application/json");
+#ifdef CONFIG_GOOPAD_HOMEKIT
+    if (topology_changed) {
+        if (xTaskCreate(restart_task, "homekit_restart", 2048, NULL, 5, NULL) != pdPASS) {
+            ESP_LOGE(TAG, "Configuration saved, but HomeKit restart could not be scheduled");
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                       "Configuration saved; restart GooPad to apply HomeKit changes");
+        }
+        return httpd_resp_sendstr(req, "{\"ok\":true,\"restarting\":true}");
+    }
+#endif
     return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
 
@@ -1317,6 +1419,15 @@ static esp_err_t trigger_action(unsigned index, bool navigation)
         xSemaphoreGive(s_config_lock);
         return sound_err;
     }
+#ifdef CONFIG_GOOPAD_HOMEKIT
+    if (cJSON_IsString(mode) && !strcmp(mode->valuestring, "homekit")) {
+        cJSON *id = cJSON_GetObjectItemCaseSensitive(item, "homekitId");
+        esp_err_t err = cJSON_IsString(id) ? goopad_homekit_toggle(id->valuestring) : ESP_ERR_INVALID_ARG;
+        cJSON_Delete(root);
+        xSemaphoreGive(s_config_lock);
+        return err;
+    }
+#endif
     if (!cJSON_IsString(url) || !valid_url(url->valuestring) ||
         !cJSON_IsString(method) || !cJSON_IsString(body) || !cJSON_IsString(secret)) {
         cJSON_Delete(root);
@@ -2142,11 +2253,69 @@ static esp_err_t icon_delete_handler(httpd_req_t *req)
     return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
 
+#ifdef CONFIG_GOOPAD_HOMEKIT
+static esp_err_t homekit_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_set_type(req, "application/json");
+    if (req->method == HTTP_GET) {
+        char reply[128];
+        snprintf(reply, sizeof(reply), "{\"active\":%s,\"starting\":%s,\"error\":\"%s\"}",
+                 s_homekit_active ? "true" : "false", s_homekit_starting ? "true" : "false",
+                 esp_err_to_name(s_homekit_error));
+        return httpd_resp_sendstr(req, reply);
+    }
+    if (!s_homekit_active)
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                   "HomeKit bridge is not running; save a switch and restart GooPad");
+    char code[11];
+    esp_err_t err = goopad_homekit_open_pairing(300, code);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "HomeKit pairing could not be opened: %s", esp_err_to_name(err));
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                   "Pairing unavailable; check whether GooPad is already paired");
+    }
+    char reply[64];
+    snprintf(reply, sizeof(reply), "{\"code\":\"%s\",\"seconds\":300}", code);
+    sodium_memzero(code, sizeof(code));
+    err = httpd_resp_sendstr(req, reply);
+    sodium_memzero(reply, sizeof(reply));
+    return err;
+}
+
+static void homekit_task(void *arg)
+{
+    (void)arg;
+    goopad_homekit_switch_t switches[GOOPAD_HOMEKIT_MAX_SWITCHES];
+    size_t count = 0;
+    xSemaphoreTake(s_config_lock, portMAX_DELAY);
+    cJSON *root = cJSON_Parse(s_config);
+    bool valid = root && homekit_switches(root, switches, &count);
+    cJSON_Delete(root);
+    xSemaphoreGive(s_config_lock);
+    esp_err_t err = valid ? (count ? ESP_OK : ESP_ERR_NOT_FOUND) : ESP_ERR_INVALID_STATE;
+    if (err == ESP_OK) err = goopad_homekit_storage_init();
+    goopad_homekit_credentials_t credentials = {0};
+    if (err == ESP_OK) err = goopad_homekit_credentials_load(&credentials);
+    if (err == ESP_OK)
+        err = goopad_homekit_start(switches, count, credentials.code, credentials.setup_id);
+    sodium_memzero(&credentials, sizeof(credentials));
+    s_homekit_error = err;
+    s_homekit_active = err == ESP_OK;
+    s_homekit_starting = false;
+    if (err != ESP_OK && err != ESP_ERR_NOT_FOUND)
+        ESP_LOGE(TAG, "HomeKit bridge failed to start: %s", esp_err_to_name(err));
+    vTaskDelete(NULL);
+}
+#endif
+
 static esp_err_t start_server(void)
 {
     if (s_server) return ESP_OK;
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
-    config.httpd.max_uri_handlers = 21;
+    config.httpd.max_uri_handlers = 23;
     config.httpd.max_open_sockets = 6;
     config.httpd.core_id = 1;
     esp_err_t err = goopad_tls_configure(&config, s_ip_address);
@@ -2174,6 +2343,10 @@ static esp_err_t start_server(void)
         {.uri = "/api/controls", .method = HTTP_POST, .handler = controls_handler},
         {.uri = "/api/background", .method = HTTP_DELETE, .handler = background_delete_handler},
         {.uri = "/api/companion", .method = HTTP_POST, .handler = companion_status_handler},
+#ifdef CONFIG_GOOPAD_HOMEKIT
+        {.uri = "/api/homekit", .method = HTTP_GET, .handler = homekit_handler},
+        {.uri = "/api/homekit", .method = HTTP_POST, .handler = homekit_handler},
+#endif
     };
     for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {
         err = httpd_register_uri_handler(s_server, &routes[i]);
@@ -2235,6 +2408,16 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
                 s_server_starting = false;
                 ESP_LOGE(TAG, "could not start HTTPS task");
             }
+#ifdef CONFIG_GOOPAD_HOMEKIT
+            if (!s_homekit_active && !s_homekit_starting) {
+                s_homekit_starting = true;
+                if (xTaskCreatePinnedToCore(homekit_task, "homekit_start", 12288, NULL, 4, NULL, 1) != pdPASS) {
+                    s_homekit_starting = false;
+                    s_homekit_error = ESP_ERR_NO_MEM;
+                    ESP_LOGE(TAG, "Could not start HomeKit task");
+                }
+            }
+#endif
         }
     }
 }

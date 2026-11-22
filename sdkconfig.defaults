@@ -99,6 +99,10 @@ CONFIG_ESP_HTTPS_SERVER_ENABLE=y
 CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
 CONFIG_MBEDTLS_X509_CREATE_C=y
 CONFIG_MBEDTLS_X509_CRT_WRITE_C=y
+CONFIG_NVS_BDL_STACK=y
+CONFIG_GOOPAD_HOMEKIT=y
+CONFIG_HAP_PLATFORM_DEF_NVS_RUNTIME_PARTITION="goopad_hap"
+CONFIG_LWIP_MAX_SOCKETS=20
 
 # --- Brownout -------------------------------------------------------------
 # Enabled at level 7 (2.44 V), the lowest threshold the ESP32-S3 offers.

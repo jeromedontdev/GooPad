@@ -183,8 +183,35 @@ API. Enter a long-lived access token and an HTTPS address with a publicly
 trusted certificate; HTTP and self-signed certificates are not supported. The
 token is stored in the device configuration and backups. These controls do not
 show live switch state. This action only controls entities available to Home
-Assistant. Direct Apple Home pairing using virtual switches is possible, but
-is not yet implemented in GooPad.
+Assistant.
+
+### Apple Home bridge
+
+With the ESP-IDF 6.1 HomeKit build, choose **Apple Home switch** for a tile,
+enter a switch name, and save. Adding, removing, or renaming a switch restarts
+GooPad; moving a switch preserves its HomeKit identity. In Settings, open
+pairing and use the displayed code in the Apple Home app's **More options**.
+The code expires after five minutes. Keep it private. Create an automation in
+Apple Home to make the virtual switch control a light or another accessory;
+the switch does not directly control the light. Switch states start off after
+a restart. With no switch tiles, the bridge is not running.
+
+HomeKit uses its own encrypted protocol on TCP port 80; the GooPad editor
+continues to use HTTPS. Pairing and accessory identity are stored separately
+from the configuration and are not included in SD configuration backups.
+Without flash encryption, someone with physical flash access can read pairing
+keys. This build does not enable flash encryption or secure boot.
+
+HomeKit claims 68 KB at the end of the `storage` SPIFFS partition only if the
+partition is initially erased; otherwise it refuses to start rather than
+overwriting existing data. The rest of that partition must remain erased.
+Do not mount or format it as SPIFFS while using HomeKit, including after a
+downgrade; doing so could destroy pairing data. Existing NVS configuration and
+SD assets are separate. Older ESP-IDF builds do not enable this bridge; they
+have not been validated with configurations containing HomeKit tiles.
+
+This bridge has been tested with a software HomeKit controller; interoperability
+with an Apple Home controller has not yet been verified.
 
 Animated GIFs require SD and are limited to 160×160 pixels, 128 KB, 240 frames,
 and four GIF tiles per layout. Device frame delays are clamped to at least
@@ -235,6 +262,10 @@ To regenerate the catalog from the official npm packages, unpack the matching
 `free-solid-svg-icons`, `free-regular-svg-icons`, and `free-brands-svg-icons`
 packages into one directory and run
 `python tools/generate_fa_catalog.py <packages-directory> main/fa-icons.json`.
+
+The HomeKit SDK's attribution and license notices are in
+[third_party/esp-homekit-sdk/NOTICE.txt](./third_party/esp-homekit-sdk/NOTICE.txt).
+Include these notices and the referenced licenses when distributing firmware.
 
 ### Windows companion
 

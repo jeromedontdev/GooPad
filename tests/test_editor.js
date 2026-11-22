@@ -87,6 +87,19 @@ globalThis.runGooPadEditorTests = async function () {
   check(website.url==="https://192.0.2.20:8787/open" && website.secret===cfg.companionToken && website.method==="POST" && JSON.parse(website.body).url===website.pcTarget, "Website uses verified HTTPS pairing and default port");
   reset({pageCount:1,macros:[emptyMacro()],companionAddress:"192.0.2.20",companionToken:"x".repeat(32),companionCertificate:certificate});selectTile(0);
   check(!document.querySelector('[data-k="actionMode"] option[value="pc_open_url"]'),"New PC websites are configured inside the PC builder");
+  change("actionMode","homekit");
+  change("homekitName","Desk light");
+  prepareMacroAction(cfg.macros[0],0);
+  const homekitId=cfg.macros[0].homekitId;
+  check(/^s[0-9a-f]{14}$/.test(homekitId) && cfg.macros[0].homekitName==="Desk light" && cfg.macros[0].url==="" && macroConfigured(cfg.macros[0]),"HomeKit switch has a stable ID and no web request");
+  cfg.macros[0].homekitName="Renamed light";prepareMacroAction(cfg.macros[0],0);
+  check(cfg.macros[0].homekitId===homekitId,"Renaming a switch preserves its identity");
+  cfg.macros[0].homekitName="";cfg.macros[0].name="";
+  let missingHomekitName=false;try{prepareMacroAction(cfg.macros[0],0)}catch{missingHomekitName=true}
+  check(missingHomekitName,"A switch requires a name");
+  cfg.macros[0].actionMode="simple_link";prepareMacroAction(cfg.macros[0],0);
+  check(!cfg.macros[0].homekitId && !cfg.macros[0].homekitName,"Changing action removes the old switch identity");
+  reset({pageCount:1,macros:[emptyMacro()],companionAddress:"192.0.2.20",companionToken:"x".repeat(32),companionCertificate:certificate});selectTile(0);
   change("actionMode","pc_macro");
   const starter=document.querySelector("[data-pc-preset]");starter.value="open";starter.dispatchEvent(new Event("change"));
   const websiteInput=document.querySelector('[data-step-fields] [data-value]');websiteInput.value="https://example.com/test";websiteInput.dispatchEvent(new Event("input"));

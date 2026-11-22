@@ -1,5 +1,8 @@
 #include "app.h"
 #include "board.h"
+#ifdef CONFIG_GOOPAD_HOMEKIT
+#include "goopad_homekit.h"
+#endif
 #include "src/misc/cache/instance/lv_image_cache.h"
 
 #include "esp_log.h"
@@ -53,6 +56,10 @@ static lv_obj_t *s_gif_objects[MAX_MACROS];
 static int s_gif_pages[MAX_MACROS];
 static bool s_gif_paused[MAX_MACROS];
 static lv_obj_t *s_widget_labels[MAX_MACROS];
+#ifdef CONFIG_GOOPAD_HOMEKIT
+static lv_obj_t *s_homekit_labels[MAX_MACROS];
+static char s_homekit_ids[MAX_MACROS][16];
+#endif
 static unsigned s_widget_types[MAX_MACROS];
 static const char *s_widget_formats[MAX_MACROS];
 static unsigned s_widget_stats[MAX_MACROS];
@@ -85,6 +92,10 @@ static void clear_dynamic_assets(void)
         s_gif_buffers[i] = NULL;
         s_gif_objects[i] = NULL;
         s_widget_labels[i] = NULL;
+#ifdef CONFIG_GOOPAD_HOMEKIT
+        s_homekit_labels[i] = NULL;
+        s_homekit_ids[i][0] = '\0';
+#endif
         s_widget_types[i] = 0;
         s_widget_formats[i] = NULL;
         s_widget_stats[i] = 0;
@@ -116,7 +127,11 @@ static bool macro_configured(cJSON *macro)
     return cJSON_IsString(image) || (cJSON_IsString(url) && url->valuestring[0]) ||
            (cJSON_IsString(sound) && strcmp(sound->valuestring, "none")) ||
            (cJSON_IsString(mode) && (!strcmp(mode->valuestring, "widget") ||
-                                    !strcmp(mode->valuestring, "page_navigation")));
+                                    !strcmp(mode->valuestring, "page_navigation")
+#ifdef CONFIG_GOOPAD_HOMEKIT
+                                    || !strcmp(mode->valuestring, "homekit")
+#endif
+                                    ));
 }
 
 static void update_widgets(void)
@@ -128,6 +143,15 @@ static void update_widgets(void)
     gmtime_r(&epoch, &now);
     int scroll_x = s_pages ? lv_obj_get_scroll_x(s_pages) : 0;
     for (unsigned i = 0; i < MAX_MACROS; i++) {
+#ifdef CONFIG_GOOPAD_HOMEKIT
+        if (s_homekit_labels[i]) {
+            bool on = false;
+            esp_err_t err = goopad_homekit_state(s_homekit_ids[i], &on);
+            const char *state = err == ESP_OK ? (on ? "ON" : "OFF") : "--";
+            if (strcmp(lv_label_get_text(s_homekit_labels[i]), state))
+                lv_label_set_text(s_homekit_labels[i], state);
+        }
+#endif
         if (s_widget_labels[i]) {
             char text[64];
             if (s_widget_types[i] == 4) {
@@ -1205,6 +1229,11 @@ static void build_grid_screen(void)
                 cJSON *widget = cJSON_GetObjectItemCaseSensitive(macro, "widget");
                 bool is_widget = cJSON_IsString(mode) && !strcmp(mode->valuestring, "widget");
                 bool is_navigation = cJSON_IsString(mode) && !strcmp(mode->valuestring, "page_navigation");
+#ifdef CONFIG_GOOPAD_HOMEKIT
+                bool is_homekit = cJSON_IsString(mode) && !strcmp(mode->valuestring, "homekit");
+#else
+                bool is_homekit = false;
+#endif
                 cJSON *tile_gradient = cJSON_GetObjectItemCaseSensitive(macro, "tileGradient");
                 if (!is_widget && cJSON_IsString(tile_gradient)) {
                     lv_obj_set_style_bg_grad_color(tile, color((unsigned)strtoul(tile_gradient->valuestring, NULL, 16)), 0);
@@ -1212,7 +1241,7 @@ static void build_grid_screen(void)
                 }
                 cJSON *url = cJSON_GetObjectItemCaseSensitive(macro, "url");
                 cJSON *sound = cJSON_GetObjectItemCaseSensitive(macro, "sound");
-                bool actionable = !is_widget && ((cJSON_IsString(url) && url->valuestring[0]) ||
+                bool actionable = !is_widget && (is_homekit || (cJSON_IsString(url) && url->valuestring[0]) ||
                                   (cJSON_IsString(sound) && strcmp(sound->valuestring, "none")));
                 if (is_navigation) {
                     cJSON *direction = cJSON_GetObjectItemCaseSensitive(macro, "pageDirection");
@@ -1222,6 +1251,16 @@ static void build_grid_screen(void)
                 }
                 else if (actionable) lv_obj_add_event_cb(tile, tile_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)index);
                 else lv_obj_set_clickable(tile, false);
+#ifdef CONFIG_GOOPAD_HOMEKIT
+                if (is_homekit) {
+                    cJSON *id = cJSON_GetObjectItemCaseSensitive(macro, "homekitId");
+                    if (cJSON_IsString(id)) {
+                        strlcpy(s_homekit_ids[index], id->valuestring, sizeof(s_homekit_ids[index]));
+                        s_homekit_labels[index] = label(tile, "--", 10, text_color);
+                        lv_obj_align(s_homekit_labels[index], LV_ALIGN_TOP_RIGHT, -4, 3);
+                    }
+                }
+#endif
                 cJSON *custom_image = cJSON_GetObjectItemCaseSensitive(macro, "iconImage");
                 cJSON *image_format = cJSON_GetObjectItemCaseSensitive(macro, "iconFormat");
                 bool alpha = cJSON_IsString(image_format) &&
@@ -1438,6 +1477,9 @@ static void build_grid_screen(void)
                     lv_obj_set_style_text_align(text, LV_TEXT_ALIGN_CENTER, 0);
                     lv_obj_align(text, LV_ALIGN_BOTTOM_MID, 0, -6);
                 }
+#ifdef CONFIG_GOOPAD_HOMEKIT
+                if (s_homekit_labels[index]) lv_obj_move_foreground(s_homekit_labels[index]);
+#endif
             } else {
                 g_app.empty_tiles++;
                 lv_obj_set_style_bg_color(tile, color(0x1F2937), 0);

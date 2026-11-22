@@ -402,6 +402,9 @@ keys with the OpenSSH `known_hosts` file.
 
 ### Backup and firmware update
 
+The installed firmware version appears in website **About & help** and in the
+device's swipe-down information panel.
+
 * **Backup to SD** writes `goopad-config.json` to the mounted card.
 * **Restore from SD** replaces the saved configuration with that backup after
   confirmation, discarding unsaved editor changes. Images, sounds, Wi-Fi

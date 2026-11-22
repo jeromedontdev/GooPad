@@ -17,6 +17,19 @@ globalThis.runGooPadEditorTests = async function () {
   el.value = value; el.dispatchEvent(new Event("change"));
  };
  try {
+  let versionStatus={ssid:"test",firmwareVersion:"12.34.56"};
+  globalThis.fetch=async url=>{
+   if(url==="/api/config")return new Response(JSON.stringify({...original,macros:[]}),{status:200});
+   if(url==="/api/status")return new Response(JSON.stringify(versionStatus),{status:200});
+   if(url==="/api/time")return new Response("{}",{status:200});
+   throw Error("Unexpected request "+url);
+  };
+  await init();
+  check(document.querySelector("#firmwareVersion").textContent==="Installed firmware: 12.34.56","About shows the running firmware version from status");
+  versionStatus={ssid:"test"};
+  await init();
+  check(document.querySelector("#firmwareVersion").textContent==="Installed firmware: unavailable","About reports an unavailable version instead of a stale value");
+  globalThis.fetch=fetchOriginal;
   const primaryColors=new Set(),secondaryColors=new Set();
   for(const theme of ["dark","light","ocean","forest","violet","ember"]){
    const control=document.querySelector("#siteTheme");control.value=theme;control.dispatchEvent(new Event("change"));

@@ -5,6 +5,7 @@
 #endif
 #include "src/misc/cache/instance/lv_image_cache.h"
 
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
@@ -735,6 +736,12 @@ static void build_info_panel(bool settings)
         lv_obj_set_width(hint, 380);
         lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
         lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 0, 120);
+        char version[64];
+        snprintf(version, sizeof(version), "Firmware version: %s", esp_app_get_description()->version);
+        lv_obj_t *version_label = label(panel, version, 14, color(0xCBD5E1));
+        lv_obj_set_width(version_label, 380);
+        lv_label_set_long_mode(version_label, LV_LABEL_LONG_DOT);
+        lv_obj_align(version_label, LV_ALIGN_TOP_LEFT, 0, 180);
         button(panel, "Settings", 150, 220, 112, 42, show_settings_cb, NULL, 0x4F46E5);
         button(panel, "Close", 278, 220, 112, 42, close_info_cb, NULL, 0x475569);
         return;

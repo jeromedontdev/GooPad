@@ -1,6 +1,7 @@
 #include "app.h"
 #include "board.h"
 
+#include "esp_app_desc.h"
 #include "esp_crt_bundle.h"
 #include "esp_event.h"
 #include "esp_http_client.h"
@@ -1808,6 +1809,7 @@ static esp_err_t status_handler(httpd_req_t *req)
     if (auth != ESP_OK) return auth;
     cJSON *root = cJSON_CreateObject();
     cJSON_AddBoolToObject(root, "connected", s_connected);
+    cJSON_AddStringToObject(root, "firmwareVersion", esp_app_get_description()->version);
     cJSON_AddStringToObject(root, "ssid", s_ssid);
     cJSON_AddBoolToObject(root, "sd", g_app.sd.mounted);
     cJSON_AddBoolToObject(root, "soundAvailable", g_app.results.audio == TEST_PASS);

@@ -30,7 +30,7 @@ encrypted HAP on TCP port 80, **not** a plaintext editor.
 | `GET /` | Embedded editor HTML. |
 | `GET /api/config` | Complete saved JSON, including potentially sensitive configuration. `Cache-Control: no-store`. |
 | `POST /api/config` | Complete JSON, max 12,000 bytes. Validate, commit to NVS, update RAM; returns `{"ok":true}` or also `"restarting":true` for changed HomeKit topology. HTTP 500 can mean a config was saved but restart scheduling failed; inspect the response rather than retrying blindly. |
-| `GET /api/status` | Runtime connection, render counts, audio, last action, cached PC stats and live-widget strings. `lastAction` is the latest tracked HTTP action, not a universal completion record for every tile type. |
+| `GET /api/status` | Runtime connection, installed `firmwareVersion`, render counts, audio, last action, cached PC stats and live-widget strings. `lastAction` is the latest tracked HTTP action, not a universal completion record for every tile type. |
 | `POST /api/trigger` | `{"index":0}` uses the **saved**, zero-based macro index and performs the real action. HTTP 429 indicates a busy path; acceptance is not necessarily action completion. |
 | `POST /api/wifi/join` | `{"ssid":"...","password":"..."}` validates input and starts a connection attempt; an HTTP success is not proof the join succeeded. |
 | `POST /api/password` | Changes the admin password; inspect `password_post_handler()` for current/initial password rules. |

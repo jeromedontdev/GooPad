@@ -104,6 +104,9 @@ grid size controls how many appear on each page. Each macro can choose an
 outline color or remove its outline. Action tiles also support a custom
 two-color vertical gradient and three icon/image sizes; set both colors alike
 for a solid tile. GIFs set to fill the tile ignore the visual-size setting.
+**Icon color** independently tints built-in symbols and Font Awesome icons.
+Full-color emoji, uploaded images and GIFs retain their original colors. Use
+**Use default color** to restore the previous appearance.
 Existing page-navigation tiles continue to work until cleared or changed, but
 new ones cannot be created. Preset themes always use their own
 background; choose **Custom** for your own background. Custom also accepts an
@@ -194,7 +197,9 @@ pairing and use the displayed code in the Apple Home app's **More options**.
 The code expires after five minutes. Keep it private. Create an automation in
 Apple Home to make the virtual switch control a light or another accessory;
 the switch does not directly control the light. Switch states start off after
-a restart. With no switch tiles, the bridge is not running.
+a restart. On the tile, a filled green dot means on and a hollow circle means
+off; a gray circle means the state is unavailable. The editor shows an example
+indicator, not the live state. With no switch tiles, the bridge is not running.
 
 HomeKit uses its own encrypted protocol on TCP port 80; the GooPad editor
 continues to use HTTPS. Pairing and accessory identity are stored separately
@@ -210,8 +215,9 @@ downgrade; doing so could destroy pairing data. Existing NVS configuration and
 SD assets are separate. Older ESP-IDF builds do not enable this bridge; they
 have not been validated with configurations containing HomeKit tiles.
 
-This bridge has been tested with a software HomeKit controller; interoperability
-with an Apple Home controller has not yet been verified.
+The bridge has been tested with a software HomeKit controller; a user has also
+confirmed Apple Home pairing and switch operation. Broader compatibility testing
+remains limited.
 
 Animated GIFs require SD and are limited to 160×160 pixels, 128 KB, 240 frames,
 and four GIF tiles per layout. Device frame delays are clamped to at least

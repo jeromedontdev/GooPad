@@ -92,6 +92,7 @@ globalThis.runGooPadEditorTests = async function () {
   prepareMacroAction(cfg.macros[0],0);
   const homekitId=cfg.macros[0].homekitId;
   check(/^s[0-9a-f]{14}$/.test(homekitId) && cfg.macros[0].homekitName==="Desk light" && cfg.macros[0].url==="" && macroConfigured(cfg.macros[0]),"HomeKit switch has a stable ID and no web request");
+  check(!!document.querySelector('[data-tile="0"] .homekit-indicator'),"HomeKit tile preview shows an example state indicator");
   cfg.macros[0].homekitName="Renamed light";prepareMacroAction(cfg.macros[0],0);
   check(cfg.macros[0].homekitId===homekitId,"Renaming a switch preserves its identity");
   cfg.macros[0].homekitName="";cfg.macros[0].name="";
@@ -168,6 +169,26 @@ globalThis.runGooPadEditorTests = async function () {
   uploadMessage(0,"GIF upload failed.",true);
   check(getComputedStyle(notice).color!==progressColor, "Upload errors have a distinct color");
   globalThis.fetch=fetchOriginal;
+  reset({pageCount:1,macros:[{...emptyMacro(),icon:"⚙",emojiRender:"symbol",sound:"chime",textColor:"FEDCBA"}]});selectTile(0);
+  check(!cfg.macros[0].iconColor && document.querySelector('[data-k="iconColor"]').value.toUpperCase()==="#FEDCBA","Existing symbols default to the label color");
+  change("iconColor","#12AB34");
+  check(cfg.macros[0].iconColor==="12AB34" && document.querySelector('[data-tile="0"] .ico').style.color==="rgb(18, 171, 52)","Custom symbol color updates independently in preview");
+  let colorSaved;
+  globalThis.fetch=async(url,options)=>url==="/api/config"
+   ? (colorSaved=JSON.parse(options.body),new Response("{}",{status:200,headers:{"Content-Type":"application/json"}}))
+   : fetchOriginal(url,options);
+  await document.querySelector("#save").onclick();
+  check(colorSaved?.macros[0].iconColor==="12AB34" && colorSaved.macros[0].textColor==="FEDCBA","Save persists icon color independently of label color");
+  globalThis.fetch=fetchOriginal;
+  document.querySelector("[data-reset-icon-color]").click();
+  check(!cfg.macros[0].iconColor && !document.querySelector('[data-tile="0"] .ico').style.color,"Reset restores the original symbol color");
+  const fa={...emptyMacro(),sound:"chime",iconSource:"fontawesome",faIcon:"solid:star",iconImage:"i123",imagePreview:"data:image/png;base64,AA==",textColor:"123456"};
+  reset({pageCount:1,macros:[fa]});selectTile(0);
+  check(document.querySelector('[data-k="iconColor"]').value.toUpperCase()==="#FFFFFF" && !!document.querySelector('[data-tile="0"] img'),"Existing Font Awesome icons retain their original color");
+  change("iconColor","#FF8800");
+  check(document.querySelector('[data-tile="0"] .icon-mask')?.style.getPropertyValue("--icon-color")==="#FF8800","Font Awesome preview uses the chosen tint");
+  fa.faIcon=undefined;fa.iconSource="image";preview();
+  check(!!document.querySelector('[data-tile="0"] img') && !document.querySelector('[data-tile="0"] .icon-mask'),"Uploaded images are not tinted");
   reset({pageCount:1,macros:[{...make(0),color:"123456",textColor:"FEDCBA",tileName:"Legacy"}]}); selectTile(0);
   check(document.querySelector(".macro-fields").firstElementChild.querySelector('[data-k="actionMode"]'), "Button type is the first tile setting");
   change("name","Visible");

@@ -914,6 +914,7 @@ static bool validate_config(const char *json)
         cJSON *pc_target = cJSON_GetObjectItemCaseSensitive(item, "pcTarget");
         cJSON *shape = cJSON_GetObjectItemCaseSensitive(item, "shape");
         cJSON *text_color = cJSON_GetObjectItemCaseSensitive(item, "textColor");
+        cJSON *icon_color = cJSON_GetObjectItemCaseSensitive(item, "iconColor");
         cJSON *tile_color = cJSON_GetObjectItemCaseSensitive(item, "color");
         cJSON *tile_gradient = cJSON_GetObjectItemCaseSensitive(item, "tileGradient");
         cJSON *visual_scale = cJSON_GetObjectItemCaseSensitive(item, "visualScale");
@@ -1083,6 +1084,7 @@ static bool validate_config(const char *json)
                                   (visual_scale->valuedouble == 50 || visual_scale->valuedouble == 75 ||
                                    visual_scale->valuedouble == 100))) &&
                 (!text_color || valid_hex_color(text_color)) &&
+                (!icon_color || valid_hex_color(icon_color)) &&
                 (!tile_color || valid_hex_color(tile_color));
         if (!valid) break;
     }

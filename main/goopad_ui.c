@@ -57,8 +57,9 @@ static int s_gif_pages[MAX_MACROS];
 static bool s_gif_paused[MAX_MACROS];
 static lv_obj_t *s_widget_labels[MAX_MACROS];
 #ifdef CONFIG_GOOPAD_HOMEKIT
-static lv_obj_t *s_homekit_labels[MAX_MACROS];
+static lv_obj_t *s_homekit_indicators[MAX_MACROS];
 static char s_homekit_ids[MAX_MACROS][16];
+static int s_homekit_states[MAX_MACROS];
 #endif
 static unsigned s_widget_types[MAX_MACROS];
 static const char *s_widget_formats[MAX_MACROS];
@@ -80,6 +81,8 @@ static volatile bool s_scan_in_progress;
 static bool s_ota_running;
 static bool s_ota_armed;
 
+static lv_color_t color(uint32_t value);
+
 static void clear_dynamic_assets(void)
 {
     s_pages = NULL;
@@ -93,8 +96,9 @@ static void clear_dynamic_assets(void)
         s_gif_objects[i] = NULL;
         s_widget_labels[i] = NULL;
 #ifdef CONFIG_GOOPAD_HOMEKIT
-        s_homekit_labels[i] = NULL;
+        s_homekit_indicators[i] = NULL;
         s_homekit_ids[i][0] = '\0';
+        s_homekit_states[i] = -2;
 #endif
         s_widget_types[i] = 0;
         s_widget_formats[i] = NULL;
@@ -144,12 +148,18 @@ static void update_widgets(void)
     int scroll_x = s_pages ? lv_obj_get_scroll_x(s_pages) : 0;
     for (unsigned i = 0; i < MAX_MACROS; i++) {
 #ifdef CONFIG_GOOPAD_HOMEKIT
-        if (s_homekit_labels[i]) {
+        if (s_homekit_indicators[i]) {
             bool on = false;
             esp_err_t err = goopad_homekit_state(s_homekit_ids[i], &on);
-            const char *state = err == ESP_OK ? (on ? "ON" : "OFF") : "--";
-            if (strcmp(lv_label_get_text(s_homekit_labels[i]), state))
-                lv_label_set_text(s_homekit_labels[i], state);
+            int state = err == ESP_OK ? (on ? 1 : 0) : -1;
+            if (err == ESP_ERR_TIMEOUT && s_homekit_states[i] != -2) state = s_homekit_states[i];
+            if (state != s_homekit_states[i]) {
+                lv_obj_set_style_border_color(s_homekit_indicators[i],
+                    color(state == 1 ? 0x34D399 : state == 0 ? 0xFFFFFF : 0x94A3B8), 0);
+                lv_obj_set_style_bg_color(s_homekit_indicators[i], color(0x34D399), 0);
+                lv_obj_set_style_bg_opa(s_homekit_indicators[i], state == 1 ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+                s_homekit_states[i] = state;
+            }
         }
 #endif
         if (s_widget_labels[i]) {
@@ -1217,6 +1227,7 @@ static void build_grid_screen(void)
                 cJSON *icon = cJSON_GetObjectItemCaseSensitive(macro, "icon");
                 cJSON *accent = cJSON_GetObjectItemCaseSensitive(macro, "color");
                 cJSON *font_color = cJSON_GetObjectItemCaseSensitive(macro, "textColor");
+                cJSON *icon_color = cJSON_GetObjectItemCaseSensitive(macro, "iconColor");
                 const char *caption = cJSON_IsString(name) ? name->valuestring : "";
                 const char *glyph = cJSON_IsString(icon) ? icon->valuestring : "•";
                 unsigned accent_value = cJSON_IsString(accent)
@@ -1224,6 +1235,8 @@ static void build_grid_screen(void)
                 lv_color_t text_color = cJSON_IsString(font_color)
                     ? color((unsigned)strtoul(font_color->valuestring, NULL, 16))
                     : light_theme ? color(0x172033) : lv_color_white();
+                lv_color_t icon_tint = cJSON_IsString(icon_color)
+                    ? color((unsigned)strtoul(icon_color->valuestring, NULL, 16)) : text_color;
                 lv_obj_set_style_bg_color(tile, color(accent_value), 0);
                 cJSON *mode = cJSON_GetObjectItemCaseSensitive(macro, "actionMode");
                 cJSON *widget = cJSON_GetObjectItemCaseSensitive(macro, "widget");
@@ -1256,8 +1269,27 @@ static void build_grid_screen(void)
                     cJSON *id = cJSON_GetObjectItemCaseSensitive(macro, "homekitId");
                     if (cJSON_IsString(id)) {
                         strlcpy(s_homekit_ids[index], id->valuestring, sizeof(s_homekit_ids[index]));
-                        s_homekit_labels[index] = label(tile, "--", 10, text_color);
-                        lv_obj_align(s_homekit_labels[index], LV_ALIGN_TOP_RIGHT, -4, 3);
+                        lv_obj_t *badge = lv_obj_create(tile);
+                        lv_obj_set_size(badge, 18, 18);
+                        if (circle) lv_obj_align(badge, LV_ALIGN_TOP_MID, 0, 5);
+                        else lv_obj_align(badge, LV_ALIGN_TOP_RIGHT, pill ? -height / 3 : soft ? -width / 8 : -5, 5);
+                        lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, 0);
+                        lv_obj_set_style_bg_color(badge, color(0x0F172A), 0);
+                        lv_obj_set_style_bg_opa(badge, LV_OPA_70, 0);
+                        lv_obj_set_style_border_width(badge, 0, 0);
+                        lv_obj_set_style_shadow_width(badge, 0, 0);
+                        lv_obj_set_style_pad_all(badge, 0, 0);
+                        lv_obj_set_scrollable(badge, false);
+                        lv_obj_set_clickable(badge, false);
+                        s_homekit_indicators[index] = lv_obj_create(badge);
+                        lv_obj_set_size(s_homekit_indicators[index], 9, 9);
+                        lv_obj_center(s_homekit_indicators[index]);
+                        lv_obj_set_style_radius(s_homekit_indicators[index], LV_RADIUS_CIRCLE, 0);
+                        lv_obj_set_style_border_width(s_homekit_indicators[index], 2, 0);
+                        lv_obj_set_style_shadow_width(s_homekit_indicators[index], 0, 0);
+                        lv_obj_set_style_pad_all(s_homekit_indicators[index], 0, 0);
+                        lv_obj_set_scrollable(s_homekit_indicators[index], false);
+                        lv_obj_set_clickable(s_homekit_indicators[index], false);
                     }
                 }
 #endif
@@ -1433,6 +1465,11 @@ static void build_grid_screen(void)
                             };
                             lv_obj_t *image_obj = lv_image_create(tile);
                             lv_image_set_src(image_obj, &s_icon_images[index]);
+                            cJSON *fa_icon = cJSON_GetObjectItemCaseSensitive(macro, "faIcon");
+                            if (cJSON_IsString(fa_icon) && cJSON_IsString(icon_color)) {
+                                lv_obj_set_style_image_recolor(image_obj, icon_tint, 0);
+                                lv_obj_set_style_image_recolor_opa(image_obj, LV_OPA_COVER, 0);
+                            }
                             lv_image_set_scale(image_obj, icon_size * 256 / side);
                             lv_obj_align(image_obj, LV_ALIGN_CENTER, 0, icon_y);
                         }
@@ -1461,7 +1498,7 @@ static void build_grid_screen(void)
                     }
                     char initial[2] = {caption[0] ? caption[0] : '?', '\0'};
                     lv_obj_t *symbol = label(tile, drawn_icon ? drawn_icon : initial,
-                                             28, text_color);
+                                             28, icon_tint);
                     lv_obj_update_layout(symbol);
                     int largest = lv_obj_get_width(symbol) > lv_obj_get_height(symbol)
                         ? lv_obj_get_width(symbol) : lv_obj_get_height(symbol);
@@ -1478,7 +1515,7 @@ static void build_grid_screen(void)
                     lv_obj_align(text, LV_ALIGN_BOTTOM_MID, 0, -6);
                 }
 #ifdef CONFIG_GOOPAD_HOMEKIT
-                if (s_homekit_labels[index]) lv_obj_move_foreground(s_homekit_labels[index]);
+                if (s_homekit_indicators[index]) lv_obj_move_foreground(lv_obj_get_parent(s_homekit_indicators[index]));
 #endif
             } else {
                 g_app.empty_tiles++;

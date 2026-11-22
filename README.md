@@ -8,7 +8,8 @@ touch display into a Wi-Fi macro pad. It is built with ESP-IDF 6.1 and LVGL
 
 For maintainers: [architecture and code map](docs/architecture.md),
 [development and recovery](docs/development.md), and
-[API and data contracts](docs/api.md).
+[API and data contracts](docs/api.md). Future coding agents should also read
+[AGENTS.md](AGENTS.md).
 
 ## First boot
 

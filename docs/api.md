@@ -35,6 +35,7 @@ encrypted HAP on TCP port 80, **not** a plaintext editor.
 | `POST /api/wifi/join` | `{"ssid":"...","password":"..."}` validates input and starts a connection attempt; an HTTP success is not proof the join succeeded. |
 | `POST /api/password` | Changes the admin password; inspect `password_post_handler()` for current/initial password rules. |
 | `GET /api/backup`, `POST /api/backup` | Read the existing SD config backup, or overwrite it with the current config. Neither operation backs up assets or HomeKit keys. |
+| `GET /api/update`, `POST /api/update` | Check the latest stable release (`version`, `available`); POST `{"version":"0.7.0"}` to install that checked version if still newer. GooPad checks GitHub over verified HTTPS, restricts the download redirect, verifies the release SHA-256 and image version, then activates the inactive slot. The request can take time and requires internet access and a correct clock. |
 | `POST /api/ota`, `POST /api/ota/sd` | Upload an app-only binary or install `/sdcard/goopad.bin`. Successful activation schedules a reboot; interrupted/invalid transfers are rejected. |
 | `GET /api/icons` | With no query, returns the gzip index; `q=` searches, or `name=` plus `style=` selects a glyph. Search results are bounded. |
 | `POST`, `GET`, `DELETE /api/icon?key=...` | Upload, read or delete an SD asset. Upload supports RGB565/alpha, GPR1 RLE and GIF; GET selects format/size via query. Referenced macro icons cannot be deleted. |

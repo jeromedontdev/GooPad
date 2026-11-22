@@ -7,6 +7,7 @@
 #include "esp_http_server.h"
 #include "esp_https_server.h"
 #include "goopad_tls.h"
+#include "goopad_update.h"
 #ifdef CONFIG_GOOPAD_HOMEKIT
 #include "goopad_homekit.h"
 #include "goopad_homekit_credentials.h"
@@ -1689,6 +1690,44 @@ static esp_err_t ota_upload_handler(httpd_req_t *req)
     return activate_ota(handle, req);
 }
 
+static esp_err_t update_handler(httpd_req_t *req)
+{
+    esp_err_t auth = auth_required(req);
+    if (auth != ESP_OK) return auth;
+    if (req->method == HTTP_GET) {
+        char version[GOOPAD_UPDATE_VERSION_SIZE];
+        bool available;
+        if (goopad_update_check(version, &available) != ESP_OK)
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                      "Could not check for updates. Check GooPad's internet connection and time.");
+        char reply[96];
+        snprintf(reply, sizeof(reply), "{\"version\":\"%s\",\"available\":%s}",
+                 version, available ? "true" : "false");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+        return httpd_resp_sendstr(req, reply);
+    }
+    char *body = NULL;
+    esp_err_t err = receive_body(req, &body);
+    if (err != ESP_OK)
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid update request");
+    cJSON *root = cJSON_Parse(body);
+    cJSON *version = root ? cJSON_GetObjectItemCaseSensitive(root, "version") : NULL;
+    err = cJSON_IsString(version) ? goopad_update_install(version->valuestring) : ESP_ERR_INVALID_ARG;
+    cJSON_Delete(root);
+    free(body);
+    if (err != ESP_OK)
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                   "Update failed or the release changed. Check again and retry.");
+    if (xTaskCreate(restart_task, "ota_restart", 2048, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "could not schedule OTA restart");
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                   "Firmware installed; restart GooPad manually to finish.");
+    }
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":true,\"restarting\":true}");
+}
+
 static esp_err_t ota_sd_handler(httpd_req_t *req)
 {
     esp_err_t auth = auth_required(req);
@@ -2333,7 +2372,7 @@ static esp_err_t start_server(void)
 {
     if (s_server) return ESP_OK;
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
-    config.httpd.max_uri_handlers = 23;
+    config.httpd.max_uri_handlers = 25;
     config.httpd.max_open_sockets = 6;
     config.httpd.core_id = 1;
     esp_err_t err = goopad_tls_configure(&config, s_ip_address);
@@ -2352,6 +2391,8 @@ static esp_err_t start_server(void)
         {.uri = "/api/backup", .method = HTTP_GET, .handler = backup_handler},
         {.uri = "/api/status", .method = HTTP_GET, .handler = status_handler},
         {.uri = "/api/ota", .method = HTTP_POST, .handler = ota_upload_handler},
+        {.uri = "/api/update", .method = HTTP_GET, .handler = update_handler},
+        {.uri = "/api/update", .method = HTTP_POST, .handler = update_handler},
         {.uri = "/api/ota/sd", .method = HTTP_POST, .handler = ota_sd_handler},
         {.uri = "/api/icons", .method = HTTP_GET, .handler = icons_handler},
         {.uri = "/api/icon", .method = HTTP_POST, .handler = icon_upload_handler},

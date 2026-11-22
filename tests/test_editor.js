@@ -294,6 +294,66 @@ globalThis.runGooPadEditorTests = async function () {
   document.querySelector("#hideEmptyTiles").checked=true;
   await document.querySelector("#save").onclick();
   check(stored?.macros[0].name==="Visible" && !("tileName" in stored.macros[0]) && stored.macros[0].widgetTextSize===40 && stored.macros[0].widgetLayout==="panel" && stored.macros[0].widgetGradient==="335577" && stored.hideEmptyTiles===true, "Save preserves widget layout, gradient, sizing and hiding");
+  check(document.querySelector("#backup").closest("section")!==document.querySelector("#otaGithub").closest("section") &&
+        document.querySelector("#otaGithub").textContent==="Check for Update" && !document.querySelector("#otaSd"),
+        "Backup and firmware are separate and SD firmware install is device-only");
+  reset({macros:[make(0)]});
+  const backup=structuredClone(cfg);backup.macros[0].name="Restored";
+  let requests=[],savedBackup;
+  globalThis.fetch=async (url,options={})=>{
+   requests.push([url,options.method||"GET"]);
+   if(url==="/api/backup")return new Response(JSON.stringify(backup),{status:200});
+   if(url==="/api/config" && options.method==="POST"){savedBackup=JSON.parse(options.body);return new Response('{"ok":true}',{status:200})}
+   if(url==="/api/config")return new Response(JSON.stringify(backup),{status:200});
+   throw Error("Unexpected request "+url);
+  };
+  globalThis.confirm=()=>false;
+  await document.querySelector("#restore").onclick();
+  check(requests.length===0,"Cancel restore makes no requests");
+  globalThis.confirm=()=>true;
+  document.querySelector("#backgroundSample").src="data:image/png;base64,AA==";
+  document.querySelector("#backgroundSample").classList.remove("hidden");
+  await document.querySelector("#restore").onclick();
+  check(savedBackup.macros[0].name==="Restored" && cfg.macros[0].name==="Restored" &&
+        requests.map(r=>r.join(" ")).join(",")==="/api/backup GET,/api/config POST,/api/config GET" &&
+        document.querySelector("#backupStatus").textContent==="Backup restored.", "Restore uses validated config save and reloads the editor");
+  check(document.querySelector("#backgroundSample").classList.contains("hidden"),"Restore clears stale background preview");
+  requests=[];
+  globalThis.fetch=async ()=>new Response("No configuration backup on SD",{status:404});
+  await document.querySelector("#restore").onclick();
+  check(document.querySelector("#backupStatus").textContent.includes("No configuration backup on SD"),"Restore reports missing backup");
+  requests=[];
+  globalThis.fetch=async (url,options={})=>{
+   requests.push([url,options.method||"GET"]);
+   return new Response(url==="/api/backup"?JSON.stringify(backup):'{"ok":true,"restarting":true}',{status:200});
+  };
+  await document.querySelector("#restore").onclick();
+  check(requests.length===2 && document.querySelector("#backupStatus").textContent.includes("restarting"),"Restore reports HomeKit restart without reloading");
+  let updateRequests=[];
+  globalThis.fetch=async (url,options={})=>{
+   updateRequests.push([url,options.method||"GET",options.body]);
+   return new Response(JSON.stringify(options.method==="POST"?{ok:true,restarting:true}:{version:"9.0.0",available:true}),{status:200});
+  };
+  globalThis.confirm=()=>false;
+  await document.querySelector("#otaGithub").onclick();
+  check(updateRequests.length===1 && document.querySelector("#firmwareStatus").textContent.includes("9.0.0"),"Update check allows cancel without installation");
+  globalThis.confirm=()=>true;
+  await document.querySelector("#otaGithub").onclick();
+  check(updateRequests.length===3 && updateRequests[2][0]==="/api/update" &&
+        JSON.parse(updateRequests[2][2]).version==="9.0.0" &&
+        document.querySelector("#firmwareStatus").textContent.includes("restarting"),"Update installs the checked version through GooPad");
+  globalThis.fetch=async ()=>new Response('{"version":"9.0.0","available":false}',{status:200});
+  await document.querySelector("#otaGithub").onclick();
+  check(document.querySelector("#firmwareStatus").textContent==="GooPad is up to date.","Update check reports current firmware");
+  globalThis.fetch=async ()=>new Response("GitHub unavailable",{status:500});
+  await document.querySelector("#otaGithub").onclick();
+  check(document.querySelector("#firmwareStatus").textContent.includes("GitHub unavailable") && !document.querySelector("#otaGithub").disabled,"Update errors are visible and retryable");
+  globalThis.fetch=async (url,options={})=>options.method==="POST"
+   ? new Response("Release changed",{status:500})
+   : new Response('{"version":"9.0.0","available":true}',{status:200});
+  await document.querySelector("#otaGithub").onclick();
+  check(document.querySelector("#firmwareStatus").textContent.includes("Release changed") && !document.querySelector("#otaGithub").disabled,"Install failures are visible and retryable");
+  globalThis.confirm=confirmOriginal;globalThis.fetch=fetchOriginal;
   const graphic=document.createElement("span");
   graphic.innerHTML=widgetGraphicSvg({widget:"clock",widgetGraphic:"icon",widgetAccent:'" onload="invalid'},new Date(),"");
   check(!graphic.querySelector("svg").hasAttribute("onload"), "Legacy accent data cannot inject SVG attributes");

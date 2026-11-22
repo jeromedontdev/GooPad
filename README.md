@@ -403,11 +403,18 @@ keys with the OpenSSH `known_hosts` file.
 ### Backup and firmware update
 
 * **Backup to SD** writes `goopad-config.json` to the mounted card.
+* **Restore from SD** replaces the saved configuration with that backup after
+  confirmation, discarding unsaved editor changes. Images, sounds, Wi-Fi
+  credentials and Apple Home pairing are not included; protect the backup
+  because it may contain tokens.
 * **Upload firmware** accepts an ESP-IDF application `.bin`.
-* **GitHub release** downloads the latest GooPad release's `GooPad-ota-*.bin`
-  asset in the browser and uploads it to the device.
-* **Install SD image** installs `/goopad.bin` from the mounted card. The same
-  app-only image can be installed from the device's info-panel Settings page.
+* **Check for Update** asks GooPad to check the latest stable GitHub release.
+  If a newer version is available, confirm to download and install its
+  app-only image. GooPad needs internet access and an accurate clock for
+  certificate verification. It checks the release's SHA-256 digest and image
+  version before switching slots.
+* On the **device's** info-panel Settings page, install `/goopad.bin` from
+  the mounted SD card.
 * **Change admin password** is available in website Settings. Use 8-64
   printable ASCII characters; the browser asks you to sign in again after
   saving.

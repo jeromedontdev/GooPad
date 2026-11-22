@@ -13,6 +13,7 @@ set(goopad_sources
         "goopad.c"
         "goopad_ui.c"
         "goopad_tls.c"
+        "goopad_update.c"
         "hw_audio.c"
         "board.c"
         "hw_display.c"

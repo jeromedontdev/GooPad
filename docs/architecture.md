@@ -37,6 +37,7 @@ service running on the ESP32.
 | Shared interface | [`main/app.h`](../main/app.h) | Driver interfaces, application state, UI/service functions and widget interfaces. It still includes scaffolding-era declarations; inclusion is not proof a module is built. |
 | Hardware | [`main/board.h`](../main/board.h), `board.c`, `hw_display.c`, `hw_touch.c`, `hw_wifi.c`, `hw_sdcard.c`, `hw_audio.c`, `hw_gpio.c` in [`main/`](../main/) | Pin map, power caps, panel and touch, networking, SD and audio. The authoritative build list is [`main/CMakeLists.txt`](../main/CMakeLists.txt). |
 | TLS | [`main/goopad_tls.c`](../main/goopad_tls.c) | Device HTTPS identity creation and NVS persistence. |
+| Updates | [`main/goopad_update.c`](../main/goopad_update.c) | GitHub release check and verified app-only download to the inactive OTA slot. |
 | HomeKit | [`main/goopad_homekit.c`](../main/goopad_homekit.c), [`goopad_homekit_storage.c`](../main/goopad_homekit_storage.c), [`goopad_homekit_credentials.c`](../main/goopad_homekit_credentials.c) | Bridge and switch adapter, separate NVS block device, persistent setup ID and pairing codes. |
 | Web editor | [`main/index.html`](../main/index.html) | Embedded HTML/CSS/JavaScript, configuration draft, editor preview, asset conversion and API client; there is no separate frontend build. |
 | PC receiver | [`companion/GooPadCompanion.py`](../companion/GooPadCompanion.py), [`windows_startup.py`](../companion/windows_startup.py) | HTTPS/token checks, desktop input, local permissions, sensor caching, GUI/tray and per-user startup. |
@@ -72,6 +73,11 @@ build directory matches the current source, SDK or configuration.
 7. An actionable tile calls `goopad_trigger()`. Sound and HomeKit have local
    paths; HTTP actions copy their input into a worker-owned structure and run
    asynchronously. `/api/status` exposes the last action result.
+
+The editor restores an SD backup by reading `/api/backup` and posting it
+through the normal validated `/api/config` save path. The update check and
+download run on the device, avoiding browser cross-origin download failures;
+only a newer stable release's app-only asset is accepted.
 
 The editor and firmware each validate input. Browser validation improves UX;
 firmware validation is the security and persistence boundary. Keep both in

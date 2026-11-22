@@ -68,7 +68,8 @@ footer{max-width:1100px;margin:auto;padding:20px 22px;color:var(--muted);font-si
 <h2 style="margin-top:24px">Apple Home</h2><p class="hint">Save an Apple Home switch tile first. Then open pairing below and add GooPad in the Apple Home app using More options and the setup code. Create Home automations to control your lights or other accessories. Adding or renaming switches restarts GooPad.</p><button id="homekitCheck" type="button">Check bridge</button> <button id="homekitPair" type="button">Open pairing for 5 minutes</button><p id="homekitStatus" class="hint" role="status"></p><p class="hint">Keep the setup code private. HomeKit pairing keys are stored on the device; without flash encryption, someone with physical flash access can read them.</p>
 <h2 style="margin-top:24px">Windows companion</h2><p class="hint">Run Companion and choose <strong>Copy secure pairing</strong>, then paste the code below. <a href="#companionHelp" id="pairingHelp">Show setup help</a>.</p><div class="field"><label for="companionPairing">Secure pairing code (keep private)</label><input id="companionPairing" type="password" autocomplete="off" maxlength="4000" placeholder="Paste Copy secure pairing here"><button id="applyPairing" type="button">Apply secure pairing</button></div><button id="checkCompanion" type="button" style="margin-top:12px">Check HTTPS connection / last result</button><p id="companionStatus" class="hint" role="status"></p><p class="hint">Save appearance saves this pairing for all PC macros. GooPad verifies this specific Companion certificate and never falls back to HTTP. Only copy pairing directly from your own PC.</p></section>
 <aside class="side"><section class="panel"><h2>Website appearance</h2><p class="hint">Change the editor colors independently of the device. This preference is saved in this browser.</p><label for="siteTheme">Website theme</label><select id="siteTheme"><option value="dark">Midnight</option><option value="light">Light</option><option value="ocean">Ocean</option><option value="forest">Forest</option><option value="violet">Violet</option><option value="ember">Ember</option></select><p id="siteThemeStatus" class="hint" role="status"></p></section>
-<section class="panel"><h2>Backup and firmware</h2><p class="hint">Back up the current configuration to SD, upload an application image, check GitHub for a release, or install /goopad.bin from SD.</p><div class="toolbar"><button id="backup" type="button">Backup to SD</button><button id="otaPick" type="button">Upload firmware</button><button id="otaGithub" type="button">GitHub release</button><button id="otaSd" type="button">Install SD image</button></div><input id="firmware" type="file" accept=".bin" hidden></section>
+<section class="panel"><h2>Backup</h2><p class="hint">Save or restore the configuration on the SD card. Images, sounds, Wi-Fi credentials and Apple Home pairing are not included. Backups can contain secrets.</p><div class="toolbar"><button id="backup" type="button">Backup to SD</button><button id="restore" type="button">Restore from SD</button></div><p id="backupStatus" class="hint" role="status" aria-live="polite"></p></section>
+<section class="panel"><h2>Firmware</h2><p class="hint">Check for an update or upload an application firmware image. To install from SD, use Settings on the GooPad screen.</p><div class="toolbar"><button id="otaGithub" type="button">Check for Update</button><button id="otaPick" type="button">Upload firmware</button></div><input id="firmware" type="file" accept=".bin" hidden><p id="firmwareStatus" class="hint" role="status" aria-live="polite"></p></section>
 <section class="panel"><h2>Admin password</h2><p class="hint">Set a new password for the admin account. Use 8-64 printable characters. After saving, sign in again with the new password.</p><div class="fields"><div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"></div><div class="field"><label for="confirmPassword">Confirm password</label><input id="confirmPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"></div></div><button id="changePassword" class="primary" type="button" style="margin-top:12px">Change admin password</button></section></aside>
 </div></div>
 <div id="aboutView" class="hidden about">
@@ -852,12 +853,33 @@ $("#checkCompanion").onclick=async()=>{
  catch(error){status.textContent="Connection failed: "+error.message}
  finally{button.disabled=false}
 };
-$("#backup").onclick=async()=>{try{await api("/api/backup",{method:"POST",body:"{}"});msg("Backup saved to the SD card.")}catch(e){msg("Backup failed: "+e.message,true)}};
-async function uploadFirmware(blob,name){if(!confirm(`Install ${name} and reboot GooPad?`))return;msg(`Uploading ${name}…`);try{const r=await fetch("/api/ota",{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:blob});if(!r.ok)throw Error((await r.text())||r.statusText);msg("Firmware verified. GooPad is restarting…")}catch(e){msg("Firmware update failed: "+e.message,true)}}
+$("#backup").onclick=async()=>{const button=$("#backup"),status=$("#backupStatus");button.disabled=true;status.textContent="Saving backup…";try{await api("/api/backup",{method:"POST",body:"{}"});status.textContent="Backup saved to the SD card."}catch(e){status.textContent="Backup failed: "+e.message}finally{button.disabled=false}};
+$("#restore").onclick=async()=>{
+ if(!confirm("Restore the SD backup? This replaces the saved configuration and discards unsaved editor changes."))return;
+ const button=$("#restore"),status=$("#backupStatus");button.disabled=true;status.textContent="Restoring backup…";
+ try{
+  const backup=await api("/api/backup"),result=await api("/api/config",{method:"POST",body:JSON.stringify(backup)});
+  if(result.restarting){status.textContent="Backup restored. GooPad is restarting to apply Apple Home switches.";return}
+  cfg=await api("/api/config");selectedTile=-1;$("#backgroundSample").classList.add("hidden");$("#backgroundSample").removeAttribute("src");$("#backgroundStatus").textContent="";setForm();await loadIconPreviews();status.textContent="Backup restored.";
+ }catch(e){status.textContent="Restore failed: "+e.message+" If the configuration was saved, reload the editor."}
+ finally{button.disabled=false}
+};
+async function uploadFirmware(blob,name){if(!confirm(`Install ${name} and reboot GooPad?`))return;const status=$("#firmwareStatus");status.textContent=`Uploading ${name}…`;try{const r=await fetch("/api/ota",{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:blob});if(!r.ok)throw Error((await r.text())||r.statusText);status.textContent="Firmware verified. GooPad is restarting…"}catch(e){status.textContent="Firmware update failed: "+e.message}}
 $("#otaPick").onclick=()=>$("#firmware").click();
-$("#firmware").onchange=e=>{const file=e.target.files[0];if(file)uploadFirmware(file,file.name)};
-$("#otaGithub").onclick=async()=>{msg("Checking GooPad GitHub releases…");try{const r=await fetch("https://api.github.com/repos/jeromedontdev/GooPad/releases/latest",{headers:{Accept:"application/vnd.github+json"}});if(!r.ok)throw Error("No published GooPad release was found.");const release=await r.json();const asset=release.assets.find(a=>/^goopad.*\.bin$/i.test(a.name));if(!asset)throw Error("Release has no GooPad firmware .bin asset.");const binary=await fetch(asset.browser_download_url);if(!binary.ok)throw Error("Could not download the release image.");await uploadFirmware(await binary.blob(),asset.name)}catch(e){msg(e.message,true)}};
-$("#otaSd").onclick=async()=>{if(!confirm("Install /goopad.bin from the SD card and reboot?"))return;msg("Reading firmware from SD…");try{await api("/api/ota/sd",{method:"POST",body:"{}"});msg("Firmware verified. GooPad is restarting…")}catch(e){msg("SD update failed: "+e.message,true)}};
+$("#firmware").onchange=async e=>{const input=e.target,file=input.files[0];try{if(file)await uploadFirmware(file,file.name)}finally{input.value=""}};
+$("#otaGithub").onclick=async()=>{
+ const button=$("#otaGithub"),status=$("#firmwareStatus");button.disabled=true;status.textContent="Checking for updates…";
+ try{
+  const release=await api("/api/update");
+  if(!release.available){status.textContent="GooPad is up to date.";return}
+  status.textContent=`Update ${release.version} is available.`;
+  if(!confirm(`Install GooPad ${release.version} and reboot?`))return;
+  status.textContent=`Downloading and installing ${release.version}…`;
+  await api("/api/update",{method:"POST",body:JSON.stringify({version:release.version})});
+  status.textContent="Firmware verified. GooPad is restarting…";
+ }catch(e){status.textContent="Update failed: "+e.message}
+ finally{button.disabled=false}
+};
 const siteThemes=["dark","light","ocean","forest","violet","ember"];
 const applySiteTheme=theme=>{document.body.classList.toggle("light",theme==="light");document.body.dataset.siteTheme=theme;$("#siteTheme").value=theme};
 try{const saved=localStorage.getItem("goopad-site-theme");applySiteTheme(siteThemes.includes(saved)?saved:"dark")}

@@ -280,10 +280,13 @@ Include these notices and the referenced licenses when distributing firmware.
 
 ### Windows companion
 
-Download **GooPadCompanion-Windows.zip** from the site's **About & help** tab or
-[the latest release](https://github.com/jeromedontdev/GooPad/releases/latest).
-Extract it and run `GooPadCompanion.exe` as a normal Windows user. No Python
-installation is needed for that app. Closing quits and minimizing uses the
+Download the Companion installer from
+[the latest release](https://github.com/jeromedontdev/GooPad/releases/latest),
+or use the portable **GooPadCompanion-Windows.zip** from the site's **About & help** tab.
+The installer installs for the current Windows user without administrator
+access. Quit any running portable copy before installing. Uninstalling removes
+the application but keeps configuration and pairing in `%LOCALAPPDATA%\GooPad`.
+No Python installation is needed for either packaged app. Closing quits and minimizing uses the
 taskbar by default. You can independently change either button to **Hide in tray**;
 the receiver keeps running while hidden. Choose **Copy secure pairing**, paste
 the code under website **Settings > Windows companion**, and select **Apply secure pairing**.
@@ -336,10 +339,25 @@ only this user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry.
 For the packaged app it copies the executable into
 `%LOCALAPPDATA%\GooPad\bin`, so moving the extracted download does not break
 startup. Disabling the checkbox removes the startup entry, retaining that copy.
-After downloading an update, **Quit** the old app, open the new executable, and
-uncheck/recheck this option to refresh its startup copy. Remove any old manual
+The installer also uses this location, so updates replace the startup copy.
+Remove any old manual
 `shell:startup` shortcut to avoid launching two copies. When running from Python
 source, keep the source directory and interpreter at their registered paths.
+
+#### Updating Companion
+
+Select **Check for updates** in Companion. If a newer stable release contains
+the installer, confirm the update; Companion downloads it, checks the GitHub
+release's SHA-256 and size over verified HTTPS, exits, installs and restarts.
+The current port, configuration and pairing are preserved. Source checkouts are
+not modified by the installer. If Windows startup was configured from source,
+re-enable it from the installed app to use the installed version.
+
+Installer updates require a published `GooPadCompanion-Setup-<version>.exe`
+release asset with GitHub's SHA-256 metadata. Older releases, including 0.7.0,
+may not contain it. The installer is not code-signed; Windows may show a
+SmartScreen warning. The release digest detects a bad download but is not an
+independent publisher signature. Only install releases you trust.
 
 Both launch methods support PowerShell when enabled locally, running as your
 normal Windows user. No administrator prompt or Windows service is needed.
@@ -453,9 +471,10 @@ python -m venv build\companion-test-venv
 Isolation avoids globally installed `pip_system_certs` injecting client
 certificate verification into the test HTTPS server. It does not change the
 system Python installation. The desktop tray uses pystray and Pillow.
-Build the Windows download with
-`.\tools\make_companion.ps1`; PyInstaller must also be installed. The download
-includes dependency licenses and pystray source for replacing/rebuilding that
+Build the Windows ZIP and installer with `.\tools\make_companion.ps1`;
+PyInstaller and Inno Setup's `ISCC.exe` must also be installed. Pass
+`-InnoCompiler <path-to-ISCC.exe>` if it is not on PATH. The packages
+include dependency licenses and pystray source for replacing/rebuilding that
 LGPL library. The source GUI can be launched with
 `python companion\GooPadCompanion.py --gui --hidden`.
 For authenticated hardware regression checks (PowerShell 7), run
@@ -505,7 +524,7 @@ accepts only validated PC steps or locally configured app actions. PowerShell
 from a macro is accepted only after explicit local opt-in; treat that token as
 full access to your Windows account when enabled.
 
-Build the Windows ZIP on Windows with `python -m pip install pyinstaller`,
+Build the Windows ZIP and installer on Windows with PyInstaller and Inno Setup,
 then `.\tools\make_companion.ps1`. The ZIP contains the self-contained app,
 Python source, launcher, and this README. No signing certificate is included
 in this development build; Windows may display an unsigned-app warning.

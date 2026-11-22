@@ -80,7 +80,14 @@ not the normal update procedure. It reads flash parameters from the root
 when the build uses a different `SDKCONFIG`. Review version, image contents,
 licenses, release assets and signing/security expectations before distribution.
 [`tools/make_companion.ps1`](../tools/make_companion.ps1) packages the Windows
-Companion; see the README for its requirements and bundled notices.
+Companion ZIP and the per-user Inno Setup installer; see the README for its
+requirements and bundled notices. Install Inno Setup and pass
+`-InnoCompiler <path-to-ISCC.exe>` if `ISCC.exe` is not on PATH. The installer
+and executable use `VERSION` from `companion/companion_update.py`; increment it
+for a release and publish `GooPadCompanion-Setup-<version>.exe` with matching
+stable release tag and GitHub SHA-256 metadata. Release the matching firmware
+asset too: firmware update checks expect it on the latest GooPad release.
+The installer is not code-signed, and release digests are not signatures.
 
 ## Tests
 

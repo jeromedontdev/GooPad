@@ -1,10 +1,13 @@
 import importlib.util
+import hashlib
+import io
 import json
 import socket
 import ssl
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -17,6 +20,63 @@ SPEC = importlib.util.spec_from_file_location("goopad_companion", SOURCE)
 COMPANION = importlib.util.module_from_spec(SPEC)
 with patch.object(sys, "path", [str(SOURCE.parent), *sys.path]):
     SPEC.loader.exec_module(COMPANION)
+
+
+class CompanionUpdateTests(unittest.TestCase):
+    def setUp(self):
+        self.update = COMPANION.companion_update
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.installer = b"example installer contents"
+        self.asset = {"name": "GooPadCompanion-Setup-9.2.3.exe",
+                      "size": len(self.installer),
+                      "digest": "sha256:" + hashlib.sha256(self.installer).hexdigest()}
+        self.metadata = {"tag_name": "v9.2.3", "assets": [self.asset]}
+
+    def check(self, metadata):
+        with patch.object(self.update, "build_opener") as factory:
+            factory.return_value.open.return_value = io.BytesIO(json.dumps(metadata).encode())
+            return self.update.check_for_update()
+
+    def test_selects_newer_official_installer_and_rejects_missing_digest(self):
+        release = self.check(self.metadata)
+        self.assertEqual(release["version"], "9.2.3")
+        self.assertEqual(release["url"], self.update.DOWNLOAD_ROOT +
+                         "/v9.2.3/GooPadCompanion-Setup-9.2.3.exe")
+        del self.asset["digest"]
+        with self.assertRaises(ValueError):
+            self.check(self.metadata)
+
+    def test_current_or_invalid_release(self):
+        self.assertIsNone(self.check({"tag_name": "v" + self.update.VERSION, "assets": []}))
+        with self.assertRaises(ValueError):
+            self.check([])
+        for tag in ("v9.2.3-beta", "v9.2.3/../../evil", "v09.2.3"):
+            with self.subTest(tag=tag), self.assertRaises(ValueError):
+                self.check({"tag_name": tag, "assets": [self.asset]})
+
+    def test_download_checks_size_and_digest_and_cleans_failed_files(self):
+        release = self.check(self.metadata)
+        with patch.object(self.update.tempfile, "tempdir", self.temp.name), \
+                patch.object(self.update, "build_opener") as factory:
+            for content in (self.installer[:-1], self.installer + b"x",
+                            b"x" * len(self.installer)):
+                factory.return_value.open.return_value = io.BytesIO(content)
+                with self.assertRaises(ValueError):
+                    self.update.download_update(release)
+                self.assertEqual(list(Path(self.temp.name).iterdir()), [])
+            factory.return_value.open.return_value = io.BytesIO(self.installer)
+            path = self.update.download_update(release)
+            self.assertEqual(path.read_bytes(), self.installer)
+            path.unlink()
+
+    def test_download_rejects_untrusted_redirects(self):
+        handler = self.update.ReleaseRedirects()
+        request = Request(self.update.DOWNLOAD_ROOT + "/v9.2.3/file")
+        for url in ("http://github.com/file", "https://github.com.evil.example/file",
+                    "https://evil.example/file", "https://user@github.com/file"):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                handler.redirect_request(request, None, 302, "Found", {}, url)
 
 
 class CompanionTests(unittest.TestCase):
@@ -121,6 +181,43 @@ class CompanionTests(unittest.TestCase):
                 patch.object(COMPANION.windows_startup, "startup_enabled", return_value=False):
             COMPANION.desktop_panel(Mock(), {"token":self.token,"actions":{}},
                                     "127.0.0.1", 8787)
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows desktop UI")
+    def test_confirmed_update_downloads_and_launches_installer(self):
+        import tkinter as tk
+        from tkinter import messagebox, ttk
+        from unittest.mock import Mock
+
+        installer = Path(self.temp.name) / "setup.exe"
+        release = {"version": "9.2.3"}
+        with patch.object(COMPANION.companion_update, "check_for_update", return_value=release), \
+                patch.object(COMPANION.companion_update, "download_update", return_value=installer) as download, \
+                patch.object(COMPANION.subprocess, "Popen") as launch, \
+                patch.object(messagebox, "askyesno", return_value=True), \
+                patch("pystray.Icon"), \
+                patch.object(COMPANION.windows_startup, "startup_enabled", return_value=False):
+            def exercise(root):
+                def descendants(widget):
+                    for child in widget.winfo_children():
+                        yield child
+                        yield from descendants(child)
+                button = next(widget for widget in descendants(root)
+                              if isinstance(widget, ttk.Button) and widget.cget("text") == "Check for updates")
+                button.invoke()
+                deadline = time.monotonic() + 5
+                while not launch.called and time.monotonic() < deadline:
+                    root.update()
+                    time.sleep(.02)
+                self.assertTrue(launch.called, "Update did not launch installer")
+            with patch.object(tk.Tk, "mainloop", exercise):
+                COMPANION.desktop_panel(Mock(), {"token":self.token,"actions":{}},
+                                        "127.0.0.1", 18877)
+            download.assert_called_once_with(release)
+            args, kwargs = launch.call_args
+            self.assertEqual(args[0][0], str(installer))
+            self.assertIn("/GOOPADPORT=18877", args[0])
+            self.assertTrue(any(value.startswith("/GOOPADPID=") for value in args[0]))
+            self.assertFalse(kwargs["shell"])
 
     def test_https_rejects_untrusted_identity_and_plain_http(self):
         untrusted = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)

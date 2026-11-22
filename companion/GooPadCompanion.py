@@ -23,6 +23,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
+import companion_update
 import windows_startup
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature
@@ -815,11 +816,12 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
     window_icons = [ImageTk.PhotoImage(tray_image),
                     ImageTk.PhotoImage(companion_icon(32))]
     root.iconphoto(True, *window_icons)
-    root.geometry("540x535")
+    root.geometry("540x600")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=20)
     frame.pack(fill="both", expand=True)
     ttk.Label(frame, text="GooPad Companion", font=("Segoe UI", 18, "bold")).pack(anchor="w")
+    ttk.Label(frame, text=f"Version {companion_update.VERSION}").pack(anchor="w")
     ttk.Label(frame, text="Keep this app running in your logged-in Windows session.").pack(anchor="w", pady=8)
     cert_path = APP_DIR / "tls-cert.pem"
     ttk.Button(frame, text="Copy secure pairing",
@@ -924,6 +926,24 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
     ttk.Label(frame, text="In GooPad: Settings > Windows companion > paste secure pairing code.\n"
               "Tray mode keeps commands running. Use Quit to stop Companion.",
               wraplength=490).pack(anchor="w")
+    update_events = queue.SimpleQueue()
+    update_button = ttk.Button(frame, text="Check for updates")
+    update_button.pack(anchor="w", pady=4)
+
+    def update_worker(operation, release=None):
+        try:
+            result = (companion_update.check_for_update() if operation == "check"
+                      else companion_update.download_update(release))
+            update_events.put((operation, result))
+        except (OSError, ValueError) as error:
+            logging.error("Companion update failed: %s", error)
+            update_events.put(("error", str(error)))
+
+    def check_update():
+        update_button.config(state="disabled", text="Checking for updates...")
+        threading.Thread(target=update_worker, args=("check",), daemon=True).start()
+
+    update_button.config(command=check_update)
     ttk.Button(frame, text="Quit Companion", command=root.destroy).pack(anchor="w", pady=8)
 
     def restore():
@@ -955,6 +975,34 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
     root.bind("<Unmap>", minimized_event)
 
     def refresh():
+        while not update_events.empty():
+            operation, result = update_events.get()
+            if operation == "error":
+                update_button.config(state="normal", text="Check for updates")
+                messagebox.showerror("Companion update failed", result)
+            elif operation == "check":
+                if result and messagebox.askyesno(
+                        "Companion update available",
+                        f"Install Companion {result['version']}? Companion will restart."):
+                    update_button.config(text="Downloading update...")
+                    threading.Thread(target=update_worker, args=("download", result), daemon=True).start()
+                else:
+                    update_button.config(state="normal", text="Check for updates")
+                    if not result:
+                        messagebox.showinfo("Companion update", "Companion is up to date.")
+            else:
+                try:
+                    subprocess.Popen([str(result), "/SILENT", "/NORESTART", "/CLOSEAPPLICATIONS",
+                                      f"/GOOPADPORT={port}", f"/GOOPADPID={os.getpid()}"],
+                                     shell=False, close_fds=True)
+                except OSError as error:
+                    result.unlink(missing_ok=True)
+                    update_button.config(state="normal", text="Check for updates")
+                    logging.error("Could not start Companion installer: %s", error)
+                    messagebox.showerror("Companion update failed", str(error))
+                else:
+                    root.destroy()
+                    return
         while not tray_commands.empty():
             command = tray_commands.get()
             if command == "quit":

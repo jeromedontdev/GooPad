@@ -84,7 +84,10 @@
    OTA metadata to make deployment work. Verify the active image, HTTPS,
    unchanged configuration, and the actual changed behavior after reboot.
 6. Run the [read-only soak test](tests/Test-GooPadSoak.ps1) against the updated
-   device for at least one hour by default. Review its report for resets,
+   device for five minutes by default after relevant code changes, not once
+   per chat session. Use a longer soak when the user asks or when resets,
+   memory trends, timing/concurrency changes or unresolved failures warrant it;
+   explain the chosen duration. Review its report for resets,
    request failures, memory trends and new diagnostic errors; investigate
    findings and repeat relevant validation after fixes. Use normal user
    operation during observation; do not trigger actions or replace the live

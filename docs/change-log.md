@@ -89,3 +89,36 @@ not a complete historical changelog.
 - Next delivery work should reconcile source/binary provenance, run the device
   soak using verified identity and credentials, and publish a versioned release
   only after the relevant changes and validation are accounted for.
+
+## 2026-11-24 - Completed real-device one-hour soak
+
+- **Request:** execute the read-only soak and summarize the findings.
+- **Setup:** verified the CH340-attached ESP32-S3 and live partition table.
+  Retrieved certificate/authentication only in memory over USB, then verified
+  authenticated HTTPS against that device certificate. USB bootstrap rebooted
+  the board once before the baseline; no flash, configuration write or action
+  trigger was performed.
+- **Validation:** ran `tests\Test-GooPadSoak.ps1` for 3,600 seconds with
+  15-second intervals and 10-second request timeouts, from 08:31:56 to 09:31:56
+  at UTC-05:00. Collected 238 valid samples; exit code 0, zero errors and zero
+  observed reboots. Wi-Fi connected and SD mounted in every sample.
+- **Warnings:** 165 observed network-deferral events, all type 2/result 263.
+  `ESP_ERR_TIMEOUT` is `0x107` (263); `network_begin()` records this event when
+  the shared network semaphore cannot be acquired in time. These were not
+  low-memory admission failures or failed soak HTTP requests. The ring does
+  not identify the affected tile/request; deferral frequency warrants follow-up
+  if live widgets lag. Event counts may undercount because the ring lacks IDs.
+- **Memory:** internal free ranged from 43,287 to 52,611 bytes (first 43,287,
+  last 52,115); largest internal block never fell below 28,672 bytes. PSRAM
+  free ranged from 1,905,896 to 2,607,776 bytes (first 2,372,532, last 2,220,444).
+  Ten-minute PSRAM means fluctuated around 2.20-2.25 million bytes after the
+  first window, rather than steadily decreasing. No sustained downward trend
+  was observed; this is not proof against slower or workload-specific leaks.
+- **Latency:** the combined status/diagnostics poll averaged 230 ms, with
+  69 ms minimum and 1,128 ms maximum.
+- **Delivery:** saved a sanitized JSONL health report in the session workspace.
+  This is a results-only log update; no new firmware or binary release is
+  applicable. Commit/push provenance is available in Git history.
+- **Remaining:** earlier uncommitted source/release provenance remains
+  outstanding. This run monitored the installed firmware, not a freshly
+  released build. Touch/rendering and macro execution were not exercised.

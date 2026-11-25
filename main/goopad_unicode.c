@@ -13,6 +13,8 @@
 #define MAX_CODEPOINTS 131072
 #define CACHE_BYTES (32 * 1024)
 #define MAX_BITMAP CACHE_BYTES
+#define SHARED_CACHE_BYTES (32 * 1024)
+#define MAX_EVICTORS 2
 
 typedef struct {
     uint32_t cp, offset;
@@ -30,7 +32,7 @@ typedef struct {
 
 typedef struct {
     font_t *font;
-    uint32_t index, stamp;
+    uint32_t index, stamp, bitmap_stamp;
     glyph_t glyph;
     uint8_t *bitmap;
     uint16_t bytes, pins;
@@ -46,6 +48,56 @@ static struct {
 } health;
 static bool initialized;
 static uint32_t clock_tick;
+static goopad_font_bitmap_evictor_t bitmap_evictors[MAX_EVICTORS];
+static unsigned bitmap_evictor_count;
+static uint32_t shared_bitmap_cache_bytes;
+static void discard(cache_t *entry);
+static cache_t *oldest(cache_t *exclude, bool bitmap_only);
+
+void goopad_font_bitmap_register_evictor(goopad_font_bitmap_evictor_t evictor)
+{
+    for (unsigned i = 0; i < bitmap_evictor_count; i++)
+        if (bitmap_evictors[i] == evictor) return;
+    if (evictor && bitmap_evictor_count < MAX_EVICTORS)
+        bitmap_evictors[bitmap_evictor_count++] = evictor;
+}
+
+bool goopad_font_bitmap_reserve(uint32_t bytes, const void *exclude)
+{
+    if (bytes > SHARED_CACHE_BYTES) return false;
+    while (shared_bitmap_cache_bytes + bytes > SHARED_CACHE_BYTES) {
+        uint32_t oldest_stamp = UINT32_MAX, candidate_stamp, candidate_bytes;
+        unsigned selected = MAX_EVICTORS;
+        for (unsigned i = 0; i < bitmap_evictor_count; i++) {
+            if (bitmap_evictors[i](exclude, UINT32_MAX, &candidate_stamp, &candidate_bytes) &&
+                candidate_stamp < oldest_stamp) {
+                oldest_stamp = candidate_stamp;
+                selected = i;
+            }
+        }
+        if (selected == MAX_EVICTORS ||
+            !bitmap_evictors[selected](exclude, oldest_stamp, &candidate_stamp, &candidate_bytes))
+            return false;
+    }
+    shared_bitmap_cache_bytes += bytes;
+    return true;
+}
+
+void goopad_font_bitmap_release(uint32_t bytes)
+{
+    shared_bitmap_cache_bytes = bytes > shared_bitmap_cache_bytes ? 0 : shared_bitmap_cache_bytes - bytes;
+}
+
+uint32_t goopad_font_bitmap_cache_used(void)
+{
+    return shared_bitmap_cache_bytes;
+}
+
+uint32_t goopad_font_bitmap_cache_stamp(void)
+{
+    static uint32_t stamp;
+    return ++stamp;
+}
 
 static uint16_t u16(const uint8_t *p) { return (uint16_t)p[0] | (uint16_t)p[1] << 8; }
 static uint32_t u32(const uint8_t *p) { return (uint32_t)u16(p) | (uint32_t)u16(p + 2) << 16; }
@@ -56,6 +108,23 @@ static uint16_t crc16(uint16_t crc, const uint8_t *data, size_t length)
         for (unsigned i = 0; i < 8; i++) crc = (crc >> 1) ^ ((crc & 1) ? 0xa001 : 0);
     }
     return crc;
+}
+
+static bool evict_bitmaps(const void *exclude, uint32_t target_stamp, uint32_t *stamp, uint32_t *bytes)
+{
+    cache_t *victim = NULL;
+    for (unsigned i = 0; i < CACHE_ENTRIES; i++) {
+        cache_t *entry = &cache[i];
+        if (entry == exclude || entry->pins || !entry->bitmap) continue;
+        if (!victim || entry->bitmap_stamp < victim->bitmap_stamp) victim = entry;
+    }
+    if (!victim) return false;
+    *stamp = victim->bitmap_stamp;
+    *bytes = victim->bytes;
+    if (target_stamp == UINT32_MAX) return true;
+    if (victim->bitmap_stamp != target_stamp) return false;
+    discard(victim);
+    return true;
 }
 
 static bool failed(const char *message)
@@ -93,6 +162,7 @@ static bool record(FILE *fp, font_t *font, uint32_t index, glyph_t *glyph)
 
 static void discard(cache_t *entry)
 {
+    if (entry->bitmap) goopad_font_bitmap_release(entry->bytes);
     health.cache_bytes -= entry->bytes;
     free(entry->bitmap);
     entry->bitmap = NULL;
@@ -116,6 +186,7 @@ static cache_t *find(font_t *font, uint32_t value, bool by_index)
         cache_t *entry = &cache[i];
         if (entry->font == font && (by_index ? entry->index == value : entry->glyph.cp == value)) {
             entry->stamp = ++clock_tick;
+            if (entry->bitmap) entry->bitmap_stamp = goopad_font_bitmap_cache_stamp();
             health.hits++;
             return entry;
         }
@@ -191,7 +262,9 @@ static const void *glyph_bitmap(lv_font_glyph_dsc_t *dsc, lv_draw_buf_t *draw)
             if (!victim) break;
             discard(victim);
         }
-        uint8_t *raw = health.cache_bytes + bytes <= CACHE_BYTES ?
+        bool reserved = bytes && health.cache_bytes + bytes <= CACHE_BYTES &&
+            goopad_font_bitmap_reserve(bytes, entry);
+        uint8_t *raw = reserved ?
             heap_caps_calloc(1, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
         if (!fp) fp = fopen(FONT_PATH, "rb");
         bool ok = raw && fp;
@@ -223,8 +296,14 @@ static const void *glyph_bitmap(lv_font_glyph_dsc_t *dsc, lv_draw_buf_t *draw)
             ok = ok && at == pixels;
         }
         if (fp) { fclose(fp); fp = NULL; }
-        if (!ok || checksum != g->checksum) { free(raw); failed("Could not decode/verify glyph bitmap"); return NULL; }
+        if (!ok || checksum != g->checksum) {
+            free(raw);
+            if (reserved) goopad_font_bitmap_release(bytes);
+            failed("Could not decode/verify glyph bitmap");
+            return NULL;
+        }
         entry->bitmap = raw; entry->bytes = bytes;
+        entry->bitmap_stamp = goopad_font_bitmap_cache_stamp();
         health.cache_bytes += bytes;
         if (health.cache_bytes > health.cache_peak) health.cache_peak = health.cache_bytes;
     }
@@ -299,6 +378,7 @@ static void initialize(void)
     cache = ok ? heap_caps_calloc(CACHE_ENTRIES, sizeof(*cache), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
     health.available = ok && cache;
     if (!health.available) { free(codepoints); codepoints = NULL; }
+    else goopad_font_bitmap_register_evictor(evict_bitmaps);
     health.index_bytes = codepoints ? fonts[0].count * sizeof(*codepoints) : 0;
     health.metrics_bytes = cache ? CACHE_ENTRIES * sizeof(*cache) : 0;
     health.glyphs = health.available ? fonts[0].count : 0;

@@ -18,6 +18,57 @@ Never include credentials, private keys, pairing codes, raw user configuration,
 serial captures or flash dumps. Do not claim historical work was committed or
 released merely because it was installed.
 
+## 2026-11-25 - Editor, browser fonts and styled fonts offloaded to SD
+
+- **Request:** implement the recommended SD storage savings without reducing
+  PSRAM headroom or changing the saved layout/font appearance.
+- **Changes:** pinned GWP1 editor/browser-font archive, GSP1 styled-font pack,
+  bounded streaming/hash checks, embedded recovery and four-kind resource
+  uploads. Original styled glyph pixels, metrics and kerning are retained.
+  Unicode and styled fonts share one 32 KiB bitmap cache. Styled cold metrics
+  prefetch 16 records into the existing cache; no additional PSRAM/BSS.
+- **Compatibility:** verified application-only OTA, unchanged configuration,
+  authentication and logical HomeKit records. Immutable web/styled uploads
+  reused existing content. Existing multilingual/icon packs and rollback
+  resources remain untouched; recovery works without the full SD editor.
+- **Validation:** 4 web-resource and 11 soak-harness tests passed; Pylance
+  reported no generator syntax errors. Actual native HTTP tests covered
+  hashes, gzip/identity negotiation, 1 KiB chunks, abort cleanup and recovery.
+  Styled source parity checked 5,760 glyphs and 4,132 kerning pairs; native
+  loaders checked 5,700 non-space renders, corruption/fallback, mixed-cache
+  bounds and real LVGL selector semantics for all 68 variants.
+  Cold descriptor sweep dropped from 5,700 opens/reads to 360.
+  Fresh local editor regression: 4,891 checks across 2,520 layouts; mocked
+  recovery browser checks passed without touching live configuration.
+- **Delivery:** production reconfigure/build and app-only installation passed.
+  The installed image is 2,314,480 bytes, with 44.82% of its app slot free:
+  408,816 bytes smaller than the preceding build. Identity/gzip editor and all
+  nine WOFF2 responses matched source hashes. The full boot canary passed at
+  12,376 ms; 18 tiles/two pages rendered. See the exact SHA and reconciled
+  [storage ledger](storage-layout.md).
+  Final 300-second soak: 20 samples, zero errors/reboots, 124 network-admission
+  warnings; minimum PSRAM 3,347,264 bytes, 337,904 bytes above the previous
+  minimum. Internal minimum 41,707 bytes. Styled metadata 43,144 bytes and
+  shared bitmap peak 833 bytes. Sampled media requests averaged 256 ms.
+- **Resolved delivery issues:** ESP-IDF script-mode requirements expansion
+  rejects GLOB `CONFIGURE_DEPENDS`; directory input dependencies remain.
+  The first SD-font build's exhaustive boot canary exceeded the original
+  15-second capture window, leaving UI initialization incomplete at inspection.
+  Longer observation proved correct resolution; bounded metrics batching
+  removed excessive per-glyph file operations without weakening the canary.
+- **Publication:** independently usable loaders/generators, font inputs and
+  licenses, font/soak tests and scoped documentation are committed/pushed as
+  a foundation. The earlier dirty application backlog is not blanket-staged.
+  CMake/HTTP/upload/status integration and its worktree HTTP regression still
+  depend on that backlog; no source-matched firmware release is claimed.
+  Matching licensed SD resource bundle and sanitized soak report are retained
+  as local deliverables.
+- **Remaining:** reconcile the earlier application/editor integration before
+  publishing a firmware release; do not publish the installed image as if it
+  were reproduced from this scoped commit. Network contention remains
+  observable (124 warnings versus 87 previously); physical media latency and
+  long-term leaks are not certified by this five-minute observation.
+
 ## 2026-11-25 - Multilingual SD fonts, headroom and faster now playing
 
 - **Request:** Chinese/Japanese and varied artist text, meaningful app/PSRAM

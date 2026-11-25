@@ -17,8 +17,9 @@ characters can display a placeholder. LVGL bidi and Arabic/Persian processing
 are enabled. Indic/Thai shaping, combining-mark positioning, variation selectors,
 ZWJ emoji sequences and color emoji are not fully supported. Emoji are grayscale.
 
-Characters in a selected styled font retain their original appearance.
-Missing characters use a same-size SD font, then a compact compiled Lato subset.
+Styled tile fonts use a separate SD pack, preserving their original pixels,
+metrics and kerning. Missing characters use core Montserrat and a same-size
+multilingual SD font, then the compact compiled Lato subset.
 Without SD resources, printable ASCII, basic extended Latin
 U+00A0-U+017F, common punctuation U+2010-U+2026 and euro remain available;
 other scripts require the card. This intentionally replaces the previous
@@ -36,6 +37,17 @@ This directory is bounded at 512 KiB. The metrics cache has 512 entries
 pinned-glyph lifetime protection. Per-glyph CRC16, descriptor
 bounds and decode limits fail explicitly on corrupt data.
 
+The styled `GSP1` pack contains 60 variants, 5,760 glyphs and 4,132 kerning
+pairs in **471,647 bytes**. Its **186,072-byte** indexed glyph metadata remains
+on SD; resident descriptors, bounded metrics and kerning avoid whole-font
+bitmap loading. Unicode and styled loaders share **one 32 KiB bitmap LRU**,
+not separate 32 KiB allocations. Missing/corrupt packs fail independently;
+a styled-pack failure does not disable healthy multilingual text.
+Styled cold metrics prefetch 16 adjacent records into the existing cache;
+the extra 448 bytes are stack-only. The target's resident styled metadata is
+43,144 bytes and Unicode metrics are 26,624 bytes. The full canary remains
+enabled and verifies every printable ASCII character in all 68 selectors.
+
 The full Font Awesome catalog is also SD-backed; its small compressed search
 index remains embedded. Existing user images, configuration and pairing are
 not moved or erased. See the [storage ledger](storage-layout.md) for application
@@ -45,7 +57,8 @@ boot-time PSRAM reservation in the selected SDK config.
 ## Installation and recovery
 
 Generated resources have immutable, content-fingerprinted names:
-`text-<12hex>.gfp` and `icons-<12hex>.bin`. The generated
+`text-<12hex>.gfp`, `icons-<12hex>.bin`, `styled-<12hex>.gsp` and
+`web-<12hex>.gwp`. The generated
 [firmware manifest](../main/goopad_resource_manifest.h) pins their full SHA-256.
 Copy matching files to `/goopad/resources/` on the SD card, preserving old
 versions for rollback, then reboot.
@@ -53,13 +66,21 @@ versions for rollback, then reboot.
 Alternatively, the authenticated [resource-upload API](api.md) streams a matching
 bundle into a staging file, verifies its SHA-256/signature and atomically renames
 it. Matching existing content is reused, never duplicated; conflicting immutable
-content is rejected. Text uploads require reboot. A resource bundle for another
+content is rejected. Font uploads require reboot. A resource bundle for another
 firmware build is rejected. Resources do not occupy configuration JSON.
 
 `/api/status.unicode` reports availability, glyph count, bitmap-cache bytes/peak,
 hits and SD reads. Missing packs use the offline subset with a warning;
 invalid packs or glyph data report an error. Never erase live flash partitions
 to install font assets.
+
+The `GWP1` archive stores gzip/plain editor HTML and nine browser WOFF2 fonts.
+Compiled asset offsets, sizes and SHA-256 pins are verified before each response.
+Both verification and serving use 1 KiB buffers, with no whole-editor PSRAM
+allocation or decompression. Missing/damaged editor resources produce HTTP 503
+with an embedded recovery page; preview-font failures return 503 rather than
+serving unverified data. Core UI fonts, recovery, notices and the icon index
+stay in firmware. Old resource filenames remain safe for rollback.
 
 ## Reproduction and checks
 
@@ -91,6 +112,25 @@ The old [full-Lato generator](../tools/make_unicode_fonts.ps1) and
 those full Unicode objects are no longer linked into this firmware.
 Preserve all source copyrights/OFL licenses when redistributing the generated
 subsets or resource bundle.
+
+Generate the styled archive directly from the checked-in 60 generated font C
+inputs, retaining their original metrics, kerning and pixels:
+
+```powershell
+node tools\make_styled_pack.js main\fonts C:\goopad-resources
+.\tests\run_styled_native_tests.ps1 -ResourceDirectory C:\font-tests `
+  -UnicodePack C:\goopad-resources\text-371771469d5d.gfp
+python tools\make_web_resources.py main C:\goopad-resources main\goopad_web_manifest.h
+python -m unittest tests.test_web_resources tests.test_soak
+```
+
+The native styled runner checks source parity, glyph decoding, 360 cold reads
+for a 5,700-descriptor sweep, warm no-I/O lookup, mixed-cache bounds, corruption
+and independent pack failure. It also compiles the real LVGL descriptor
+lookup with the actual font selector to check all fallback chains.
+The web handler test requires the integrated SD HTTP handlers; this application
+integration remains part of the development worktree until the source backlog
+is reconciled. Generated packs must ship with the accompanying OFL notices.
 
 ## Now-playing text and latency
 

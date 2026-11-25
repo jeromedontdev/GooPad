@@ -67,6 +67,12 @@ class SoakTests(unittest.TestCase):
                         body.update(unicode={"available": mode != "font-missing", "bitmapCacheBytes": 1000,
                                              "bitmapCachePeak": 32769 if mode == "font-overflow" else 32768},
                                     mediaRevision=3, mediaPollMs=120, mediaSourceAgeMs=50)
+                    if mode.startswith("styled"):
+                        body["styledFonts"] = {"available": mode != "styled-missing",
+                                               "descriptorBytes": 5040, "metadataCacheBytes": 13312,
+                                               "kerningCacheBytes": 131073 if mode == "styled-memory" else 24792,
+                                               "sharedBitmapCacheBytes": 32769 if mode == "styled-overflow" else 32768,
+                                               "bitmapCachePeak": 32768, "bitmapCacheBudget": 32768}
                 elif self.path == "/api/diagnostics":
                     count = sum(path == "/api/diagnostics" for path, _ in calls)
                     if mode == "malformed":
@@ -157,6 +163,22 @@ class SoakTests(unittest.TestCase):
 
     def test_missing_font_and_cache_over_budget_fail_soak(self):
         for mode, code in (("font-missing", "unicode-unavailable"), ("font-overflow", "unicode-cache")):
+            with self.subTest(mode=mode):
+                result, records, _ = self.run_soak(mode)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue(any(record.get("code") == code for record in records))
+
+    def test_styled_shared_cache_and_metadata_are_reported(self):
+        result, records, _ = self.run_soak("styled-healthy")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        samples = [record for record in records if record["type"] == "sample"]
+        self.assertTrue(all(record["styledAvailable"] for record in samples))
+        self.assertTrue(all(record["styledMetadataBytes"] == 43144 for record in samples))
+        self.assertTrue(all(record["sharedFontBitmapCacheBytes"] <= 32768 for record in samples))
+
+    def test_styled_missing_or_excess_memory_fails_soak(self):
+        for mode, code in (("styled-missing", "styled-unavailable"),
+                           ("styled-overflow", "styled-cache"), ("styled-memory", "styled-memory")):
             with self.subTest(mode=mode):
                 result, records, _ = self.run_soak(mode)
                 self.assertNotEqual(result.returncode, 0)

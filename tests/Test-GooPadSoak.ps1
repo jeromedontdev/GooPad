@@ -141,6 +141,30 @@ try {
                         Report-Problem 'error' 'unicode-cache' 'Unicode bitmap cache exceeded its 32 KiB budget'
                     }
                 }
+                $styled = $status.styledFonts
+                $validStyled = $styled -is [System.Collections.IDictionary] -and $styled.available -is [bool]
+                $styledMetadata = 0
+                if ($validStyled) {
+                    foreach ($key in @('descriptorBytes', 'metadataCacheBytes', 'kerningCacheBytes',
+                                       'sharedBitmapCacheBytes', 'bitmapCachePeak', 'bitmapCacheBudget')) {
+                        if (!(Is-Number $styled[$key]) -or $styled[$key] -lt 0) { $validStyled = $false }
+                    }
+                    if ($validStyled) {
+                        $styledMetadata = $styled.descriptorBytes + $styled.metadataCacheBytes + $styled.kerningCacheBytes
+                    }
+                }
+                if ($status.ContainsKey('styledFonts')) {
+                    if (!$validStyled) {
+                        Report-Problem 'error' 'styled-schema' 'Styled font health fields are missing or invalid'
+                    } elseif (!$styled.available) {
+                        Report-Problem 'error' 'styled-unavailable' 'Styled SD font resources are unavailable'
+                    } elseif ($styled.bitmapCacheBudget -ne 32768 -or
+                              $styled.sharedBitmapCacheBytes -gt 32768 -or $styled.bitmapCachePeak -gt 32768) {
+                        Report-Problem 'error' 'styled-cache' 'Shared font bitmap cache exceeded its 32 KiB budget'
+                    } elseif ($styledMetadata -gt 131072) {
+                        Report-Problem 'error' 'styled-memory' 'Styled font metadata exceeded its conservative 128 KiB ceiling'
+                    }
+                }
                 if ($null -ne $previousUptime -and $diag.uptimeSeconds -lt $previousUptime) {
                     $reboots++
                     Report-Problem 'error' 'reboot' "Uptime decreased; reset reason $($diag.resetReason)"
@@ -189,6 +213,12 @@ try {
                     $sample.unicodeAvailable = $unicode.available
                     $sample.unicodeBitmapCacheBytes = $unicode.bitmapCacheBytes
                     $sample.unicodeBitmapCachePeak = $unicode.bitmapCachePeak
+                }
+                if ($validStyled) {
+                    $sample.styledAvailable = $styled.available
+                    $sample.styledMetadataBytes = $styledMetadata
+                    $sample.sharedFontBitmapCacheBytes = $styled.sharedBitmapCacheBytes
+                    $sample.styledBitmapCachePeak = $styled.bitmapCachePeak
                 }
                 foreach ($key in @('mediaRevision', 'mediaPollMs', 'mediaSourceAgeMs')) {
                     if ($status.ContainsKey($key)) {

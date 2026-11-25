@@ -21,9 +21,85 @@ cca8dceb46a23605a490e75027f0d2af52d372dad5004226b30b27806a0c60e1
 KiB means 1,024 bytes; MiB means 1,048,576 bytes. All percentages below use the
 4,194,304-byte app slot, not the whole flash chip.
 
-## Current SD-backed multilingual build
+## Current SD-backed editor and styled-font build
 
-The installed production-config development build is **2,723,296 bytes**:
+The installed production-config development image is **2,314,480 bytes**:
+**1,879,824 bytes / 1.79 MiB / 44.82% free** in the unchanged 4 MiB slot.
+Moving styled fonts, browser fonts and the editor to SD recovers a measured
+**408,816 bytes / 399.23 KiB** versus the preceding multilingual build.
+SHA-256:
+
+```text
+85fe9ee32a7385dfdfd3e8b9c3020fd493669f330443242219758705735fc4c9
+```
+
+| Linked category | Image bytes |
+| --- | ---: |
+| SDK/libraries excluding shared strings and device fonts | 1,711,762 |
+| Built-in Montserrat | 187,473 |
+| Shared merged string pool | 171,829 |
+| Other GooPad objects excluding the new loaders/notices/pooled strings | 123,617 |
+| Essential offline Lato fallbacks | 80,001 |
+| Compressed Font Awesome index | 10,913 |
+| Styled SD loader | 5,966 |
+| Font notices | 5,765 |
+| Embedded recovery page | 3,011 |
+| Web SD loader | 961 |
+| Unattributed linker/image envelope and padding | 13,182 |
+| **Actual image** | **2,314,480** |
+
+Initialized object contributions total **2,301,298 bytes**; BSS/no-init are
+excluded. Styled font payloads, editor HTML and browser WOFF2 payloads are no
+longer embedded. Loader attribution excludes pooled strings and is not an
+estimate of runtime memory.
+
+The web archive is **290,422 bytes** on SD: gzip and identity editor
+representations plus nine WOFF2 fonts. Verification and HTTP streaming each
+use a **1 KiB buffer**, without a full editor allocation or on-device
+decompression. Missing/corrupt editor data serves an embedded recovery page
+with HTTP 503, while retaining authenticated application-only OTA.
+
+The styled archive is **471,647 bytes** on SD, preserving 60 variants,
+5,760 glyphs and 4,132 kerning pairs. Its **186,072-byte** glyph metadata stays
+on SD. On the device, descriptors, metrics and kerning total **43,144 bytes**
+(5,040 + 13,312 + 24,792). Unicode metrics use **26,624 bytes**, an increase
+of 2,048 bytes to coordinate the shared cache; the codepoint index remains
+206,588 bytes. Both loaders share **one 32 KiB bitmap budget**, not two.
+These small metadata costs replace much larger startup PSRAM reservations
+from embedded rodata in the production configuration.
+
+Cold styled metrics are read 16 records at a time into the existing bounded
+cache, using a 448-byte stack buffer and no additional PSRAM/BSS allocation.
+Native testing reduced a 5,700-descriptor sweep from 5,700 file reads/opens
+to **360**. The installed full 68-variant ASCII/multilingual canary completed
+at **12,376 ms** after boot; all 18 configured tiles and both pages rendered.
+The initial unbatched candidate exceeded the deployment helper's 15-second
+capture window: it eventually passed, rather than failing or cycling.
+The regression was corrected before final delivery.
+
+The identity and gzip editor responses and all nine browser fonts were
+verified byte-for-byte on the device. Configuration, authentication and
+logical HomeKit records were preserved; immutable resource reuploads reused
+existing files. This remains an integrated development-worktree image,
+not a source-matched firmware release.
+
+Final 300-second soak: **20 samples, zero errors/reboots, 124 existing
+network-admission timeout warnings** (background widgets/PC polling).
+Free PSRAM stayed between **3,347,264 and 3,500,796 bytes**, versus the
+preceding run's 3,009,360-byte minimum: **337,904 bytes / 329.98 KiB more
+minimum headroom** with the same saved configuration. Internal free memory
+stayed above **41,707 bytes**; its largest block remained 27,648 bytes.
+Styled metadata stayed at 43,144 bytes; shared font bitmaps peaked at
+833 bytes. Native churn tests cover the full 32 KiB bound.
+These observations show no PSRAM regression in the running UI; they are
+short-run evidence, not a guarantee for every configuration.
+Sampled media requests averaged 256 ms (122-715 ms), with no physical
+song-to-screen measurement. Contention warnings remain and were more frequent
+than the prior run's 87; this change does not claim to fix network scheduling.
+
+## Previous SD-backed multilingual build
+
+The preceding production-config development build was **2,723,296 bytes**:
 **1,471,008 bytes / 1.40 MiB / 35.07% free** in the unchanged 4 MiB slot.
 It recovers **1,438,912 bytes / 1.37 MiB** versus the full-Lato image.
 SHA-256:
@@ -55,8 +131,8 @@ also changed, so savings are the measured net result, not a sum of projections.
 
 The matching SD pack provides 51,647 glyphs per size across ten sizes in
 **66,074,899 bytes / 63.01 MiB**. Its full catalog is **848,853 bytes** on SD;
-these files do not enlarge the app or configuration JSON. Glyph metrics use
-512 PSRAM entries (24 KiB on this ESP32 build), a **206,588-byte** codepoint
+these files do not enlarge the app or configuration JSON. Glyph metrics used
+512 PSRAM entries (24 KiB on that ESP32 build), a **206,588-byte** codepoint
 directory (bounded at 512 KiB), and a separate **32 KiB** bitmap limit.
 Decoding temporarily uses the existing caller's A8 draw buffer.
 The full multilingual font is never loaded into PSRAM.
@@ -66,7 +142,7 @@ BSS/no-init. Image envelope, alignment and unattributed linker bytes explain
 the remaining 13,268 bytes. The string pool remains merged across modules; do not interpret its
 `stdio_vfs.c.obj` ownership as a console-only cost.
 
-The installed build's five-minute soak recorded 20 samples, no errors or
+That build's five-minute soak recorded 20 samples, no errors or
 reboots, and 87 network-contention warnings. Free PSRAM ranged from
 **3,009,360 to 3,132,188 bytes**; internal free memory stayed above 39,195 bytes.
 Neither free-heap trend declined over the run. This is short-run evidence,
@@ -206,8 +282,9 @@ reason headroom fell from approximately 17% to less than 1%.
   secrets and does not back up identities, pairing or all referenced assets.
 - The current Font Awesome catalog and multilingual glyph pack live under
   `/goopad/resources/`; only the small compressed icon index stays compiled.
-  [main/CMakeLists.txt](../main/CMakeLists.txt) embeds the compressed editor,
-  web fonts/notices, and compiles the primary/essential device fonts.
+  The editor, browser fonts and styled device fonts also live in pinned SD
+  archives. [main/CMakeLists.txt](../main/CMakeLists.txt) embeds only recovery,
+  font notices and the compressed icon index, and compiles essential fallbacks.
 - The source TTF, generated C text, raw icon JSON, ELF debug information and
   linker map are host-side build/source files. They are **not copied wholesale
   to the device**. For example, the 24 MB ELF is not a 24 MB firmware image.

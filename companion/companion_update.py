@@ -13,7 +13,7 @@ from urllib.request import HTTPSHandler, HTTPRedirectHandler, Request, build_ope
 import certifi
 
 
-VERSION = "0.7.4"
+VERSION = "0.7.5"
 RELEASE_API = "https://api.github.com/repos/jeromedontdev/GooPad/releases/latest"
 DOWNLOAD_ROOT = "https://github.com/jeromedontdev/GooPad/releases/download"
 MAX_METADATA = 2 * 1024 * 1024

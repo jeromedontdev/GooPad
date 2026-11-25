@@ -23,10 +23,13 @@ def startup_enabled():
         return False
 
 
-def copy_executable(source, destination):
+def copy_application(source, destination):
     if source.resolve() == destination.resolve():
         return
     destination.parent.mkdir(parents=True, exist_ok=True)
+    runtime = source.parent / "_internal"
+    if runtime.is_dir():
+        shutil.copytree(runtime, destination.parent / "_internal", dirs_exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=destination.parent, prefix="GooPad-", delete=False) as temporary:
         temporary_path = Path(temporary.name)
     try:
@@ -42,7 +45,7 @@ def set_startup(enabled, app_directory, script, port, hidden=False):
     if enabled:
         if getattr(sys, "frozen", False):
             destination = app_directory / "bin" / "GooPadCompanion.exe"
-            copy_executable(Path(sys.executable), destination)
+            copy_application(Path(sys.executable), destination)
             command = [str(destination)]
         else:
             pythonw = Path(sys.executable).with_name("pythonw.exe")

@@ -18,6 +18,37 @@ Never include credentials, private keys, pairing codes, raw user configuration,
 serial captures or flash dumps. Do not claim historical work was committed or
 released merely because it was installed.
 
+## 2026-11-25 - Companion antivirus detection and directory packaging
+
+- **Request:** investigate Defender flagging Companion after 0.7.2 and prevent
+  the detection without disabling protection.
+- **Evidence:** with Defender definitions `1.463.463.0`, the published 0.7.4
+  ZIP reports `Trojan:Win32/Bearfoos.B!ml` (scan exit 2); the published 0.7.2
+  ZIP does not. Both ZIPs match GitHub's published SHA-256 metadata. The
+  installed 0.7.4 executable matches the released executable. Rebuilt
+  unchanged 0.7.4 source scans clean with both global and original release
+  dependencies, in both one-file and directory layouts (exit 0). Thus no
+  particular source line is established as the classifier's trigger.
+- **Changes:** 0.7.5 packages a standard PyInstaller directory with `--noupx`,
+  rather than a self-extracting application. The installer and optional
+  startup copy include `_internal`; packaging rejects stale output directories.
+  Sharing, media collection, authentication and user permissions are unchanged.
+  The legacy updater reset flag remains for upgrades from older callers.
+- **Compatibility:** portable users must extract/retain the entire app folder.
+  Configuration, token and paired TLS identity remain outside `bin` and are
+  not migrated or erased. Legacy one-file startup copies remain supported.
+  The matching firmware version changes only for release metadata; no board
+  flash or device soak is required for this Companion-only repair.
+- **Validation/delivery:** all 47 Companion unit/integration tests pass,
+  including runtime-copy failure preservation and directory-startup copying.
+  Python `py_compile`, PowerShell parser and `git diff --check` pass. Pylance
+  could not resolve the workspace files; no Pylance result is claimed.
+  Final distribution scans, actual legacy upgrade/startup-copy soak, clean
+  production build and publication are pending.
+- **Limits:** packages remain unsigned. Local clean scans cannot certify all
+  antivirus products or future definitions. No exclusions, obfuscation,
+  dependency padding or third-party sample uploads were used.
+
 ## 2026-11-25 - Repairing Companion updates and one-click sharing
 
 - **Request:** fix the Companion updater's missing Python DLL and enable all

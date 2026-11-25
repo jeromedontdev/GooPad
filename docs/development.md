@@ -112,6 +112,16 @@ for a release and publish `GooPadCompanion-Setup-<version>.exe` with matching
 stable release tag and GitHub SHA-256 metadata. Release the matching firmware
 asset too: firmware update checks expect it on the latest GooPad release.
 The installer is not code-signed, and release digests are not signatures.
+Use a fresh Companion output directory. Packaging uses PyInstaller `--onedir`
+and `--noupx`; the installer and per-user startup copy must include `_internal`,
+not just the executable. Keep legacy `PYINSTALLER_RESET_ENVIRONMENT` handling
+for updates from older self-extracting versions. Do not remove sharing or
+weaken authentication to address an antivirus detection.
+Before publication, scan the final directory, ZIP and installer with Defender
+enabled, and record definition version, hashes and results. A clean source
+rebuild alone does not establish why an older binary was flagged; dependencies,
+archive layout and antivirus reputation can also differ. Never use exclusions,
+obfuscation or unnecessary dependency padding to make a scan pass.
 
 The frozen updater and installer must request an independent PyInstaller
 runtime with `PYINSTALLER_RESET_ENVIRONMENT=1`. The installer sets it too,
@@ -178,7 +188,9 @@ depends on the board:
   profile, private test identity, random port, no uninstall registration and
   app-local shortcuts; it does not install over the real Companion or change
   Windows startup. It checks monitoring, authentication, saved permissions and
-  pairing-file preservation, then closes the test app and removes fixtures.
+  pairing-file preservation, copies the complete app for startup, moves the
+  original install out of reach, and soaks the copied executable. It then
+  closes the test app and removes fixtures.
   A shorter `--seconds 15` run is useful while iterating, not a device soak.
   GUI regressions also exercise the single **Enable sharing and PC controls**
   toggle, disable-all, cancellation/save errors and legacy mixed permissions.

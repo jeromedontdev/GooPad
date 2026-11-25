@@ -50,6 +50,15 @@ def hashes(directory):
             for name in ("companion.json", "tls-cert.pem", "tls-key.pem")}
 
 
+def runtime_hashes(directory):
+    runtime = directory / "_internal"
+    result = {str(path.relative_to(runtime)): hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in runtime.rglob("*") if path.is_file()}
+    if not result:
+        raise AssertionError("Packaged Python runtime is missing")
+    return result
+
+
 def close_fixture_app(executable):
     literal = str(executable).replace("'", "''")
     command = (
@@ -126,6 +135,19 @@ def exercise(package, compiler, seconds, work):
         finally:
             connection.close()
 
+    def wait_for_health():
+        deadline = time.monotonic() + 60
+        last_error = None
+        while time.monotonic() < deadline:
+            try:
+                if request("/health", False)[0] == 200:
+                    return
+            except (OSError, http.client.HTTPException) as error:
+                last_error = error
+            time.sleep(.25)
+        raise RuntimeError("Packaged Companion did not start") from last_error
+
+    startup_executable = work / "startup" / "GooPadCompanion.exe"
     try:
         with (work / "bootstrap-launch.log").open("w") as output:
             parent = subprocess.Popen([str(executable), str(installer), str(install), str(port), str(report)],
@@ -136,24 +158,26 @@ def exercise(package, compiler, seconds, work):
         details = json.loads(report.read_text())
         if details["reset_requested"]:
             raise AssertionError("Bootstrap must model an old updater without the reset flag")
-        deadline = time.monotonic() + 60
-        last_error = None
-        while time.monotonic() < deadline:
-            try:
-                if request("/health", False)[0] == 200:
-                    break
-            except (OSError, http.client.HTTPException) as error:
-                last_error = error
-            time.sleep(.25)
-        else:
-            raise RuntimeError("Installed Companion did not start") from last_error
+        wait_for_health()
         if Path(details["runtime"]).exists():
             raise AssertionError("Original frozen runtime was not removed")
         installed_bytes = executable.read_bytes()
         if installed_bytes != (package / executable.name).read_bytes():
             raise AssertionError("Installer did not replace the bootstrap with the actual packaged app")
+        if runtime_hashes(install) != runtime_hashes(package):
+            raise AssertionError("Installer did not preserve the complete packaged runtime")
         if request("/monitor", False)[0] != 401:
             raise AssertionError("Installed app accepted unauthenticated monitoring")
+        close_fixture_app(executable)
+        companion.windows_startup.copy_application(executable, startup_executable)
+        if (startup_executable.read_bytes() != installed_bytes or
+                runtime_hashes(startup_executable.parent) != runtime_hashes(package)):
+            raise AssertionError("Startup copy did not preserve the complete app")
+        install.rename(work / "original-install-offline")
+        with (work / "startup-launch.log").open("w") as output:
+            subprocess.Popen([str(startup_executable), "--gui", "--port", str(port)],
+                             env=environment, stdout=output, stderr=subprocess.STDOUT)
+        wait_for_health()
         # CPU usage needs two system-time samples; the first intentionally has no percentage.
         if request("/monitor")[0] != 200:
             raise AssertionError("Initial packaged monitoring request failed")
@@ -190,9 +214,12 @@ def exercise(package, compiler, seconds, work):
                 "package_exe_sha256": hashlib.sha256(installed_bytes).hexdigest(),
                 "legacy_updater_restart": "passed", "old_runtime_removed": True,
                 "configuration_and_identity_preserved": True,
+                "directory_runtime_installed": True,
+                "startup_copy_without_original_directory": "passed",
                 "actual_package_installed": True}
     finally:
         close_fixture_app(executable)
+        close_fixture_app(startup_executable)
 
 
 def main():

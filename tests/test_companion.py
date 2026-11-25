@@ -798,5 +798,55 @@ class WindowsStartupTests(unittest.TestCase):
             self.assertEqual(list(old.parent.iterdir()), [old])
             save.assert_not_called()
 
+    def test_startup_copies_directory_runtime_without_user_settings(self):
+        import winreg
+        runtime = COMPANION.windows_startup
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "download" / "GooPadCompanion.exe"
+            library = source.parent / "_internal" / "nested" / "python.dll"
+            library.parent.mkdir(parents=True)
+            source.write_bytes(b"directory app")
+            library.write_bytes(b"runtime library")
+            (source.parent / "README.md").write_text("not a runtime file")
+            app = root / "profile"
+            app.mkdir()
+            settings = app / "companion.json"
+            settings.write_text("saved pairing")
+            with patch.object(sys, "frozen", True, create=True), \
+                    patch.object(sys, "executable", str(source)), \
+                    patch.object(winreg, "CreateKey"), patch.object(winreg, "SetValueEx"):
+                runtime.set_startup(True, app, SOURCE, 18787)
+            executable = app / "bin" / source.name
+            self.assertEqual(executable.read_bytes(), source.read_bytes())
+            self.assertEqual((executable.parent / "_internal" / "nested" / "python.dll").read_bytes(),
+                             library.read_bytes())
+            self.assertFalse((executable.parent / "README.md").exists())
+            self.assertEqual(settings.read_text(), "saved pairing")
+            with patch.object(runtime.shutil, "copytree") as copy:
+                runtime.copy_application(executable, executable)
+            copy.assert_not_called()
+
+    def test_runtime_copy_failure_does_not_replace_executable_or_register_startup(self):
+        import winreg
+        runtime = COMPANION.windows_startup
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "download" / "GooPadCompanion.exe"
+            (source.parent / "_internal").mkdir(parents=True)
+            source.write_bytes(b"new app")
+            app = root / "profile"
+            executable = app / "bin" / source.name
+            executable.parent.mkdir(parents=True)
+            executable.write_bytes(b"old app")
+            with patch.object(sys, "frozen", True, create=True), \
+                    patch.object(sys, "executable", str(source)), \
+                    patch.object(runtime.shutil, "copytree", side_effect=OSError("disk full")), \
+                    patch.object(winreg, "SetValueEx") as save:
+                with self.assertRaisesRegex(OSError, "disk full"):
+                    runtime.set_startup(True, app, SOURCE, 8787)
+            self.assertEqual(executable.read_bytes(), b"old app")
+            save.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()

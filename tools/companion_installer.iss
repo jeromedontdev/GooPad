@@ -26,6 +26,7 @@ RestartApplications=no
 
 [Files]
 Source: "{#PackageDir}\GooPadCompanion.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageDir}\_internal\*"; DestDir: "{app}\_internal"; Flags: recursesubdirs createallsubdirs ignoreversion
 Source: "{#PackageDir}\third-party\*"; DestDir: "{app}\third-party"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]

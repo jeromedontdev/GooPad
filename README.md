@@ -13,12 +13,14 @@ For maintainers: [architecture and code map](docs/architecture.md),
 
 ## Current release
 
-[GooPad 0.7.4](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.4)
+[GooPad 0.7.5](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.5)
 includes the application-only firmware, matching Windows Companion installer
 and portable ZIP, SD resources, notices, checksums and Companion-soak report.
-It repairs Companion update/restart and adds one-click sharing and controls.
-Firmware differs from 0.7.3 only in its release version; existing 0.7.3 devices
-can use the Companion repair without reflashing.
+It replaces Companion's self-extracting executable with a standard app folder
+to address the Defender detection of the 0.7.4 distribution, retaining the
+update/restart repair and one-click sharing and controls.
+Firmware differs from 0.7.3 only in its release version; existing 0.7.3/0.7.4
+devices can use the Companion repair without reflashing.
 For configured devices, use the OTA image only; preserve configuration,
 HomeKit pairing and existing SD files. Install the matching SD resources
 before upgrading. See the release notes for validation and remaining latency
@@ -407,6 +409,8 @@ or use the portable **GooPadCompanion-Windows.zip** from the site's **About & he
 The installer installs for the current Windows user without administrator
 access. Quit any running portable copy before installing. Uninstalling removes
 the application but keeps configuration and pairing in `%LOCALAPPDATA%\GooPad`.
+For the portable ZIP, extract the entire folder and keep `_internal` beside
+`GooPadCompanion.exe`; copying only the executable no longer works.
 No Python installation is needed for either packaged app. Closing quits and minimizing uses the
 taskbar by default. You can independently change either button to **Hide in tray**;
 the receiver keeps running while hidden. Choose **Copy secure pairing**, paste
@@ -467,7 +471,7 @@ the app to keep it running, or select tray behavior for Close/Minimize.
 Use the tray's **Open GooPad Companion** item to restore it and **Quit** to
 stop the listener, regardless of the Close preference. Windows startup uses
 only this user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry.
-For the packaged app it copies the executable into
+For the packaged app it copies the executable and its `_internal` runtime into
 `%LOCALAPPDATA%\GooPad\bin`, so moving the extracted download does not break
 startup. Disabling the checkbox removes the startup entry, retaining that copy.
 The installer also uses this location, so updates replace the startup copy.
@@ -495,6 +499,16 @@ release asset with GitHub's SHA-256 metadata. Older releases, including 0.7.0,
 may not contain it. The installer is not code-signed; Windows may show a
 SmartScreen warning. The release digest detects a bad download but is not an
 independent publisher signature. Only install releases you trust.
+
+Defender detected the published 0.7.4 executable as
+`Trojan:Win32/Bearfoos.B!ml`; this is a malware alert, not a SmartScreen warning.
+Version 0.7.5 uses a standard application folder instead of extracting Python
+and DLLs to a temporary directory on every launch. No antivirus exclusions or
+permission changes are needed. A clean scan is specific to the tested bytes
+and antivirus definitions, not a guarantee against future detections. If an
+alert persists, leave protection enabled and submit the exact application
+file to [Microsoft for analysis](https://www.microsoft.com/en-us/wdsi/filesubmission).
+Do not submit configuration, tokens or pairing keys.
 
 Both launch methods support PowerShell when enabled locally, running as your
 normal Windows user. No administrator prompt or Windows service is needed.

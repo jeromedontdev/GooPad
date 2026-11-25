@@ -40,7 +40,11 @@ released merely because it was installed.
   regressions, plus an isolated frozen legacy-updater/installer/actual-app
   smoke/soak harness. Repeated Tk fixtures exposed worker-thread garbage
   collection of destroyed windows; GUI tests now collect those cycles on the
-  creating thread. Release packaging, installation and publication are pending.
+  creating thread. All 45 Companion tests pass. The first packaged check
+  incorrectly required a non-null initial CPU delta; priming that sample
+  corrected the harness, not product code. An intermediate packaged-upgrade
+  soak passed 61 samples/300 seconds; final combined-toggle packaging,
+  installation and publication are pending.
 - **Release scope:** preparing 0.7.4; firmware changes only its release version
   so latest-stable firmware/Companion asset names remain consistent. No new
   firmware behavior, SD-resource changes or PSRAM budget changes are intended;

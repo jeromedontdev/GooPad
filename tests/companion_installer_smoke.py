@@ -149,7 +149,8 @@ def exercise(package, compiler, seconds, work):
             raise RuntimeError("Installed Companion did not start") from last_error
         if Path(details["runtime"]).exists():
             raise AssertionError("Original frozen runtime was not removed")
-        if executable.read_bytes() != (package / executable.name).read_bytes():
+        installed_bytes = executable.read_bytes()
+        if installed_bytes != (package / executable.name).read_bytes():
             raise AssertionError("Installer did not replace the bootstrap with the actual packaged app")
         if request("/monitor", False)[0] != 401:
             raise AssertionError("Installed app accepted unauthenticated monitoring")
@@ -186,6 +187,7 @@ def exercise(package, compiler, seconds, work):
             raise AssertionError("Update changed existing configuration or paired TLS identity")
         return {"version": version, "seconds": round(time.monotonic() - start, 2),
                 "samples": samples, "errors": 0, "max_three_request_ms": round(worst_ms, 2),
+                "package_exe_sha256": hashlib.sha256(installed_bytes).hexdigest(),
                 "legacy_updater_restart": "passed", "old_runtime_removed": True,
                 "configuration_and_identity_preserved": True,
                 "actual_package_installed": True}

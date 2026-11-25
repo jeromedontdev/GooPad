@@ -18,6 +18,51 @@ Never include credentials, private keys, pairing codes, raw user configuration,
 serial captures or flash dumps. Do not claim historical work was committed or
 released merely because it was installed.
 
+## 2026-11-25 - Publishing the verified Companion antivirus repair
+
+- **Request/delivery:** completed the antivirus repair as
+  [GooPad 0.7.5](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.5).
+  The clean source/tag is `e93032d37e929cfe5ddac6ebc4d832bf3187b410`.
+  All ten release asset sizes/SHA-256 values and the remote tag were verified
+  before publication; the downloaded installer, portable ZIP, OTA image and
+  checksum file match. Latest-stable metadata is 0.7.5. The older 0.7.4
+  source updater downloads the exact published installer; the 0.7.5 updater
+  reports up to date. The following documentation commit records delivery;
+  binaries continue to correspond to the tagged source, not this log update.
+- **Antivirus:** final app directory, ZIP and installer, downloaded public
+  packages, and installed app/runtime all scan clean (exit 0) with Defender
+  intelligence `1.463.463.0`, engine `1.1.26100.4`, protection enabled.
+  Executable SHA-256 is
+  `db334e0973ef4530986e55e77ec54923a47ef5c5416137c3789deda0644fce65`.
+  No post-install Defender detection or application-log error was observed.
+  One rejected interrupted/invalid TLS-client connection warning was observed;
+  it was not a failed authenticated monitoring request.
+- **Tests/distribution:** all 47 Companion tests, Python `py_compile`,
+  PowerShell parser, exact packaged source/bytecode/version, directory runtime
+  hashes and ZIP CRC/file checks passed. The real frozen legacy caller,
+  installer and replacement app passed at the same path after the old
+  extraction directory disappeared. The full startup copy then ran without
+  the original install directory: 61 samples over 300.03 seconds, zero errors,
+  slowest health/monitor/status triplet 78 ms.
+- **Installed/live:** the exact new distribution is running from the canonical
+  per-user `GooPad\bin` directory, with saved configuration, TLS identity,
+  permissions and Windows startup unchanged. Certificate-pinned HTTPS health,
+  authenticated status/monitor and unauthenticated-monitor rejection passed.
+  A separate read-only 300.02-second live observation had 61 samples, zero
+  request errors and a 63 ms maximum triplet; the enabled now-playing sampler
+  worked without exposing media metadata or triggering PC actions.
+- **Firmware/recovery:** clean production ESP-IDF 6.1 `reconfigure build`
+  passed with unchanged resolved 0.7.4 SDK configuration/dependency lock,
+  diagnostics OFF and valid image hash/version 0.7.5. Image size is 2,316,320
+  bytes, leaving 1,877,984 bytes / 44.77% of the 4 MiB slot. Only the release
+  version changed. SD payloads/licenses remain byte-identical to 0.7.4.
+  No board was accessed/flashed and no firmware/device soak is claimed.
+- **Limits/remaining:** packages remain unsigned; SmartScreen reputation
+  warnings are distinct from malware detections. No source-line trigger was
+  proven and future definitions/other antivirus products are not certified.
+  No exclusions or third-party sample submissions were made. No delivery
+  blocker remains; use Microsoft's submission process if a new alert appears.
+
 ## 2026-11-25 - Companion antivirus detection and directory packaging
 
 - **Request:** investigate Defender flagging Companion after 0.7.2 and prevent

@@ -41,6 +41,16 @@ function WaitForSingleObject(Handle: THandle; Milliseconds: Cardinal): Cardinal;
   external 'WaitForSingleObject@kernel32.dll stdcall';
 function CloseHandle(Handle: THandle): Boolean;
   external 'CloseHandle@kernel32.dll stdcall';
+function SetEnvironmentVariable(Name, Value: String): Boolean;
+  external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  { Older updaters pass a PyInstaller runtime directory that disappears on exit. }
+  if not SetEnvironmentVariable('PYINSTALLER_RESET_ENVIRONMENT', '1') then
+    Result := 'Could not prepare an independent Companion restart. Close Companion and run the installer again.';
+end;
 
 function InitializeSetup(): Boolean;
 var

@@ -98,6 +98,8 @@
    tests and short smoke tests do not count as a completed device soak.
 7. For Companion changes, build and verify the distributable and installer as
    applicable; preserve existing pairing and settings during installation.
+   Exercise the actual frozen updater/installer/restart chain, including an
+   older caller, rather than relying only on source tests or archive checks.
 8. Commit the intended source, tests, documentation and log; push to the
    verified GooPad product remote. For deployable changes, prepare and publish
    a new versioned GitHub release only after validation and soak pass. Keep

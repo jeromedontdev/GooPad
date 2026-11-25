@@ -13,9 +13,12 @@ For maintainers: [architecture and code map](docs/architecture.md),
 
 ## Current release
 
-[GooPad 0.7.3](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.3)
+[GooPad 0.7.4](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.4)
 includes the application-only firmware, matching Windows Companion installer
-and portable ZIP, SD resources, notices, checksums and hardware-soak reports.
+and portable ZIP, SD resources, notices, checksums and Companion-soak report.
+It repairs Companion update/restart and adds one-click sharing and controls.
+Firmware differs from 0.7.3 only in its release version; existing 0.7.3 devices
+can use the Companion repair without reflashing.
 For configured devices, use the OTA image only; preserve configuration,
 HomeKit pairing and existing SD files. Install the matching SD resources
 before upgrading. See the release notes for validation and remaining latency
@@ -429,6 +432,12 @@ Sequences do not overlap: repeated taps while a PC sequence runs are rejected.
 Keyboard/text steps target the foreground application, not a chosen window.
 Windows blocks input into elevated apps, locked screens, and some games.
 
+Select **Enable all sharing and controls** to enable now playing, PowerShell
+and PC power/monitor controls together after one security confirmation.
+The individual checkboxes remain available for selective access. Updating
+does not change existing choices; these optional features remain off on a
+new installation until you enable them.
+
 PowerShell is **off by default**. Enable it locally using the Companion checkbox
 only on a trusted network. Anyone holding the token can then execute commands
 as your Windows user. Each command is limited to 512 characters and 10 seconds;
@@ -473,6 +482,12 @@ release's SHA-256 and size over verified HTTPS, exits, installs and restarts.
 The current port, configuration and pairing are preserved. Source checkouts are
 not modified by the installer. If Windows startup was configured from source,
 re-enable it from the installed app to use the installed version.
+
+Version 0.7.4 fixes the missing `_MEI...\python312.dll` error during restart,
+including updates launched by older Companion versions. If an earlier failed
+update closed Companion, dismiss the error and open it again from the Start
+menu, then check for updates, or run the latest installer directly.
+Do not delete the GooPad settings folder to repair this error.
 
 Installer updates require a published `GooPadCompanion-Setup-<version>.exe`
 release asset with GitHub's SHA-256 metadata. Older releases, including 0.7.0,

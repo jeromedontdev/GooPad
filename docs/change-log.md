@@ -18,6 +18,31 @@ Never include credentials, private keys, pairing codes, raw user configuration,
 serial captures or flash dumps. Do not claim historical work was committed or
 released merely because it was installed.
 
+## 2026-11-25 - Repairing Companion updates and one-click sharing
+
+- **Request:** fix the Companion updater's missing Python DLL and enable all
+  sharing from one control.
+- **Cause/evidence:** a frozen same-path restart inherited the old extraction
+  directory through the installer. An isolated PyInstaller reproduction
+  failed with the same missing `python312.dll` message and exit code -1 after
+  that directory was removed; requesting an independent runtime succeeded
+  with exit code 0. Both the updater and installer now set
+  `PYINSTALLER_RESET_ENVIRONMENT=1`, including support for older callers.
+- **UI/security:** **Enable all sharing and controls** enables now playing,
+  PowerShell and PC power/monitor controls together after one explicit warning.
+  Individual choices remain available. Existing flags, pairing, token,
+  actions and tray/startup preferences retain their formats and defaults;
+  installation itself does not grant permissions.
+- **Verification:** added cancellation/save-error and settings-preservation
+  regressions, plus an isolated frozen legacy-updater/installer/actual-app
+  smoke/soak harness. Repeated Tk fixtures exposed worker-thread garbage
+  collection of destroyed windows; GUI tests now collect those cycles on the
+  creating thread. Release packaging, installation and publication are pending.
+- **Release scope:** preparing 0.7.4; firmware changes only its release version
+  so latest-stable firmware/Companion asset names remain consistent. No new
+  firmware behavior, SD-resource changes or PSRAM budget changes are intended;
+  an unrelated hardware flash is not required for this Companion repair.
+
 ## 2026-11-25 - Publishing the complete 0.7.3 release
 
 - **Request:** create the release commit and publish the complete product.

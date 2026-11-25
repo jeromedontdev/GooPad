@@ -113,6 +113,12 @@ stable release tag and GitHub SHA-256 metadata. Release the matching firmware
 asset too: firmware update checks expect it on the latest GooPad release.
 The installer is not code-signed, and release digests are not signatures.
 
+The frozen updater and installer must request an independent PyInstaller
+runtime with `PYINSTALLER_RESET_ENVIRONMENT=1`. The installer sets it too,
+because an older caller does not: otherwise restarting at the same executable
+path can reuse a temporary Python directory already deleted on exit.
+Do not repair this by copying DLLs or deleting pairing/configuration.
+
 ## Tests
 
 Run the smallest relevant tests first, then hardware validation when behavior
@@ -155,6 +161,22 @@ depends on the board:
   The tests exercise an actual local HTTPS server with a test certificate and
   mocked OS actions. They do not prove physical Windows input, hardware sensors,
   tray behavior or the packaged executable on every system.
+  After packaging, also exercise the **actual frozen update/restart chain**:
+
+  ```powershell
+  .\build\companion-test-venv\Scripts\python.exe tests\companion_installer_smoke.py --package-directory C:\Temp\GooPad-release\GooPadCompanion-Windows --inno-compiler C:\Tools\InnoSetup\ISCC.exe --seconds 300 --report C:\Temp\GooPad-companion-soak.json
+  ```
+
+  This builds a small frozen legacy updater, replaces it at the **same path**
+  through the installer, and checks the actual packaged app over trusted HTTPS
+  after the original Python runtime has disappeared. It uses a temporary
+  profile, private test identity, random port, no uninstall registration and
+  app-local shortcuts; it does not install over the real Companion or change
+  Windows startup. It checks monitoring, authentication, saved permissions and
+  pairing-file preservation, then closes the test app and removes fixtures.
+  A shorter `--seconds 15` run is useful while iterating, not a device soak.
+  GUI regressions also exercise the single **Enable all sharing and controls**
+  action, cancellation/save errors, and the unchanged individual permissions.
 * **Editor:** open local `main/index.html` as a `file:` URL, load
   `tests/test_editor.js` as a classic script and run
   `await runGooPadEditorTests()` in the browser console. The suite uses

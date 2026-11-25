@@ -1,4 +1,6 @@
 import importlib.util
+from contextlib import contextmanager
+import gc
 import hashlib
 import io
 import json
@@ -20,6 +22,19 @@ SPEC = importlib.util.spec_from_file_location("goopad_companion", SOURCE)
 COMPANION = importlib.util.module_from_spec(SPEC)
 with patch.object(sys, "path", [str(SOURCE.parent), *sys.path]):
     SPEC.loader.exec_module(COMPANION)
+
+
+@contextmanager
+def main_thread_tk_cleanup():
+    # Destroyed Tk windows still have cycles; worker-thread collection can abort Tcl.
+    enabled = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        gc.collect()
+        if enabled:
+            gc.enable()
 
 
 class MediaSamplerTests(unittest.TestCase):
@@ -259,7 +274,7 @@ class CompanionTests(unittest.TestCase):
             finally:
                 root.destroy()
 
-        with patch.object(tk.Tk, "mainloop", inspect_panel), patch("pystray.Icon"), \
+        with main_thread_tk_cleanup(), patch.object(tk.Tk, "mainloop", inspect_panel), patch("pystray.Icon"), \
                 patch.object(COMPANION.windows_startup, "startup_enabled", return_value=False):
             COMPANION.desktop_panel(Mock(), {"token":self.token,"actions":{}},
                                     "127.0.0.1", 8787)
@@ -272,7 +287,8 @@ class CompanionTests(unittest.TestCase):
 
         installer = Path(self.temp.name) / "setup.exe"
         release = {"version": "9.2.3"}
-        with patch.object(COMPANION.companion_update, "check_for_update", return_value=release), \
+        with main_thread_tk_cleanup(), \
+                patch.object(COMPANION.companion_update, "check_for_update", return_value=release), \
                 patch.object(COMPANION.companion_update, "download_update", return_value=installer) as download, \
                 patch.object(COMPANION.subprocess, "Popen") as launch, \
                 patch.object(messagebox, "askyesno", return_value=True), \
@@ -300,6 +316,63 @@ class CompanionTests(unittest.TestCase):
             self.assertIn("/GOOPADPORT=18877", args[0])
             self.assertTrue(any(value.startswith("/GOOPADPID=") for value in args[0]))
             self.assertFalse(kwargs["shell"])
+            self.assertEqual(kwargs["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+            self.assertIsNot(kwargs["env"], COMPANION.os.environ)
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows desktop UI")
+    def test_enable_all_permissions_confirms_once_and_preserves_settings(self):
+        import tkinter as tk
+        from tkinter import messagebox, ttk
+
+        flags = ("allow_powershell", "allow_system_controls", "allow_now_playing")
+        for outcome in ("enabled", "cancelled", "save-error"):
+            with self.subTest(outcome=outcome):
+                initial = {"token": self.token, "actions": {"custom": {"program": "example.exe"}},
+                           "allow_now_playing": True, "close_behavior": "tray"}
+                self.write_config(initial)
+                config = COMPANION.load_config()
+                before = COMPANION.CONFIG_PATH.read_bytes()
+
+                def exercise(root):
+                    try:
+                        def descendants(widget):
+                            for child in widget.winfo_children():
+                                yield child
+                                yield from descendants(child)
+                        widgets = list(descendants(root))
+                        button = next(widget for widget in widgets
+                                      if isinstance(widget, ttk.Button) and
+                                      widget.cget("text") == "Enable all sharing and controls")
+                        if outcome == "save-error":
+                            with patch.object(Path, "write_text", side_effect=OSError("Disk unavailable")):
+                                button.invoke()
+                        else:
+                            button.invoke()
+                        enabled = outcome == "enabled"
+                        expected = {**initial, **dict.fromkeys(flags, True)} if enabled else initial
+                        self.assertEqual(COMPANION.load_config(), expected)
+                        self.assertEqual(config, expected)
+                        if not enabled:
+                            self.assertEqual(COMPANION.CONFIG_PATH.read_bytes(), before)
+                        checks = [widget for widget in widgets if isinstance(widget, ttk.Checkbutton)]
+                        permissions = [widget for widget in checks if any(
+                            text in widget.cget("text") for text in
+                            ("PowerShell", "PC power", "Share now playing"))]
+                        self.assertEqual(len(permissions), 3)
+                        self.assertEqual([widget.instate(["selected"]) for widget in permissions],
+                                         [enabled, enabled, True])
+                    finally:
+                        root.destroy()
+
+                with main_thread_tk_cleanup(), patch.object(tk.Tk, "mainloop", exercise), patch("pystray.Icon"), \
+                        patch.object(COMPANION.windows_startup, "startup_enabled", return_value=False), \
+                        patch.object(messagebox, "askyesno", return_value=outcome != "cancelled") as confirm, \
+                        patch.object(messagebox, "showerror") as error:
+                    COMPANION.desktop_panel(Mock(), config, "127.0.0.1", 18877)
+                confirm.assert_called_once()
+                self.assertIn("PowerShell", confirm.call_args.args[1])
+                self.assertIn("unsaved work", confirm.call_args.args[1])
+                self.assertEqual(error.call_count, int(outcome == "save-error"))
 
     def test_https_rejects_untrusted_identity_and_plain_http(self):
         untrusted = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)

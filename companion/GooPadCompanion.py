@@ -976,7 +976,7 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
     window_icons = [ImageTk.PhotoImage(tray_image),
                     ImageTk.PhotoImage(companion_icon(32))]
     root.iconphoto(True, *window_icons)
-    root.geometry("540x600")
+    root.geometry("540x640")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=20)
     frame.pack(fill="both", expand=True)
@@ -1050,6 +1050,30 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
 
     ttk.Checkbutton(frame, text="Share now playing with paired GooPad (off by default)",
                     variable=media_allowed, command=change_media_permission).pack(anchor="w", pady=4)
+
+    def enable_all_permissions():
+        if not messagebox.askyesno(
+            "Enable all sharing and controls?",
+            "Share now playing and allow PC power, monitor and PowerShell commands.\n"
+            "Anyone with your pairing token can run PowerShell as your Windows user.\n"
+            "Restart and shutdown can lose unsaved work. Only enable this on a trusted private network.",
+        ):
+            return
+        permissions = dict.fromkeys(
+            ("allow_powershell", "allow_system_controls", "allow_now_playing"), True)
+        try:
+            latest = load_config()
+            latest.update(permissions)
+            CONFIG_PATH.write_text(json.dumps(latest, indent=2), encoding="utf-8")
+            config.update(permissions)
+            allowed.set(True)
+            system_allowed.set(True)
+            media_allowed.set(True)
+        except (OSError, ValueError) as error:
+            messagebox.showerror("Could not save permissions", str(error))
+
+    ttk.Button(frame, text="Enable all sharing and controls",
+               command=enable_all_permissions).pack(anchor="w", pady=4)
     startup = tk.BooleanVar(value=windows_startup.startup_enabled())
 
     def change_startup():
@@ -1167,9 +1191,11 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
                         messagebox.showinfo("Companion update", "Companion is up to date.")
             else:
                 try:
+                    environment = os.environ.copy()
+                    environment["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
                     subprocess.Popen([str(result), "/SILENT", "/NORESTART", "/CLOSEAPPLICATIONS",
                                       f"/GOOPADPORT={port}", f"/GOOPADPID={os.getpid()}"],
-                                     shell=False, close_fds=True)
+                                     shell=False, close_fds=True, env=environment)
                 except OSError as error:
                     result.unlink(missing_ok=True)
                     update_button.config(state="normal", text="Check for updates")

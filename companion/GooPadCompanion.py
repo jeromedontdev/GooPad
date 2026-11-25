@@ -2,6 +2,7 @@
 """Small, token-authenticated Windows webhook receiver for GooPad."""
 
 import argparse
+import atexit
 import base64
 import ctypes
 import datetime
@@ -47,6 +48,48 @@ HARDWARE_LAST = 0.0
 HARDWARE_FIELDS = ("gpuPercent", "gpuMemoryUsedBytes", "cpuTemperatureC", "gpuTemperatureC",
                    "downloadBytesPerSec", "uploadBytesPerSec", "fanRpm")
 HARDWARE_CACHE = {**dict.fromkeys(HARDWARE_FIELDS), "hardwareStatus": "Sampling PC sensors"}
+MEDIA_LOCK = threading.Lock()
+MEDIA_BUSY = False
+MEDIA_LAST = 0.0
+MEDIA_STARTED = 0.0
+MEDIA_CACHE = {"mediaStatus": "Sampling media", "mediaTitle": "", "mediaArtist": ""}
+MEDIA_PROCESS = None
+MEDIA_STOP = threading.Event()
+MEDIA_RETRY = 0.0
+MEDIA_REVISION = 0
+MEDIA_CHANGED = 0.0
+MEDIA_SETUP = r"""
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$managerType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType=WindowsRuntime]
+$propertiesType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties, Windows.Media.Control, ContentType=WindowsRuntime]
+$asTask = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+    $_.Name -eq 'AsTask' -and $_.IsGenericMethod -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'
+} | Select-Object -First 1
+$manager = $asTask.MakeGenericMethod($managerType).Invoke($null, @($managerType::RequestAsync())).GetAwaiter().GetResult()
+function Get-GooPadMedia {
+    $session = $manager.GetCurrentSession()
+    if ($null -eq $session) { return @{status='No media'; title=''; artist=''} }
+    $task = $asTask.MakeGenericMethod($propertiesType).Invoke($null, @($session.TryGetMediaPropertiesAsync()))
+    if (-not $task.Wait(1500)) { throw 'Windows media metadata timed out' }
+    $properties = $task.GetAwaiter().GetResult()
+    return @{status=$session.GetPlaybackInfo().PlaybackStatus.ToString(); title=$properties.Title; artist=$properties.Artist}
+}
+"""
+MEDIA_SCRIPT = MEDIA_SETUP + "\nGet-GooPadMedia | ConvertTo-Json -Compress\n"
+MEDIA_STREAM_SCRIPT = MEDIA_SETUP + r"""
+while ($true) {
+    try { $result = Get-GooPadMedia }
+    catch [System.Management.Automation.RuntimeException] {
+        $result = @{status='Media unavailable'; title=''; artist=''; error='Windows media query failed'}
+    }
+    $json = $result | ConvertTo-Json -Compress
+    [Console]::WriteLine($json)
+    [Console]::Out.Flush()
+    Start-Sleep -Milliseconds 250
+}
+"""
 HARDWARE_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
 $result = @{gpuPercent=$null; gpuMemoryUsedBytes=$null; cpuTemperatureC=$null; gpuTemperatureC=$null; downloadBytesPerSec=$null; uploadBytesPerSec=$null; fanRpm=$null}
@@ -149,6 +192,8 @@ def load_config():
         raise ValueError("'allow_powershell' must be true or false")
     if type(config.get("allow_system_controls", False)) is not bool:
         raise ValueError("'allow_system_controls' must be true or false")
+    if type(config.get("allow_now_playing", False)) is not bool:
+        raise ValueError("'allow_now_playing' must be true or false")
     for key, choices in (("close_behavior", ("tray", "quit")),
                          ("minimize_behavior", ("tray", "taskbar"))):
         if key in config and config[key] not in choices:
@@ -591,6 +636,115 @@ def valid_web_target(value):
     )
 
 
+def query_media():
+    powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    process = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command", MEDIA_SCRIPT],
+                             capture_output=True, encoding="utf-8", timeout=6, shell=False,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if process.returncode:
+        raise OSError("Windows media query failed")
+    return media_metadata(json.loads(process.stdout))
+
+
+def media_metadata(payload):
+    if not isinstance(payload, dict) or payload.get("status") not in (
+        "No media", "Closed", "Opened", "Changing", "Stopped", "Playing", "Paused", "Media unavailable"):
+        raise ValueError("Invalid media status")
+    def clean(value):
+        if not isinstance(value, str):
+            raise ValueError("Invalid media metadata")
+        return "".join(char for char in value if char.isprintable() or char in "\u200c\u200d")[:80]
+    return {"mediaStatus": payload["status"], "mediaTitle": clean(payload.get("title")),
+            "mediaArtist": clean(payload.get("artist"))}
+
+
+def media_worker():
+    global MEDIA_PROCESS, MEDIA_BUSY, MEDIA_LAST, MEDIA_CACHE, MEDIA_RETRY, MEDIA_REVISION, MEDIA_CHANGED
+    process = None
+    try:
+        powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+        process = subprocess.Popen([str(powershell), "-NoProfile", "-NonInteractive", "-Command", MEDIA_STREAM_SCRIPT],
+                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
+                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if process.stdout is None:
+            raise OSError("Windows media sampler pipe unavailable")
+        with MEDIA_LOCK:
+            MEDIA_PROCESS = process
+        for line in process.stdout:
+            if MEDIA_STOP.is_set():
+                break
+            payload = json.loads(line)
+            result = media_metadata(payload)
+            with MEDIA_LOCK:
+                now = time.monotonic()
+                if result != MEDIA_CACHE:
+                    MEDIA_REVISION += 1
+                    MEDIA_CHANGED = now
+                    if payload.get("error"):
+                        logging.warning("Windows media sampler could not query metadata")
+                MEDIA_CACHE = result
+                MEDIA_LAST = now
+        if not MEDIA_STOP.is_set():
+            raise OSError("Windows media sampler stopped")
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        logging.warning("Windows media sampler unavailable: %s", error)
+    finally:
+        try:
+            if process is not None:
+                if process.poll() is None:
+                    process.terminate()
+                try:
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    logging.warning("Windows media sampler did not stop; terminating its process")
+                    process.kill()
+                    process.wait(timeout=3)
+                finally:
+                    if process.stdout is not None:
+                        process.stdout.close()
+        finally:
+            with MEDIA_LOCK:
+                MEDIA_PROCESS = None
+                MEDIA_BUSY = False
+                MEDIA_RETRY = time.monotonic() + 1
+                MEDIA_CACHE = {"mediaStatus": "Media unavailable", "mediaTitle": "", "mediaArtist": ""}
+
+
+def stop_media():
+    MEDIA_STOP.set()
+    with MEDIA_LOCK:
+        process = MEDIA_PROCESS
+    if process is not None and process.poll() is None:
+        try:
+            process.terminate()
+        except OSError as error:
+            logging.warning("Could not stop Windows media sampler: %s", error)
+
+
+atexit.register(stop_media)
+
+
+def media_snapshot():
+    global MEDIA_BUSY, MEDIA_LAST, MEDIA_STARTED
+    with MEDIA_LOCK:
+        now = time.monotonic()
+        if not MEDIA_BUSY and now >= MEDIA_RETRY:
+            MEDIA_BUSY = True
+            MEDIA_LAST = 0.0
+            MEDIA_STARTED = now
+            MEDIA_STOP.clear()
+            threading.Thread(target=media_worker, daemon=True).start()
+        stale = MEDIA_BUSY and now - (MEDIA_LAST or MEDIA_STARTED) > 4
+        result = ({"mediaStatus": "Media unavailable", "mediaTitle": "", "mediaArtist": ""}
+                  if stale else dict(MEDIA_CACHE))
+        result.update(mediaRevision=MEDIA_REVISION, mediaAgeMs=round((now - MEDIA_LAST) * 1000) if MEDIA_LAST else None,
+                      mediaChangeAgeMs=round((now - MEDIA_CHANGED) * 1000) if MEDIA_CHANGED else None)
+    if stale:
+        logging.warning("Windows media sampler heartbeat timed out")
+        stop_media()
+    return result
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "GooPadCompanion"
     sys_version = ""
@@ -599,9 +753,9 @@ class Handler(BaseHTTPRequestHandler):
         logging.info("%s - %s", self.client_address[0], fmt % args)
 
     def respond(self, status, message, **details):
-        payload = json.dumps({"ok": status < 400, "message": message, **details}).encode()
+        payload = json.dumps({"ok": status < 400, "message": message, **details}, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
@@ -609,9 +763,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/monitor":
-            if self.authenticated_config() is not None:
+            config = self.authenticated_config()
+            if config is not None:
                 try:
-                    self.respond(200, "PC monitor", **monitor_snapshot())
+                    snapshot = monitor_snapshot()
+                    snapshot.update(media_snapshot() if config.get("allow_now_playing", False)
+                                    else {"mediaStatus": "Media disabled", "mediaTitle": "", "mediaArtist": ""})
+                    if not config.get("allow_now_playing", False):
+                        stop_media()
+                    self.respond(200, "PC monitor", **snapshot)
                 except (OSError, RuntimeError) as error:
                     logging.error("PC monitor unavailable: %s", error)
                     self.respond(503, "PC monitor is unavailable")
@@ -875,6 +1035,21 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
 
     ttk.Checkbutton(frame, text="Allow PC power and monitor controls (off by default)",
                     variable=system_allowed, command=change_system_permission).pack(anchor="w", pady=4)
+    media_allowed = tk.BooleanVar(value=config.get("allow_now_playing", False))
+
+    def change_media_permission():
+        enabled = media_allowed.get()
+        try:
+            latest = load_config()
+            latest["allow_now_playing"] = enabled
+            CONFIG_PATH.write_text(json.dumps(latest, indent=2), encoding="utf-8")
+            config["allow_now_playing"] = enabled
+        except (OSError, ValueError) as error:
+            media_allowed.set(config.get("allow_now_playing", False))
+            messagebox.showerror("Could not save permission", str(error))
+
+    ttk.Checkbutton(frame, text="Share now playing with paired GooPad (off by default)",
+                    variable=media_allowed, command=change_media_permission).pack(anchor="w", pady=4)
     startup = tk.BooleanVar(value=windows_startup.startup_enabled())
 
     def change_startup():

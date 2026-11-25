@@ -3,12 +3,12 @@
 ## What the 31 KiB warning means
 
 The tested Guition has **16 MiB flash**, but each firmware image must fit in
-one **4 MiB OTA slot**. The installed Unicode development build uses
+one **4 MiB OTA slot**. The preceding full-Lato Unicode development build used
 **4,162,208 bytes**, leaving **32,096 bytes (31.34 KiB, 0.77%)** in its slot.
 This is not a warning that the whole flash chip, configuration store or SD
 card is full.
 
-Measured on 2026-11-24 from the final ESP-IDF 6.1 HomeKit build's `GooPad.bin`
+That historical snapshot was measured on 2026-11-24 from the ESP-IDF 6.1 HomeKit build's `GooPad.bin`
 and `GooPad.map`. The preceding deployment verified the active image
 descriptor/ELF digest and unchanged configuration. This is a development
 worktree build, not a firmware release matching a clean source commit.
@@ -20,6 +20,63 @@ cca8dceb46a23605a490e75027f0d2af52d372dad5004226b30b27806a0c60e1
 
 KiB means 1,024 bytes; MiB means 1,048,576 bytes. All percentages below use the
 4,194,304-byte app slot, not the whole flash chip.
+
+## Current SD-backed multilingual build
+
+The installed production-config development build is **2,723,296 bytes**:
+**1,471,008 bytes / 1.40 MiB / 35.07% free** in the unchanged 4 MiB slot.
+It recovers **1,438,912 bytes / 1.37 MiB** versus the full-Lato image.
+SHA-256:
+
+```text
+366b8b64ddeaa8a02536859e214af689dff61ad378f8257fe8cfe2866107530d
+```
+
+| Linked category | Image bytes |
+| --- | ---: |
+| SDK/libraries excluding shared strings and device fonts | 1,711,466 |
+| Styled tile fonts | 312,963 |
+| Built-in Montserrat | 187,473 |
+| Shared merged string pool | 169,825 |
+| Other GooPad objects excluding notices/pooled strings | 123,373 |
+| Essential offline Lato fallbacks | 80,001 |
+| Browser WOFF2 fonts | 55,592 |
+| Gzip editor | 52,657 |
+| Compressed Font Awesome index | 10,913 |
+| Font notices | 5,765 |
+| Unattributed linker/image envelope and padding | 13,268 |
+| **Actual image** | **2,723,296** |
+
+The former **848,857-byte** linked catalog object is absent. Full Unicode
+fallback objects are also absent from linked payload; their historical source
+files remain on the host. Compact essential fallbacks replace their previous
+686,561-byte contribution. Main code, SDK/bidi processing and shared strings
+also changed, so savings are the measured net result, not a sum of projections.
+
+The matching SD pack provides 51,647 glyphs per size across ten sizes in
+**66,074,899 bytes / 63.01 MiB**. Its full catalog is **848,853 bytes** on SD;
+these files do not enlarge the app or configuration JSON. Glyph metrics use
+512 PSRAM entries (24 KiB on this ESP32 build), a **206,588-byte** codepoint
+directory (bounded at 512 KiB), and a separate **32 KiB** bitmap limit.
+Decoding temporarily uses the existing caller's A8 draw buffer.
+The full multilingual font is never loaded into PSRAM.
+
+The size tool attributes **2,710,028 initialized object bytes**, excluding
+BSS/no-init. Image envelope, alignment and unattributed linker bytes explain
+the remaining 13,268 bytes. The string pool remains merged across modules; do not interpret its
+`stdio_vfs.c.obj` ownership as a console-only cost.
+
+The installed build's five-minute soak recorded 20 samples, no errors or
+reboots, and 87 network-contention warnings. Free PSRAM ranged from
+**3,009,360 to 3,132,188 bytes**; internal free memory stayed above 39,195 bytes.
+Neither free-heap trend declined over the run. This is short-run evidence,
+not a long-term leak guarantee. The font bitmap cache stayed at zero because
+the live layout did not draw SD-only glyphs; native tests separately exercise
+multilingual pixels, cache churn and the 32 KiB limit.
+
+This remains an integrated development-worktree build. A clean source-matched
+release is blocked by the earlier application backlog; asset/source commits
+alone do not establish binary provenance.
 
 ## Physical flash layout
 
@@ -67,7 +124,7 @@ store. Reusing it requires an explicit ownership/layout migration with safe
 upgrade/downgrade handling. Never format it, overwrite it, resize app slots or
 erase pairing/configuration merely to increase headroom.
 
-## What occupies the installed app slot
+## Historical full-Lato app-slot ledger
 
 These are **linked, initialized section contributions**, not source-file
 lengths or runtime heap allocations. BSS/no-init/reserved RTC memory are
@@ -88,7 +145,7 @@ so the ledger reconciles exactly with the actual binary length.
 | Hosted editor: gzip HTML | 52,657 | 51.42 | 1.26 |
 | Embedded font notices | 5,765 | 5.63 | 0.14 |
 | Unattributed linker bytes plus image envelope/padding | 13,369 | 13.06 | 0.32 |
-| **Installed image** | **4,162,208** | **4,064.66** | **99.23** |
+| **Historical image** | **4,162,208** | **4,064.66** | **99.23** |
 | **Remaining in one app slot** | **32,096** | **31.34** | **0.77** |
 | **App-slot capacity** | **4,194,304** | **4,096.00** | **100.00** |
 
@@ -147,9 +204,10 @@ reason headroom fell from approximately 17% to less than 1%.
   Companion data in the persistent store, not in the firmware image.
   `/goopad-config.json` is an explicit config-only SD backup; it can contain
   secrets and does not back up identities, pairing or all referenced assets.
-- The bundled Font Awesome search/catalog remains compiled into the app.
-  [main/CMakeLists.txt](../main/CMakeLists.txt) embeds it, the compressed
-  editor, web fonts and notices, and compiles the device font C files.
+- The current Font Awesome catalog and multilingual glyph pack live under
+  `/goopad/resources/`; only the small compressed icon index stays compiled.
+  [main/CMakeLists.txt](../main/CMakeLists.txt) embeds the compressed editor,
+  web fonts/notices, and compiles the primary/essential device fonts.
 - The source TTF, generated C text, raw icon JSON, ELF debug information and
   linker map are host-side build/source files. They are **not copied wholesale
   to the device**. For example, the 24 MB ELF is not a 24 MB firmware image.
@@ -167,7 +225,7 @@ application-level allocation to load each complete font, but that does not
 make their PSRAM cost zero. The earlier assertion that the expanded fonts
 were not loaded into PSRAM was incorrect for this configuration.
 
-The size summary reports 1,480,312 bytes of flash code and 2,552,980 bytes of
+The historical size summary reported 1,480,312 bytes of flash code and 2,552,980 bytes of
 flash data, roughly 3.85 MiB combined before MMU/page alignment. This is not
 an exact measured PSRAM reservation: startup mapping/alignment and section
 selection matter. Frame buffers, cached pages, GIFs, TLS and heap allocations
@@ -175,15 +233,13 @@ use further memory. The most recent five-minute soak saw approximately
 1.83-1.92 million bytes free PSRAM. That is an observed free-heap range, not
 the physical capacity or a per-feature allocation measurement.
 
-## Sensible space-recovery targets
+## Further space-recovery considerations
 
-These are candidates, **not implemented changes or guaranteed savings**:
+The first two targets are now implemented in the development build above:
 
-1. Offload the bundled icon catalog/index to SD with an explicit absent-card
-   behavior. Its current linked budget is about 840 KiB.
-2. Keep a small essential Unicode fallback in flash and put extended font
-   packs on SD, loaded on demand. Preserve usable text without SD and measure
-   glyph latency, PSRAM, cache behavior and corruption handling.
+1. The full icon catalog is SD-backed; its small gzip index remains compiled.
+2. Essential Latin/punctuation remains in flash; broad multilingual glyphs
+   stream from a bounded SD cache with corruption detection.
 3. Offer fewer optional font families/sizes as an intentional UI/build
    choice. Merely substituting a different-sized fallback changes appearance.
 4. Web assets are already compressed and are comparatively small. Removing

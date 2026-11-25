@@ -14,6 +14,9 @@
  */
 #pragma once
 
+#ifdef GOOPAD_BOARD_HEADER
+#include GOOPAD_BOARD_HEADER
+#else
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 
@@ -138,3 +141,4 @@
 /* 22050 Hz, 16-bit stereo: this is the configuration that is known to
  * work with the NS4168 on ESP32-S3 under ESP-IDF 5/6. */
 #define BSP_I2S_SAMPLE_RATE    22050
+#endif

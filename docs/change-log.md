@@ -18,6 +18,45 @@ Never include credentials, private keys, pairing codes, raw user configuration,
 serial captures or flash dumps. Do not claim historical work was committed or
 released merely because it was installed.
 
+## 2026-11-25 - Multilingual SD fonts, headroom and faster now playing
+
+- **Request:** Chinese/Japanese and varied artist text, meaningful app/PSRAM
+  headroom, and less song-change delay.
+- **Changes:** checksummed SD glyph pack with 51,647 mappings at ten sizes;
+  compact offline fallbacks, SD Font Awesome catalog, bounded indexed
+  metrics/bitmap caches, bidi/Arabic processing, and full UTF-8 metadata.
+  Persistent Windows sampling at 250 ms and device polling at a 500 ms target;
+  certificate-bound TLS session resumption releases the socket after each poll.
+  See [Unicode coverage and limitations](unicode-fonts.md) and the measured
+  [storage ledger](storage-layout.md).
+- **Compatibility:** application-only OTA preserved configuration, device
+  credentials and logical HomeKit records. SD resources remain immutable,
+  hash-pinned and reusable; keep old versions for rollback. The rebooting
+  HomeKit `hap_main/state_num` advertisement counter legitimately changes;
+  every other protected record was compared privately. Broad coverage is not
+  universal Unicode, complete Indic/Thai shaping or color emoji.
+- **Validation:** 44 Companion and 9 soak-harness tests passed; all 516,470
+  pack records verified. Actual-loader native tests verified decoded pixels,
+  one-record SD reads, missing/corrupt packs, pinned LRU lifetime and limits.
+  Editor/media-gesture regressions passed. Production build and installed
+  68-variant printable-ASCII/multilingual canary passed.
+- **Delivery:** Companion executable/ZIP/installer built and installed with
+  pairing/settings preserved. Fixed an installer wait that included its
+  launched GUI, and replaced overstrict raw NVS equality with logical record
+  comparison excluding only the documented reboot counter. Firmware and
+  matching resources installed and verified on the attached board.
+  Final 300-second soak: 20 samples, zero errors/resets, 87 contention
+  warnings; PSRAM minimum 3,009,360 bytes. Sampled media requests averaged
+  225 ms (111-293 ms), versus the prior observed 1,230 ms. Live revision
+  changes were observed without issuing playback commands.
+- **Publication:** this scoped foundation commit contains independently usable
+  font/resources, Companion sampling, tests and documentation.
+  The installed binary includes earlier accumulated uncommitted application
+  integration; no source-matched binary release is claimed or published.
+- **Remaining:** reconcile that earlier application backlog before releasing
+  firmware; contention warnings remain observable. Physical song-to-glass
+  timing and scripts needing full shaping require further validation.
+
 ## 2026-11-24 - Delivery workflow and persistent agent log
 
 - **Request:** make documentation, verification, flashing, commits,

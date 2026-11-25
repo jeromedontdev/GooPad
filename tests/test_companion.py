@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 SOURCE = Path(__file__).parents[1] / "companion" / "GooPadCompanion.py"
@@ -20,6 +20,88 @@ SPEC = importlib.util.spec_from_file_location("goopad_companion", SOURCE)
 COMPANION = importlib.util.module_from_spec(SPEC)
 with patch.object(sys, "path", [str(SOURCE.parent), *sys.path]):
     SPEC.loader.exec_module(COMPANION)
+
+
+class MediaSamplerTests(unittest.TestCase):
+    def setUp(self):
+        names = ("MEDIA_BUSY", "MEDIA_LAST", "MEDIA_STARTED", "MEDIA_RETRY", "MEDIA_PROCESS",
+                 "MEDIA_CACHE", "MEDIA_REVISION", "MEDIA_CHANGED", "MEDIA_STOP")
+        self.previous = {name: getattr(COMPANION, name) for name in names}
+        COMPANION.MEDIA_BUSY = False
+        COMPANION.MEDIA_LAST = COMPANION.MEDIA_STARTED = COMPANION.MEDIA_RETRY = 0.0
+        COMPANION.MEDIA_PROCESS = None
+        COMPANION.MEDIA_CACHE = {"mediaStatus": "Sampling media", "mediaTitle": "", "mediaArtist": ""}
+        COMPANION.MEDIA_REVISION = 0
+        COMPANION.MEDIA_CHANGED = 0.0
+        COMPANION.MEDIA_STOP = threading.Event()
+        self.addCleanup(lambda: [setattr(COMPANION, name, value) for name, value in self.previous.items()])
+
+    def test_persistent_worker_publishes_unicode_change_immediately(self):
+        first, second, advance, finish = (threading.Event() for _ in range(4))
+        def lines():
+            yield json.dumps({"status": "Playing", "title": "\u4e2d\u6587", "artist": "\u00c6\u2014\u3042"})
+            first.set()
+            if not advance.wait(2):
+                raise AssertionError("Test sampler stalled")
+            yield json.dumps({"status": "Playing", "title": "\u65e5\u672c\u8a9e", "artist": "\U0001f600"})
+            second.set()
+            if not finish.wait(2):
+                raise AssertionError("Test sampler failed to stop")
+        process = Mock()
+        process.stdout = Mock()
+        process.stdout.__iter__ = Mock(return_value=lines())
+        process.poll.return_value = None
+        with patch.object(COMPANION.subprocess, "Popen", return_value=process) as launch:
+            try:
+                COMPANION.media_snapshot()
+                self.assertTrue(first.wait(2))
+                self.assertEqual(COMPANION.media_snapshot()["mediaTitle"], "\u4e2d\u6587")
+                start = time.monotonic()
+                advance.set()
+                self.assertTrue(second.wait(2))
+                result = COMPANION.media_snapshot()
+                self.assertEqual(result["mediaTitle"], "\u65e5\u672c\u8a9e")
+                self.assertEqual(result["mediaArtist"], "\U0001f600")
+                self.assertEqual(result["mediaRevision"], 2)
+                self.assertLess(time.monotonic() - start, 1)
+                self.assertLess(result["mediaAgeMs"], 1000)
+                launch.assert_called_once()
+            finally:
+                COMPANION.MEDIA_STOP.set()
+                advance.set(); finish.set()
+                deadline = time.monotonic() + 3
+                while COMPANION.MEDIA_BUSY and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertFalse(COMPANION.MEDIA_BUSY)
+        process.stdout.close.assert_called_once()
+        self.assertIsNone(COMPANION.MEDIA_PROCESS)
+
+    def test_restart_resets_stale_heartbeat_and_startup_can_time_out(self):
+        COMPANION.MEDIA_LAST = 1.0
+        with patch.object(COMPANION.time, "monotonic", return_value=100), \
+                patch.object(COMPANION.threading, "Thread") as thread, \
+                patch.object(COMPANION, "stop_media") as stop:
+            result = COMPANION.media_snapshot()
+            self.assertIsNone(result["mediaAgeMs"])
+            self.assertEqual(COMPANION.MEDIA_STARTED, 100)
+            stop.assert_not_called()
+            thread.return_value.start.assert_called_once()
+        with patch.object(COMPANION.time, "monotonic", return_value=105), \
+                patch.object(COMPANION, "stop_media") as stop, self.assertLogs(level="WARNING"):
+            self.assertEqual(COMPANION.media_snapshot()["mediaStatus"], "Media unavailable")
+            stop.assert_called_once()
+
+    def test_cleanup_kills_stuck_process_and_clears_busy_state(self):
+        process = Mock(stdout=io.StringIO("not json\n"))
+        process.poll.return_value = None
+        process.wait.side_effect = [COMPANION.subprocess.TimeoutExpired("sampler", 3), 0]
+        COMPANION.MEDIA_BUSY = True
+        with patch.object(COMPANION.subprocess, "Popen", return_value=process), self.assertLogs(level="WARNING"):
+            COMPANION.media_worker()
+        process.kill.assert_called_once()
+        self.assertFalse(COMPANION.MEDIA_BUSY)
+        self.assertIsNone(COMPANION.MEDIA_PROCESS)
+        self.assertTrue(process.stdout.closed)
 
 
 class CompanionUpdateTests(unittest.TestCase):
@@ -420,6 +502,34 @@ class CompanionTests(unittest.TestCase):
             with self.assertRaises(HTTPError) as error:
                 urlopen(request, timeout=3, context=self.tls_context)
             self.assertEqual(error.exception.code, 503)
+
+    def test_now_playing_requires_permission_and_authentication(self):
+        request = Request(self.base + "/monitor", headers={"X-GooPad-Token": self.token})
+        media = {"mediaStatus": "Playing", "mediaTitle": "\u4e2d\u6587", "mediaArtist": "\u00c6\u2014\U0001f600"}
+        with patch.object(COMPANION, "monitor_snapshot", return_value={"memoryPercent": 50}), \
+                patch.object(COMPANION, "media_snapshot", return_value=media) as snapshot:
+            with urlopen(request, timeout=3, context=self.tls_context) as response:
+                self.assertEqual(json.load(response)["mediaStatus"], "Media disabled")
+            snapshot.assert_not_called()
+            self.write_config({"token": self.token, "actions": {}, "allow_now_playing": True})
+            with self.assertRaises(HTTPError):
+                urlopen(self.base + "/monitor", timeout=3, context=self.tls_context)
+            snapshot.assert_not_called()
+            with urlopen(request, timeout=3, context=self.tls_context) as response:
+                body = response.read()
+                self.assertIn("\u4e2d\u6587".encode("utf-8"), body)
+                self.assertEqual(json.loads(body)["mediaTitle"], "\u4e2d\u6587")
+            snapshot.assert_called_once()
+
+    def test_media_query_validates_and_sanitizes_metadata(self):
+        result = COMPANION.subprocess.CompletedProcess([], 0, stdout=json.dumps(
+            {"status": "Playing", "title": "Title\nInjected", "artist": "Artist"}))
+        with patch.object(COMPANION.subprocess, "run", return_value=result):
+            self.assertEqual(COMPANION.query_media()["mediaTitle"], "TitleInjected")
+        result.stdout = json.dumps({"status": "unexpected", "title": "", "artist": ""})
+        with patch.object(COMPANION.subprocess, "run", return_value=result):
+            with self.assertRaises(ValueError):
+                COMPANION.query_media()
 
     def test_tray_preferences_reject_invalid_settings(self):
         for setting in ({"close_behavior": "service"}, {"minimize_behavior": "invalid"},

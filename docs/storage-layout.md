@@ -21,6 +21,17 @@ cca8dceb46a23605a490e75027f0d2af52d372dad5004226b30b27806a0c60e1
 KiB means 1,024 bytes; MiB means 1,048,576 bytes. All percentages below use the
 4,194,304-byte app slot, not the whole flash chip.
 
+## Companion-only 0.7.4 release
+
+The [0.7.4 release](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.4)
+includes a matching version-only firmware build from clean source
+`bda4ca7f1ed28e5a75c6ab44cb8e240c8358e5c0`: **2,316,320 bytes**, still
+**1,877,984 bytes / 44.77% free**. Its SHA-256 is
+`fecbc0173cbf34650a31e5d4aa6b905f473fdea5a93bf4dbe42dc1ff4eca15a6`.
+Resolved SDK settings, embedded behavior, actual SD resources and PSRAM
+budgets are unchanged. This repairs the Windows Companion; the hardware was
+not reflashed and its verified active image remains the 0.7.3 image below.
+
 ## Complete 0.7.3 release build
 
 The clean production build from source commit

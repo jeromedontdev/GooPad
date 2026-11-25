@@ -118,6 +118,11 @@ runtime with `PYINSTALLER_RESET_ENVIRONMENT=1`. The installer sets it too,
 because an older caller does not: otherwise restarting at the same executable
 path can reuse a temporary Python directory already deleted on exit.
 Do not repair this by copying DLLs or deleting pairing/configuration.
+For unattended installation checks, use the installer's `Process.WaitForExit()`
+rather than PowerShell `Start-Process -Wait`, which also waits for descendants
+including the restarted Companion. Inno Setup can reuse an earlier install
+directory; use an explicit `/DIR` for a controlled canonical-location repair
+and verify the actual listening process path, not just the default location.
 
 ## Tests
 

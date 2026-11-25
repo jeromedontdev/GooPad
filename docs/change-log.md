@@ -40,15 +40,40 @@ released merely because it was installed.
   regressions, plus an isolated frozen legacy-updater/installer/actual-app
   smoke/soak harness. Repeated Tk fixtures exposed worker-thread garbage
   collection of destroyed windows; GUI tests now collect those cycles on the
-  creating thread. All 45 Companion tests pass. The first packaged check
+  creating thread. All 45 Companion tests and Pylance syntax checks pass.
+  The first packaged check
   incorrectly required a non-null initial CPU delta; priming that sample
   corrected the harness, not product code. An intermediate packaged-upgrade
-  soak passed 61 samples/300 seconds; final combined-toggle packaging,
-  installation and publication are pending.
-- **Release scope:** preparing 0.7.4; firmware changes only its release version
+  soak passed before the UI clarification. The final combined-toggle binary
+  passed the actual legacy-updater/installer/restart chain with the old
+  runtime removed, preserved fixture config/identity, and 61 samples over
+  300.06 seconds with zero errors. Slowest local health/monitor/status triplet:
+  63 ms. Compiled bytecode confirms the single checkbox and no old controls.
+- **Installation:** repaired Companion is running from the stable per-user
+  `GooPad\bin` location, with exact release executable bytes, unchanged saved
+  config, TLS identity and Windows startup, and trusted HTTPS health plus
+  authenticated status/monitor checks. The host installer coordinator first
+  waited for the restarted app as well as Setup and reused an earlier
+  temporary install directory; waiting only on Setup and explicitly selecting
+  the canonical directory corrected that harness, without deleting settings.
+- **Release scope:** 0.7.4 firmware changes only its release version
   so latest-stable firmware/Companion asset names remain consistent. No new
-  firmware behavior, SD-resource changes or PSRAM budget changes are intended;
-  an unrelated hardware flash is not required for this Companion repair.
+  firmware behavior or PSRAM budget changes; all actual SD resource/license
+  payloads remain byte-identical to 0.7.3. The clean production firmware build
+  is 2,316,320 bytes (1,877,984 bytes / 44.77% slot free), with unchanged resolved
+  SDK configuration and diagnostics OFF. The device remains on 0.7.3:
+  no unrelated firmware flash or new device soak was performed for this
+  Companion-only repair. The five-minute report is a packaged Companion soak.
+- **Delivery:** source/tag `v0.7.4` are
+  `bda4ca7f1ed28e5a75c6ab44cb8e240c8358e5c0`; the complete
+  [stable release](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.4)
+  is published with nine assets. GitHub initially returned HTTP 500 during
+  parallel upload; only missing draft assets were resumed and every published
+  size/SHA-256 checked. Latest-stable metadata, the old 0.7.3 updater's real
+  installer download, the new updater's up-to-date result, and downloaded
+  firmware/checksum bytes all pass. Windows packages remain unsigned.
+- **Remaining:** no blocker for this request; existing firmware cold-TLS
+  latency caveats from 0.7.3 still apply.
 
 ## 2026-11-25 - Publishing the complete 0.7.3 release
 

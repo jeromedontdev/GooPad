@@ -976,7 +976,7 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
     window_icons = [ImageTk.PhotoImage(tray_image),
                     ImageTk.PhotoImage(companion_icon(32))]
     root.iconphoto(True, *window_icons)
-    root.geometry("540x640")
+    root.geometry("540x600")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=20)
     frame.pack(fill="both", expand=True)
@@ -986,94 +986,48 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
     cert_path = APP_DIR / "tls-cert.pem"
     ttk.Button(frame, text="Copy secure pairing",
                command=lambda: copy_text(pairing_bundle(address, port, config["token"], cert_path))).pack(fill="x", pady=4)
-    allowed = tk.BooleanVar(value=config.get("allow_powershell", False))
-
     def copy_text(value):
         root.clipboard_clear()
         root.clipboard_append(value)
 
-    def change_permission():
-        enabled = allowed.get()
+    permission_keys = ("allow_powershell", "allow_system_controls", "allow_now_playing")
+    sharing = tk.IntVar()
+    sharing_hint = tk.StringVar()
+
+    def restore_sharing_state():
+        permissions = [config.get(key, False) for key in permission_keys]
+        mixed = any(permissions) and not all(permissions)
+        sharing.set(int(any(permissions)))
+        sharing_check.state(["alternate"] if mixed else ["!alternate"])
+        sharing_hint.set("Now playing, PowerShell, PC power and monitor controls." +
+                         ("\nSome permissions were enabled earlier; switch off to disable all." if mixed else ""))
+
+    def change_sharing():
+        enabled = sharing.get() == 1
         if enabled and not messagebox.askyesno(
-            "Allow PowerShell?",
-            "Anyone with your pairing token on this LAN can run PowerShell as your Windows user.\n"
-            "Only enable this on a trusted private network. Never share the token.",
-        ):
-            allowed.set(False)
-            return
-        try:
-            latest = load_config()
-            latest["allow_powershell"] = enabled
-            CONFIG_PATH.write_text(json.dumps(latest, indent=2), encoding="utf-8")
-            config["allow_powershell"] = enabled
-        except (OSError, ValueError) as error:
-            allowed.set(config.get("allow_powershell", False))
-            messagebox.showerror("Could not save permission", str(error))
-
-    ttk.Checkbutton(frame, text="Allow PowerShell commands (off by default)",
-                    variable=allowed, command=change_permission).pack(anchor="w", pady=10)
-    system_allowed = tk.BooleanVar(value=config.get("allow_system_controls", False))
-
-    def change_system_permission():
-        enabled = system_allowed.get()
-        if enabled and not messagebox.askyesno(
-            "Allow PC power and monitor controls?",
-            "A paired GooPad can lock, sleep, hibernate, restart or shut down this PC.\n"
-            "Restart and shutdown force applications closed after a 60-second warning; unsaved work may be lost.\n"
-            "Only enable this on a trusted network.",
-        ):
-            system_allowed.set(False)
-            return
-        try:
-            latest = load_config()
-            latest["allow_system_controls"] = enabled
-            CONFIG_PATH.write_text(json.dumps(latest, indent=2), encoding="utf-8")
-            config["allow_system_controls"] = enabled
-        except (OSError, ValueError) as error:
-            system_allowed.set(config.get("allow_system_controls", False))
-            messagebox.showerror("Could not save permission", str(error))
-
-    ttk.Checkbutton(frame, text="Allow PC power and monitor controls (off by default)",
-                    variable=system_allowed, command=change_system_permission).pack(anchor="w", pady=4)
-    media_allowed = tk.BooleanVar(value=config.get("allow_now_playing", False))
-
-    def change_media_permission():
-        enabled = media_allowed.get()
-        try:
-            latest = load_config()
-            latest["allow_now_playing"] = enabled
-            CONFIG_PATH.write_text(json.dumps(latest, indent=2), encoding="utf-8")
-            config["allow_now_playing"] = enabled
-        except (OSError, ValueError) as error:
-            media_allowed.set(config.get("allow_now_playing", False))
-            messagebox.showerror("Could not save permission", str(error))
-
-    ttk.Checkbutton(frame, text="Share now playing with paired GooPad (off by default)",
-                    variable=media_allowed, command=change_media_permission).pack(anchor="w", pady=4)
-
-    def enable_all_permissions():
-        if not messagebox.askyesno(
             "Enable all sharing and controls?",
             "Share now playing and allow PC power, monitor and PowerShell commands.\n"
             "Anyone with your pairing token can run PowerShell as your Windows user.\n"
             "Restart and shutdown can lose unsaved work. Only enable this on a trusted private network.",
         ):
+            restore_sharing_state()
             return
-        permissions = dict.fromkeys(
-            ("allow_powershell", "allow_system_controls", "allow_now_playing"), True)
+        permissions = dict.fromkeys(permission_keys, enabled)
         try:
             latest = load_config()
             latest.update(permissions)
             CONFIG_PATH.write_text(json.dumps(latest, indent=2), encoding="utf-8")
             config.update(permissions)
-            allowed.set(True)
-            system_allowed.set(True)
-            media_allowed.set(True)
         except (OSError, ValueError) as error:
             messagebox.showerror("Could not save permissions", str(error))
+        finally:
+            restore_sharing_state()
 
-    ttk.Button(frame, text="Enable all sharing and controls",
-               command=enable_all_permissions).pack(anchor="w", pady=4)
+    sharing_check = ttk.Checkbutton(frame, text="Enable sharing and PC controls (off by default)",
+                                    variable=sharing, command=change_sharing)
+    sharing_check.pack(anchor="w", pady=(10, 4))
+    ttk.Label(frame, textvariable=sharing_hint, wraplength=490).pack(anchor="w", pady=(0, 6))
+    restore_sharing_state()
     startup = tk.BooleanVar(value=windows_startup.startup_enabled())
 
     def change_startup():

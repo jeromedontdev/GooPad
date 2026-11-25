@@ -153,6 +153,10 @@ def exercise(package, compiler, seconds, work):
             raise AssertionError("Installer did not replace the bootstrap with the actual packaged app")
         if request("/monitor", False)[0] != 401:
             raise AssertionError("Installed app accepted unauthenticated monitoring")
+        # CPU usage needs two system-time samples; the first intentionally has no percentage.
+        if request("/monitor")[0] != 200:
+            raise AssertionError("Initial packaged monitoring request failed")
+        time.sleep(.1)
         start, samples, worst_ms = time.monotonic(), 0, 0.0
         while True:
             sample_start = time.monotonic()
@@ -165,7 +169,10 @@ def exercise(package, compiler, seconds, work):
                     not isinstance(monitor.get("cpuPercent"), (int, float)) or
                     not 0 <= monitor["cpuPercent"] <= 100 or
                     not 0 <= monitor.get("memoryPercent", -1) <= 100):
-                raise AssertionError("Packaged monitoring or sharing consent changed")
+                raise AssertionError(
+                    f"Packaged monitoring or sharing consent changed: status={status}, "
+                    f"cpu={monitor.get('cpuPercent')}, memory={monitor.get('memoryPercent')}, "
+                    f"media={monitor.get('mediaStatus')!r}")
             status, state = request("/status")
             if status != 200 or state.get("powershell") is not False or state.get("actions") != []:
                 raise AssertionError("Packaged permissions or actions changed")

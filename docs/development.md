@@ -175,8 +175,8 @@ depends on the board:
   Windows startup. It checks monitoring, authentication, saved permissions and
   pairing-file preservation, then closes the test app and removes fixtures.
   A shorter `--seconds 15` run is useful while iterating, not a device soak.
-  GUI regressions also exercise the single **Enable all sharing and controls**
-  action, cancellation/save errors, and the unchanged individual permissions.
+  GUI regressions also exercise the single **Enable sharing and PC controls**
+  toggle, disable-all, cancellation/save errors and legacy mixed permissions.
 * **Editor:** open local `main/index.html` as a `file:` URL, load
   `tests/test_editor.js` as a classic script and run
   `await runGooPadEditorTests()` in the browser console. The suite uses

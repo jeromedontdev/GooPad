@@ -284,7 +284,7 @@ every ten seconds. During brief contention or a request timeout, the last PC
 reading remains visible for up to 15 seconds; persistent problems are shown.
 
 **PC now playing** uses the paired Windows Companion and displays the current
-Windows media session's title and artist. Enable **Share now playing** locally
+Windows media session's title and artist. Enable **sharing and PC controls** locally
 in Companion; it is off by default. Metadata is shared only with authenticated
 paired clients. Apps that do not expose Windows media sessions will not appear.
 Paused, disabled and unavailable states are shown explicitly.
@@ -432,11 +432,12 @@ Sequences do not overlap: repeated taps while a PC sequence runs are rejected.
 Keyboard/text steps target the foreground application, not a chosen window.
 Windows blocks input into elevated apps, locked screens, and some games.
 
-Select **Enable all sharing and controls** to enable now playing, PowerShell
-and PC power/monitor controls together after one security confirmation.
-The individual checkboxes remain available for selective access. Updating
-does not change existing choices; these optional features remain off on a
-new installation until you enable them.
+The single **Enable sharing and PC controls** checkbox replaces the three
+separate permissions: it enables now playing, PowerShell and PC power/monitor
+controls together after one security confirmation. Switching it off disables
+all three. These optional features remain off on a new installation.
+Updating preserves existing permissions. Older mixed choices show a partially
+checked box; switch it off to disable all, then on to enable the combined set.
 
 PowerShell is **off by default**. Enable it locally using the Companion checkbox
 only on a trusted network. Anyone holding the token can then execute commands
@@ -445,8 +446,8 @@ a failed step stops the sequence and is reported in the app/log and last-result
 check. Do not run Companion as Administrator. Its config and log are in
 `%LOCALAPPDATA%\GooPad`.
 
-PC power and monitor controls are separately disabled by default and must be
-enabled locally in Companion. They include lock, monitor off, sleep, hibernate,
+PC power and monitor controls are disabled by default and are enabled by the
+same combined checkbox. They include lock, monitor off, sleep, hibernate,
 shutdown, restart, and cancelling a scheduled shutdown/restart. Shutdown and
 restart wait 60 seconds and then force-close applications; unsaved work can be
 lost. Sleep may hibernate depending on Windows settings. Anyone with the paired

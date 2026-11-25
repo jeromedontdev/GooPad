@@ -320,15 +320,20 @@ class CompanionTests(unittest.TestCase):
             self.assertIsNot(kwargs["env"], COMPANION.os.environ)
 
     @unittest.skipUnless(sys.platform == "win32", "Windows desktop UI")
-    def test_enable_all_permissions_confirms_once_and_preserves_settings(self):
+    def test_combined_permissions_confirm_once_and_preserve_settings(self):
         import tkinter as tk
         from tkinter import messagebox, ttk
 
         flags = ("allow_powershell", "allow_system_controls", "allow_now_playing")
-        for outcome in ("enabled", "cancelled", "save-error"):
+        for outcome in ("enabled", "disabled", "disabled-legacy", "cancelled",
+                        "save-error", "disable-save-error", "legacy-save-error"):
             with self.subTest(outcome=outcome):
+                legacy = "legacy" in outcome
+                disabling = outcome.startswith("disable") or legacy
                 initial = {"token": self.token, "actions": {"custom": {"program": "example.exe"}},
-                           "allow_now_playing": True, "close_behavior": "tray"}
+                           "allow_now_playing": disabling, "close_behavior": "tray"}
+                if disabling and not legacy:
+                    initial.update(dict.fromkeys(flags, True))
                 self.write_config(initial)
                 config = COMPANION.load_config()
                 before = COMPANION.CONFIG_PATH.read_bytes()
@@ -340,27 +345,31 @@ class CompanionTests(unittest.TestCase):
                                 yield child
                                 yield from descendants(child)
                         widgets = list(descendants(root))
-                        button = next(widget for widget in widgets
-                                      if isinstance(widget, ttk.Button) and
-                                      widget.cget("text") == "Enable all sharing and controls")
-                        if outcome == "save-error":
-                            with patch.object(Path, "write_text", side_effect=OSError("Disk unavailable")):
-                                button.invoke()
-                        else:
-                            button.invoke()
-                        enabled = outcome == "enabled"
-                        expected = {**initial, **dict.fromkeys(flags, True)} if enabled else initial
-                        self.assertEqual(COMPANION.load_config(), expected)
-                        self.assertEqual(config, expected)
-                        if not enabled:
-                            self.assertEqual(COMPANION.CONFIG_PATH.read_bytes(), before)
                         checks = [widget for widget in widgets if isinstance(widget, ttk.Checkbutton)]
                         permissions = [widget for widget in checks if any(
                             text in widget.cget("text") for text in
-                            ("PowerShell", "PC power", "Share now playing"))]
-                        self.assertEqual(len(permissions), 3)
-                        self.assertEqual([widget.instate(["selected"]) for widget in permissions],
-                                         [enabled, enabled, True])
+                            ("PowerShell", "PC power", "Share now playing", "sharing and PC controls"))]
+                        self.assertEqual(len(permissions), 1)
+                        toggle = permissions[0]
+                        self.assertEqual(toggle.instate(["alternate"]), legacy)
+                        self.assertFalse(any(isinstance(widget, ttk.Button) and
+                                             widget.cget("text").startswith("Enable all") for widget in widgets))
+                        if outcome.endswith("save-error"):
+                            with patch.object(Path, "write_text", side_effect=OSError("Disk unavailable")):
+                                toggle.invoke()
+                        else:
+                            toggle.invoke()
+                        changed = outcome in ("enabled", "disabled", "disabled-legacy")
+                        expected = ({**initial, **dict.fromkeys(flags, outcome == "enabled")}
+                                    if changed else initial)
+                        self.assertEqual(COMPANION.load_config(), expected)
+                        self.assertEqual(config, expected)
+                        if not changed:
+                            self.assertEqual(COMPANION.CONFIG_PATH.read_bytes(), before)
+                        values = [expected.get(key, False) for key in flags]
+                        mixed = any(values) and not all(values)
+                        self.assertEqual(root.getvar(toggle.cget("variable")), int(any(values)))
+                        self.assertEqual(toggle.instate(["alternate"]), mixed)
                     finally:
                         root.destroy()
 
@@ -369,10 +378,13 @@ class CompanionTests(unittest.TestCase):
                         patch.object(messagebox, "askyesno", return_value=outcome != "cancelled") as confirm, \
                         patch.object(messagebox, "showerror") as error:
                     COMPANION.desktop_panel(Mock(), config, "127.0.0.1", 18877)
-                confirm.assert_called_once()
-                self.assertIn("PowerShell", confirm.call_args.args[1])
-                self.assertIn("unsaved work", confirm.call_args.args[1])
-                self.assertEqual(error.call_count, int(outcome == "save-error"))
+                if disabling:
+                    confirm.assert_not_called()
+                else:
+                    confirm.assert_called_once()
+                    self.assertIn("PowerShell", confirm.call_args.args[1])
+                    self.assertIn("unsaved work", confirm.call_args.args[1])
+                self.assertEqual(error.call_count, int(outcome.endswith("save-error")))
 
     def test_https_rejects_untrusted_identity_and_plain_http(self):
         untrusted = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)

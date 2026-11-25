@@ -28,9 +28,12 @@ released merely because it was installed.
   that directory was removed; requesting an independent runtime succeeded
   with exit code 0. Both the updater and installer now set
   `PYINSTALLER_RESET_ENVIRONMENT=1`, including support for older callers.
-- **UI/security:** **Enable all sharing and controls** enables now playing,
-  PowerShell and PC power/monitor controls together after one explicit warning.
-  Individual choices remain available. Existing flags, pairing, token,
+- **UI/security:** following the clarification, one **Enable sharing and PC
+  controls** checkbox replaces all three individual controls (not an extra
+  accept-all button). It enables now playing, PowerShell and PC power/monitor
+  controls together after one explicit warning; switching off disables all.
+  Older mixed permissions remain unchanged and show an indeterminate box;
+  switch off before enabling the combined set. Existing flags, pairing, token,
   actions and tray/startup preferences retain their formats and defaults;
   installation itself does not grant permissions.
 - **Verification:** added cancellation/save-error and settings-preservation

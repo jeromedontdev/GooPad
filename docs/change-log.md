@@ -175,3 +175,45 @@ not a complete historical changelog.
   touch or Windows media playback. The existing accumulated worktree predates
   this request and still prevents a source-matched binary release until its
   changes are reconciled; do not silently include unrelated work in a release.
+
+## 2026-11-24 - Extended Unicode fallback coverage
+
+- **Request:** fix missing Æ and expand extended Unicode text support.
+- **Changes:** replaced the punctuation-only fallbacks with all 2,068 available
+  non-ASCII BMP Lato mappings at all ten required sizes. Existing selected-font
+  glyphs retain their styling; new fallback glyphs are compressed 1-bpp
+  monochrome. Added the licensed source, reproducible generator and full-source
+  coverage regression. Startup checks ten representative extended characters
+  through all 68 font variants. See [unicode-fonts.md](unicode-fonts.md).
+- **Limits:** this supplies extended Latin, Greek, Cyrillic and the symbols
+  actually present in Lato, not universal Unicode. CJK, emoji, complex-script
+  shaping and combining-mark positioning are not guaranteed. Availability
+  checks do not replace physical visual inspection.
+- **Build:** the first 2-bpp expansion exceeded the unchanged 4 MiB slots by
+  `0xb010`; it was not flashed. The 1-bpp production build passed at `0x3f82a0`,
+  leaving `0x7d60` (32,096 bytes, about 31 KiB) of app-slot headroom. The fonts
+  reside in flash rather than loading the expanded bitmap tables into PSRAM.
+  Do not repartition the configured device to force future additions through.
+- **Compatibility/hardware:** verified the actual board, live partition table
+  and valid recovery image, then installed only the app via authenticated,
+  certificate-pinned OTA. Configuration remained byte-identical in memory;
+  the embedded editor matched source. The active image descriptor/ELF digest
+  matched the build, and serial startup confirmed extended glyph resolution
+  in all 68 font variants. NVS, HomeKit and SD data were not erased.
+- **Validation:** all 20,680 source-to-generated character mappings and their
+  glyph indices passed across ten font sizes. The 300-second read-only device
+  soak ended at 20:06:55 UTC-05:00 with 20 valid samples, exit code 0, zero
+  errors/resets and Wi-Fi/SD available throughout. Internal free was
+  40,275 -> 49,479 bytes (minimum 40,275); largest block stayed at 28,672.
+  PSRAM free was 1,869,572 -> 1,867,308 bytes (minimum 1,831,660).
+- **Findings:** 40 existing shared-network-lock admission warnings remain:
+  28 PC-monitor/now-playing and 12 other live-widget attempts. No low-memory
+  admission errors were observed. Combined polling averaged 239 ms (214 ms
+  excluding the first), range 106-712 ms; status averaged 114 ms and diagnostics
+  124 ms. This short run does not certify long-term leak freedom or physical
+  rendering/action latency.
+- **Delivery:** scoped publication contains the Unicode assets, source/license,
+  generator, coverage test, guide and this log. Font selection/startup
+  integration is mixed with the earlier accumulated source worktree, so no
+  source-matched firmware release is claimed. Reconcile that backlog before
+  publishing the installed development image as a versioned release.

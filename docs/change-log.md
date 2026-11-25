@@ -217,3 +217,33 @@ not a complete historical changelog.
   integration is mixed with the earlier accumulated source worktree, so no
   source-matched firmware release is claimed. Reconcile that backlog before
   publishing the installed development image as a versioned release.
+
+## 2026-11-24 - Measured storage layout and application ledger
+
+- **Request:** explain the nearly full app slot and document the storage layout
+  and its consumers.
+- **Changes:** added [storage-layout.md](storage-layout.md) with the complete
+  16 MiB partition map, shared configuration/HomeKit tail, measured app ledger,
+  per-size Unicode costs, SDK attribution caveats, SD/PSRAM distinctions,
+  reproduction commands and safe space-recovery candidates. Added an agent
+  orientation link and corrected the Unicode guide/runtime memory note.
+- **Findings:** actual app length is 4,162,208 bytes; 32,096 remain in one
+  4 MiB slot. The Unicode update's net growth was 683,216 bytes. Unicode fonts
+  contribute 686,561 bytes; all device fonts plus the catalog/index contribute
+  2,046,767 bytes (about 49% of the slot). The unassigned storage prefix is
+  8,187,904 bytes but must remain erased under current ownership checks.
+- **Correction:** the previous Unicode entry's claim that complete font tables
+  are not loaded into PSRAM is incorrect for the selected SDK config.
+  `SPIRAM_FETCH_INSTRUCTIONS` and `SPIRAM_RODATA` copy flash code/read-only
+  data into PSRAM at boot. Fonts/catalog consume flash and boot-time PSRAM;
+  absence of per-font heap loading does not mean zero PSRAM cost.
+- **Validation:** used the installed ESP-IDF size tool on the deployed build's
+  map for section, object and archive attribution; checked binary length/hash,
+  flash offsets, partition table, ownership offsets and actual SDK flags.
+  Object attribution plus explicit linker/image residual reconciles exactly
+  to the binary. No user configuration, flash dumps or private serial data
+  were inspected or published for this report.
+- **Delivery:** documentation-only change; no build, flash, device soak or
+  binary release required. Scoped commit/push includes the new ledger, agent
+  link, Unicode-guide correction and this log; the broader pre-existing
+  runtime memory document remains in the accumulated worktree.

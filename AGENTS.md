@@ -10,6 +10,9 @@
   [API and data contracts](docs/api.md). Read the latest relevant entries in
   the [agent change log](docs/change-log.md); use the [README](README.md) for
   user-facing behavior. The source and observed behavior are authoritative.
+- For flash/app-slot or PSRAM capacity questions, read the measured
+  [storage layout and application ledger](docs/storage-layout.md); distinguish
+  app slots, persistent configuration, SD files and runtime memory.
 - Use tokens and the user's time carefully: focus on the requested work, reuse
   existing patterns, and give concise updates. Explain problems in plain
   language, including what is broken, its impact, and the next step.

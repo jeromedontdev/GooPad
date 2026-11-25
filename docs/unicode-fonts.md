@@ -14,8 +14,10 @@ script shaping or guarantee combining-mark positioning.
 Fallback glyphs use compressed **1-bpp monochrome** bitmaps to fit the existing
 4 MiB OTA slots. Characters already present in a selected font retain its
 original appearance and antialiasing. Unsupported characters can still show a
-placeholder. The fonts are flash-resident; an entire expanded bitmap font is
-not loaded into PSRAM.
+placeholder. Font data is stored in the flash image. The selected production
+config also copies flash code/read-only data into PSRAM at startup, so these
+fonts consume both budgets even without a per-font application heap load.
+See the [storage ledger](storage-layout.md) for the measured breakdown.
 
 ## Reproduction and checks
 

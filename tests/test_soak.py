@@ -63,6 +63,18 @@ class SoakTests(unittest.TestCase):
                     return
                 if self.path == "/api/status":
                     body = {"connected": True, "sd": True, "ssid": "private-ssid"}
+                    if mode.startswith("pc-"):
+                        body["pcMonitor"] = {
+                            "pc-healthy": "CPU 5%\nRAM 50%",
+                            "pc-unavailable": "PC unavailable",
+                            "pc-deferred": "Update deferred",
+                        }[mode]
+                        body["liveWidgets"] = ["private-media-title", "Update deferred"]
+                    if mode.startswith("widgets-"):
+                        first_sample = sum(path == "/api/status" for path, _ in calls) == 1
+                        body["liveWidgets"] = [
+                            "Update deferred" if mode == "widgets-stuck" or first_sample else "private-media-title"
+                        ]
                     if mode.startswith("font"):
                         body.update(unicode={"available": mode != "font-missing", "bitmapCacheBytes": 1000,
                                              "bitmapCachePeak": 32769 if mode == "font-overflow" else 32768},
@@ -119,6 +131,8 @@ class SoakTests(unittest.TestCase):
             f"& '{SCRIPT}' -Device 'https://127.0.0.1:{server.server_port}' -Credential $c "
             f"-CertificateSha256 '{pin or self.pin}' -DurationSeconds 4 -IntervalSeconds 1 "
             f"-RequestTimeoutSeconds 5 -ReportPath '{report}'"
+            + (" -RequireCompanion" if mode.startswith("pc-") else "")
+            + (" -MaxWidgetDeferralSeconds 1" if mode.startswith("widgets-") else "")
         )
         try:
             result = subprocess.run(["pwsh", "-NoProfile", "-Command", command],
@@ -130,6 +144,7 @@ class SoakTests(unittest.TestCase):
         records = [json.loads(line) for line in report.read_text(encoding="utf-8").splitlines()]
         self.assertNotIn("synthetic-password", result.stdout + result.stderr + report.read_text())
         self.assertNotIn("private-ssid", result.stdout + result.stderr + report.read_text())
+        self.assertNotIn("private-media-title", result.stdout + result.stderr + report.read_text())
         self.assertTrue(all(path in ("/api/status", "/api/diagnostics") for path, _ in calls))
         return result, records, calls
 
@@ -153,6 +168,19 @@ class SoakTests(unittest.TestCase):
         self.assertEqual(records[-1]["errors"], 1, str(records))
         self.assertEqual(records[-1]["warnings"], 1, str(records))
 
+    def test_required_companion_checks_real_snapshot_without_reporting_media(self):
+        for mode, available in (("pc-healthy", True), ("pc-unavailable", False), ("pc-deferred", False)):
+            with self.subTest(mode=mode):
+                result, records, _ = self.run_soak(mode)
+                self.assertEqual(result.returncode == 0, available, result.stdout + result.stderr)
+                self.assertTrue(records[0]["requireCompanion"])
+                samples = [r for r in records if r["type"] == "sample"]
+                self.assertTrue(samples)
+                self.assertTrue(all(r["companionAvailable"] == available for r in samples))
+                self.assertTrue(all(r["deferredWidgetCount"] == 1 for r in samples))
+                if not available:
+                    self.assertTrue(any(r.get("code") == "companion-unavailable" for r in records))
+
     def test_font_health_and_numeric_media_report(self):
         result, records, _ = self.run_soak("font-healthy")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -160,6 +188,20 @@ class SoakTests(unittest.TestCase):
         self.assertTrue(all(record["unicodeAvailable"] for record in samples))
         self.assertTrue(all(record["unicodeBitmapCachePeak"] <= 32768 for record in samples))
         self.assertTrue(all(record["mediaPollMs"] >= 0 for record in samples))
+
+    def test_widget_deferral_limit_allows_recovery_but_rejects_starvation(self):
+        for mode, passes in (("widgets-recover", True), ("widgets-stuck", False)):
+            with self.subTest(mode=mode):
+                result, records, _ = self.run_soak(mode)
+                self.assertEqual(result.returncode == 0, passes, result.stdout + result.stderr)
+                self.assertEqual(records[0]["maxWidgetDeferralSeconds"], 1)
+                samples = [r for r in records if r["type"] == "sample"]
+                self.assertTrue(samples)
+                if passes:
+                    self.assertEqual(samples[-1]["deferredWidgetCount"], 0)
+                else:
+                    self.assertGreater(samples[-1]["longestWidgetDeferralSeconds"], 1)
+                    self.assertTrue(any(r.get("code") == "widget-deferred" for r in records))
 
     def test_missing_font_and_cache_over_budget_fail_soak(self):
         for mode, code in (("font-missing", "unicode-unavailable"), ("font-overflow", "unicode-cache")):

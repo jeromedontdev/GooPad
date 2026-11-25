@@ -18,6 +18,68 @@ Never include credentials, private keys, pairing codes, raw user configuration,
 serial captures or flash dumps. Do not claim historical work was committed or
 released merely because it was installed.
 
+## 2026-11-25 - Repairing PC availability and deferred widgets
+
+- **Request:** fix "PC unavailable" with the Companion running and widgets
+  repeatedly showing "Update deferred".
+- **Diagnosis:** pinned/authenticated Companion probes were healthy, but the
+  device was unavailable in 19/24 baseline samples. ESP-IDF 6.1 reapplies a
+  saved session on successive asynchronous handshake calls; Mbed TLS rejects
+  that with `-0x7080`. Media also cancelled admitted widget handshakes and
+  immediate-retry admission could starve widgets. The preceding font soak's
+  109 network warnings were not evidence of harmless functional behavior.
+- **Changes:** disable saved sessions only for the asynchronous PC monitor,
+  retaining its owned certificate-bound client and unchanged synchronous
+  action sessions. Give verified requests an 8-second total budget rather
+  than cancelling cold 2-4-second handshakes after 1.5 seconds. Gate PC/media
+  TLS on a valid clock with explicit "Waiting for time" text. Eligible widgets
+  queue behind the active request for up to 10 seconds and retain their turn;
+  pending media cannot cancel their admitted request. Foreground/manual
+  priority checks remain before service and during streaming. Failure logs
+  include numeric TLS flags and elapsed time, not credentials or media text.
+- **Regression:** the soak harness adds opt-in `-RequireCompanion` and
+  `-MaxWidgetDeferralSeconds 15`, plus availability, count and duration fields.
+  New reports also record enabled criteria. Missing PC snapshots and
+  sustained widget deferral are functional failures, not just HTTP health.
+  Reports never include widget/media text. Thirteen harness tests pass,
+  including healthy/unavailable/deferred PC and recovering/starved widgets;
+  focused tests also verify criteria metadata and privacy. Actual native
+  streaming-helper tests pass manual preemption, deadlines and bounds.
+- **Validation:** initial session/cancellation fixes alone still failed 49/57
+  PC samples. Extending the handshake deadline restored availability, but an
+  intermediate soak still had 89 admission warnings. Final fair-queue build:
+  **300 seconds, 55/55 PC snapshots available, zero observed deferred widgets,
+  zero errors and zero reboots**. Remaining 22 warnings were PC lock waits
+  while another admitted request completed; none were widget admission waits.
+  No monitored PC request failure, saved-session error, watchdog or panic was
+  captured during that run. Separate pinned checks verified actual weather,
+  stock, crypto and GitHub output formats, not merely HTTP status or absence
+  of an error label. A GET-only PC diagnostic completed with HTTP 200 in
+  5,248 ms, verified through diagnostic event type 7, not `lastAction`.
+- **Resources/performance:** no persistent heap allocations or font-cache
+  budgets were added. Soak minima: internal 39,711 bytes, largest block 24,576,
+  PSRAM 3,317,296. Sampled media requests took 1,927-4,339 ms (2,508 ms mean);
+  source heartbeat age stayed at or below 266 ms. Fresh TLS is reliable but
+  the 500 ms polling target is not a guaranteed update deadline. No physical
+  song-to-screen or tap-to-action deadline is claimed.
+- **Delivery:** production reconfigure/build and identity-verified app-only
+  installation passed with render diagnostics OFF. Image **2,316,192 bytes**,
+  **44.78% app slot free**; SHA is in the [storage ledger](storage-layout.md).
+  All 68 font variants, 18 tiles/two pages, editor and browser-font hashes
+  were verified. Configuration, authentication, logical HomeKit pairing and
+  SD resources were preserved. The Companion required no reinstall/re-pair.
+- **Publication scope:** the changed monitor/admission integration is part
+  of the earlier uncommitted application backlog and is absent from the
+  committed foundation. Do not blanket-stage it or publish the installed
+  binary as matching the scoped test/documentation commit. A narrow
+  `GooPad-PC-reliability.patch` reverse-checks cleanly against the installed
+  source, preserving the repair independently of unrelated work. Patch and
+  sanitized final-soak publication is pending; a reproducible firmware
+  release remains blocked on review/integration of that backlog.
+- **Remaining:** reconcile the application backlog before a complete firmware
+  release, and investigate SDK-safe session reuse before promising subsecond
+  media updates. The previous font-repair resource prerelease remains valid.
+
 ## 2026-11-25 - Repairing garbled fonts, boot loading and swipe stalls
 
 - **Request:** fix garbled text, the missing loading screen and slow page/menu

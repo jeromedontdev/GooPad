@@ -21,9 +21,37 @@ cca8dceb46a23605a490e75027f0d2af52d372dad5004226b30b27806a0c60e1
 KiB means 1,024 bytes; MiB means 1,048,576 bytes. All percentages below use the
 4,194,304-byte app slot, not the whole flash chip.
 
-## Current repaired SD-backed editor and styled-font build
+## Current Companion-reliability build
 
-The installed production-config development image is **2,315,712 bytes**:
+The installed production-config development image is **2,316,192 bytes**,
+leaving **1,878,112 bytes / 44.78% free** in its unchanged 4 MiB app slot.
+It is **480 bytes larger** than the preceding font-repair image. SHA-256:
+
+```text
+b2c814a7f207e8639955353e2fb7648b2bab83b7cf936ff982b7bdd6a6d1e89f
+```
+
+The change is in Companion/background scheduling, clock gating, TLS client
+configuration and numeric failure diagnostics, not resource sizes or glyph
+cache budgets. The monitor no longer saves TLS sessions on the SDK 6.1
+asynchronous path. Its request budget is 8 seconds, while the 500 ms polling
+target, short socket waits and manual-action preemption remain.
+Admitted widgets are no longer repeatedly cancelled by pending media polls.
+An eligible widget queues behind the active request with a bounded 10-second
+admission wait instead of racing each subsequent media poll.
+No new target heap allocation was added. Configuration, authentication,
+logical HomeKit pairing and SD resources were verified preserved by app-only
+installation. Automatic render diagnostics remain OFF.
+
+The object-attribution table and font performance/soak figures below describe
+the preceding **font-repair** image, not new Companion reliability results.
+See the [change log](change-log.md) for connection validation and publication
+scope. The installed image still includes earlier uncommitted integration;
+it must not be published as a binary reproduced from a scoped source commit.
+
+## Previous repaired SD-backed editor and styled-font build
+
+The preceding production-config development image was **2,315,712 bytes**:
 **1,878,592 bytes / 1.79 MiB / 44.79% free** in the unchanged 4 MiB slot.
 It retains **407,584 bytes / 398.03 KiB** of the SD offloading savings versus
 the preceding multilingual build. SHA-256:

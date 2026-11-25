@@ -173,14 +173,42 @@ up to 320 UTF-8 bytes per field without the former 26-byte truncation.
 `mediaRevision`, `mediaPollMs` and `mediaSourceAgeMs` distinguish updates,
 request duration and source heartbeat age. They are not physical glass latency.
 
-The monitor retains a certificate-bound HTTP client and TLS session ticket,
-but closes its socket/TLS connection after each request, releasing shared
+The monitor retains a certificate-bound HTTP client, but deliberately does
+not save/reapply TLS session tickets on its asynchronous connection path.
+ESP-IDF 6.1 reapplies the saved session on successive handshake steps;
+Mbed TLS rejects the second application with `SSL_FEATURE_UNAVAILABLE`
+(`-0x7080`), causing repeated "PC unavailable" failures. Each request uses a
+fresh handshake and closes its socket/TLS connection afterward, releasing shared
 network resources. URL, token or certificate changes discard that client;
 credentials/certificates are owned in PSRAM rather than borrowed from deleted
-configuration JSON. SDKs without session-ticket support keep the same safe
-connection lifecycle without resumption.
+configuration JSON. Synchronous Companion actions retain their existing session
+behavior. Certificate and token verification are unchanged.
 
-After installation, 17 nonzero samples in the five-minute soak measured
+Now-playing wins the initial admission check over background widgets, but an
+eligible widget joins the network queue with a bounded 10-second wait and
+keeps its turn behind the current request. It no longer races each media poll
+on one-second retries. Media cannot interrupt an admitted widget: a 500 ms
+poll must not keep restarting a longer TLS handshake. Manual actions and
+diagnostics can still preempt that widget within its existing bounded request deadline. Fresh TLS
+and an admitted widget can make media polling slower than the 500 ms target;
+that cadence is not a guaranteed song-to-display deadline.
+The monitor's total request budget is 8 seconds, not the 1.5-second media
+budget that repeatedly cancelled observed 2-4-second fresh handshakes.
+Socket waits remain short and manual preemption checks remain enabled.
+Before the device clock is valid, PC/media widgets explicitly show
+"Waiting for time" and do not attempt certificate verification with an
+unsynchronized clock. Failures log numeric TLS flags and elapsed time,
+without pairing credentials or media text.
+
+For paired-device verification, run the authenticated, certificate-pinned
+[soak harness](../tests/Test-GooPadSoak.ps1) with `-RequireCompanion` after
+startup finishes. It fails if PC monitoring is unavailable/deferred.
+Add `-MaxWidgetDeferralSeconds 15` to fail a widget that remains continuously
+deferred longer than 15 seconds (zero/default disables this optional check).
+Reports contain only availability, deferred-widget counts and deferral
+duration, never media or widget text.
+
+Before the connection repair, 17 nonzero samples in the five-minute soak measured
 **111-293 ms requests (225 ms mean)**, compared with the previous observed
 1,230 ms request. Source heartbeat age was 15-250 ms (132 ms mean).
 An additional post-soak request took 516 ms: 500 ms is a target cadence,

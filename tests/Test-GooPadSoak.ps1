@@ -5,7 +5,9 @@ param(
     [ValidateRange(1, 604800)][int]$DurationSeconds = 300,
     [ValidateRange(1, 3600)][int]$IntervalSeconds = 15,
     [ValidateRange(1, 120)][int]$RequestTimeoutSeconds = 10,
-    [string]$ReportPath
+    [string]$ReportPath,
+    [switch]$RequireCompanion,
+    [ValidateRange(0, 3600)][int]$MaxWidgetDeferralSeconds = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -53,6 +55,7 @@ $samples = 0; $errors = 0; $warnings = 0; $reboots = 0
 $minInternal = $null; $minLargest = $null; $minPsram = $null
 $firstInternal = $null; $lastInternal = $null; $firstPsram = $null; $lastPsram = $null
 $previousUptime = $null; $previousEvents = $null; $initialSd = $null
+$widgetDeferredSince = @{}
 
 function Write-Record([hashtable]$Record) {
     $Record.elapsedSeconds = [math]::Round($clock.Elapsed.TotalSeconds, 3)
@@ -110,7 +113,8 @@ try {
     }
     $client = [GooPadSoakTransport]::new($pin, $Credential.UserName, $Credential.GetNetworkCredential().Password, $RequestTimeoutSeconds)
     Write-Host "Monitoring GooPad for $DurationSeconds seconds at $IntervalSeconds-second intervals. GET requests only."
-    Write-Record @{type='start'; durationSeconds=$DurationSeconds; intervalSeconds=$IntervalSeconds}
+    Write-Record @{type='start'; durationSeconds=$DurationSeconds; intervalSeconds=$IntervalSeconds;
+        requireCompanion=[bool]$RequireCompanion; maxWidgetDeferralSeconds=$MaxWidgetDeferralSeconds}
     do {
         $poll = [Diagnostics.Stopwatch]::StartNew()
         $status = Read-Endpoint '/api/status'
@@ -125,6 +129,10 @@ try {
                 Report-Problem 'error' 'diagnostics-schema' 'Diagnostics fields are missing or invalid'
             } else {
                 $samples++
+                $companionAvailable = $status.pcMonitor -is [string] -and $status.pcMonitor.StartsWith('CPU ')
+                if ($RequireCompanion -and !$companionAvailable) {
+                    Report-Problem 'error' 'companion-unavailable' 'PC monitoring has no valid snapshot'
+                }
                 if (!$status.connected) { Report-Problem 'warning' 'wifi' 'Device reports disconnected' }
                 if ($null -eq $initialSd) { $initialSd = $status.sd }
                 elseif ($initialSd -and !$status.sd) { Report-Problem 'warning' 'sd' 'Previously mounted SD card is unavailable' }
@@ -209,6 +217,25 @@ try {
                     internalLargest=$diag.internalLargest; psramFree=$diag.psramFree; latencyMs=[math]::Round($poll.Elapsed.TotalMilliseconds);
                     statusLatencyMs=[math]::Round($statusLatency); diagnosticsLatencyMs=[math]::Round($diagnosticsLatency);
                     connected=$status.connected; sd=$status.sd}
+                if ($status.ContainsKey('pcMonitor')) {
+                    $sample.companionAvailable = $companionAvailable
+                }
+                if ($status.liveWidgets -is [array]) {
+                    $sample.deferredWidgetCount = @($status.liveWidgets | Where-Object { $_ -ceq 'Update deferred' }).Count
+                    $longestDeferral = 0.0
+                    for ($i = 0; $i -lt $status.liveWidgets.Count; $i++) {
+                        if ($status.liveWidgets[$i] -ceq 'Update deferred') {
+                            if (!$widgetDeferredSince.ContainsKey($i)) { $widgetDeferredSince[$i] = $clock.Elapsed.TotalSeconds }
+                            $longestDeferral = [math]::Max($longestDeferral, $clock.Elapsed.TotalSeconds - $widgetDeferredSince[$i])
+                        } else { $widgetDeferredSince.Remove($i) }
+                    }
+                    $sample.longestWidgetDeferralSeconds = [math]::Round($longestDeferral, 3)
+                    if ($MaxWidgetDeferralSeconds -gt 0 -and $longestDeferral -gt $MaxWidgetDeferralSeconds) {
+                        Report-Problem 'error' 'widget-deferred' 'A live widget exceeded the allowed continuous deferral'
+                    }
+                } elseif ($MaxWidgetDeferralSeconds -gt 0) {
+                    Report-Problem 'error' 'widget-schema' 'Live widget status is required for deferral checks'
+                }
                 if ($validUnicode) {
                     $sample.unicodeAvailable = $unicode.available
                     $sample.unicodeBitmapCacheBytes = $unicode.bitmapCacheBytes

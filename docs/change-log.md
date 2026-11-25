@@ -72,6 +72,11 @@ released merely because it was installed.
   actual capture regression still depend on the earlier dirty application
   backlog. Do not blanket-stage that backlog or publish the installed binary
   as if it were reproduced from the scoped commit.
+  Foundation commit `3bbe4c3512d33b1d7bedf570092eec8bd60f1fdb` is pushed.
+  Corrected licensed resources and sanitized final soak evidence are published
+  in [v0.7.3-assets1](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.3-assets1),
+  a resources/source-only prerelease with no firmware binary. The stable
+  `v0.7.2` release remains unchanged.
 - **Remaining:** reconcile the earlier application integration before a
   source-matched firmware release. The five-minute observation is not a
   universal UI/network latency or long-term leak certification.

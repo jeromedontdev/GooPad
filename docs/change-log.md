@@ -45,6 +45,10 @@ released merely because it was installed.
   including healthy/unavailable/deferred PC and recovering/starved widgets;
   focused tests also verify criteria metadata and privacy. Actual native
   streaming-helper tests pass manual preemption, deadlines and bounds.
+  The published hardware report retains its original start header, emitted
+  before criteria metadata was added; availability/deferral sample fields
+  are present. Current header output was separately regression-tested, not
+  retroactively inserted into the hardware report.
 - **Validation:** initial session/cancellation fixes alone still failed 49/57
   PC samples. Extending the handshake deadline restored availability, but an
   intermediate soak still had 89 admission warnings. Final fair-queue build:
@@ -73,9 +77,16 @@ released merely because it was installed.
   committed foundation. Do not blanket-stage it or publish the installed
   binary as matching the scoped test/documentation commit. A narrow
   `GooPad-PC-reliability.patch` reverse-checks cleanly against the installed
-  source, preserving the repair independently of unrelated work. Patch and
-  sanitized final-soak publication is pending; a reproducible firmware
-  release remains blocked on review/integration of that backlog.
+  source, preserving the repair independently of unrelated work. Scoped
+  regression/documentation commit
+  `bc5508ff9ea84d5310eeee7557890feffecd9e9d` is pushed. The repair patch and
+  sanitized final soak are published in
+  [v0.7.3-pcfix1](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.3-pcfix1),
+  an integration-patch/report-only prerelease. Both asset SHA-256 digests and
+  the tag target were verified; stable `v0.7.2` remains unchanged.
+  There is no firmware binary in that release, and its tagged source alone
+  does not reproduce the installed image. A reproducible firmware release
+  remains blocked on review/integration of the earlier application backlog.
 - **Remaining:** reconcile the application backlog before a complete firmware
   release, and investigate SDK-safe session reuse before promising subsecond
   media updates. The previous font-repair resource prerelease remains valid.

@@ -250,13 +250,30 @@ static void lvgl_flush_wait_cb(lv_display_t *disp)
     /* In direct mode LVGL reuses the frame buffer it just handed to the
      * panel, so it must wait until the panel has switched away from it. */
     if (lv_display_flush_is_last(disp)) {
+#ifdef GOOPAD_RENDER_DIAGNOSTIC
+        int64_t start = esp_timer_get_time();
+#endif
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+#ifdef GOOPAD_RENDER_DIAGNOSTIC
+        int64_t flush_wait_us = esp_timer_get_time() - start;
+        if (flush_wait_us > 100000)
+            ESP_LOGI(TAG, "RENDER_DIAG flush_wait_us=%lld", (long long)flush_wait_us);
+#endif
     }
     lv_display_flush_ready(disp);
 }
 
 static void lvgl_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
+#ifdef GOOPAD_RENDER_DIAGNOSTIC
+    int64_t start = esp_timer_get_time();
+#endif
+    goopad_ui_capture_frame(px_map, area, lv_display_flush_is_last(disp));
+#ifdef GOOPAD_RENDER_DIAGNOSTIC
+    int64_t capture_us = esp_timer_get_time() - start;
+    if (capture_us > 100000)
+        ESP_LOGI(TAG, "RENDER_DIAG capture_us=%lld", (long long)capture_us);
+#endif
     if (!lv_display_flush_is_last(disp)) {
         lv_display_flush_ready(disp);
         return;
@@ -280,8 +297,22 @@ static void lvgl_task(void *arg)
     uint32_t last_report = 0;
     while (1) {
         uint32_t wait_ms;
+#ifdef GOOPAD_RENDER_DIAGNOSTIC
+        int64_t lock_start = esp_timer_get_time();
+#endif
         if (xSemaphoreTake(s_lvgl_mutex, portMAX_DELAY) == pdTRUE) {
+#ifdef GOOPAD_RENDER_DIAGNOSTIC
+            int64_t handler_start = esp_timer_get_time();
+#endif
             wait_ms = lv_timer_handler();
+#ifdef GOOPAD_RENDER_DIAGNOSTIC
+            int64_t handler_us = esp_timer_get_time() - handler_start;
+            if (handler_us > 100000 || wait_ms > 100 ||
+                handler_start - lock_start > 100000)
+                ESP_LOGI(TAG, "RENDER_DIAG handler_us=%lld lock_us=%lld wait_ms=%lu anims=%lu",
+                         (long long)handler_us, (long long)(handler_start - lock_start),
+                         (unsigned long)wait_ms, (unsigned long)lv_anim_count_running());
+#endif
             xSemaphoreGive(s_lvgl_mutex);
         } else {
             wait_ms = 10;

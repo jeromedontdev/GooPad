@@ -18,6 +18,32 @@ Never include credentials, private keys, pairing codes, raw user configuration,
 serial captures or flash dumps. Do not claim historical work was committed or
 released merely because it was installed.
 
+## 2026-11-25 - Preparing the complete 0.7.3 release
+
+- **Request:** commit and publish a complete release, not another patch-only
+  prerelease.
+- **Changes:** reconcile the accumulated editor, configuration storage/dedup,
+  shared Companion settings, board portability, diagnostics, widgets, SD
+  resources, multilingual fonts and rendering integration. Set firmware and
+  Companion versions to 0.7.3 and retain the resolved dependency lockfile.
+  Packaging uses the selected build's resolved flash settings and verifies its
+  project/version instead of silently reading a different local configuration.
+- **Compatibility:** configured devices must receive only the application OTA
+  image. Retain configuration, TLS identity, HomeKit pairing and immutable SD
+  resources. Fresh-build validation and a new 300-second functional soak are
+  required before publication.
+- **Delivery:** source integration and clean-build inputs are being committed;
+  final artifact hashes, hardware results and publication verification will
+  be recorded separately after validation. Historical patch-only release
+  warnings below remain accurate for those earlier tags.
+- **Pre-build validation:** 62 Python/native-helper tests, native configuration,
+  shared Companion, network and market/layout suites, GIF/media gesture checks,
+  516,470 multilingual records, actual LVGL/font-loader parity and 4,891 editor
+  checks across 2,520 layouts passed. The editor runner isolates periodic
+  preview intervals from mocked requests; real polling remains a hardware
+  soak requirement. The packager regression covers external build settings,
+  byte-identical OTA copying and rejection of missing/mismatched metadata.
+
 ## 2026-11-25 - Repairing PC availability and deferred widgets
 
 - **Request:** fix "PC unavailable" with the Companion running and widgets

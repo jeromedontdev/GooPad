@@ -5,6 +5,10 @@ all hardware, firmware versions, or HomeKit controllers have been tested. Start
 with the [developer guide](development.md) for safe builds and troubleshooting
 and the [API and data guide](api.md) for wire formats. The [README](../README.md)
 is the end-user guide.
+For optimization constraints and baseline measurements, see the
+[CPU and memory map](cpu-memory-map.md).
+The [board porting guide](boards.md) describes the selectable hardware backend,
+display-derived grid limits and unverified Waveshare targets.
 
 ## System at a glance
 
@@ -33,21 +37,24 @@ service running on the ESP32.
 | --- | --- | --- |
 | Startup | [`main/main.c`](../main/main.c) | NVS, board, display, touch, SD, Wi-Fi, audio, services and UI initialization; OTA validation. |
 | Firmware service | [`main/goopad.c`](../main/goopad.c) | Configuration validation/persistence, Wi-Fi events, HTTPS handlers, action dispatch, OTA, status and widget workers. |
+| Background network reads | [`main/goopad_network.c`](../main/goopad_network.c) | Bounded streaming HTTPS requests that yield to manual actions. |
 | Touch UI | [`main/goopad_ui.c`](../main/goopad_ui.c) | Setup, keyboard, tile layout, swipe and info menu, LVGL widget rendering, action callbacks. |
 | Shared interface | [`main/app.h`](../main/app.h) | Driver interfaces, application state, UI/service functions and widget interfaces. It still includes scaffolding-era declarations; inclusion is not proof a module is built. |
 | Hardware | [`main/board.h`](../main/board.h), `board.c`, `hw_display.c`, `hw_touch.c`, `hw_wifi.c`, `hw_sdcard.c`, `hw_audio.c`, `hw_gpio.c` in [`main/`](../main/) | Pin map, power caps, panel and touch, networking, SD and audio. The authoritative build list is [`main/CMakeLists.txt`](../main/CMakeLists.txt). |
 | TLS | [`main/goopad_tls.c`](../main/goopad_tls.c) | Device HTTPS identity creation and NVS persistence. |
 | Updates | [`main/goopad_update.c`](../main/goopad_update.c) | GitHub release check and verified app-only download to the inactive OTA slot. |
 | HomeKit | [`main/goopad_homekit.c`](../main/goopad_homekit.c), [`goopad_homekit_storage.c`](../main/goopad_homekit_storage.c), [`goopad_homekit_credentials.c`](../main/goopad_homekit_credentials.c) | Bridge and switch adapter, separate NVS block device, persistent setup ID and pairing codes. |
-| Web editor | [`main/index.html`](../main/index.html) | Embedded HTML/CSS/JavaScript, configuration draft, editor preview, asset conversion and API client; there is no separate frontend build. |
+| Web editor | [`main/index.html`](../main/index.html), [`main/goopad_web.c`](../main/goopad_web.c), [`tools/make_web_resources.py`](../tools/make_web_resources.py) | HTML/CSS/JavaScript, configuration draft and API client. Configuration builds a pinned SD archive; fixed-size reads stream gzip/plain editor and browser fonts. [`main/recovery.html`](../main/recovery.html) stays embedded for missing-card recovery. |
 | PC receiver | [`companion/GooPadCompanion.py`](../companion/GooPadCompanion.py), [`windows_startup.py`](../companion/windows_startup.py) | HTTPS/token checks, desktop input, local permissions, sensor caching, GUI/tray and per-user startup. |
 | Companion updates | [`companion/companion_update.py`](../companion/companion_update.py), [`tools/companion_installer.iss`](../tools/companion_installer.iss) | Verified release metadata and installer download, per-user installation and update handoff. Configuration and TLS identity stay outside the application directory. |
 | Tests | [`tests/`](../tests/) | Browser regression, Companion unit/integration tests and opt-in physical-device checks. |
 | Build and assets | [`CMakeLists.txt`](../CMakeLists.txt), [`main/CMakeLists.txt`](../main/CMakeLists.txt), [`sdkconfig.defaults`](../sdkconfig.defaults), [`partitions.csv`](../partitions.csv), [`tools/`](../tools/) | ESP-IDF component assembly, flash layout, release/Companion packaging, Font Awesome catalog generation. |
 | Third party | [`third_party/`](../third_party/) | Font Awesome and vendored HomeKit SDK. Keep their attribution and license notices when distributing. |
 
-`main/fa-icons.json` is the bundled icon catalog. `fa-index.json.gz` is generated
-by CMake and ignored by Git. `build/`, `managed_components/`, `sdkconfig`,
+`main/fa-icons.json` is the source icon catalog. CMake generates a compressed
+name index and individually compressed drawings embedded in the firmware.
+Search inflates only matching drawings, using temporary PSRAM. `fa-index.json.gz`
+is ignored by Git. `build/`, `managed_components/`, `sdkconfig`,
 `dependencies.lock` and `dist/` are local/generated; do not assume a copied
 build directory matches the current source, SDK or configuration.
 
@@ -66,15 +73,18 @@ build directory matches the current source, SDK or configuration.
    configured limit. HTTPS embeds the editor and icon catalogs in the binary.
 4. The editor loads `/api/config` and `/api/status`, sets time, and loads asset
    previews. Save calls `prepareMacroAction()`, prepares/upgrades derived icons,
+   looks up matching SD assets by content hash before uploading new ones,
    removes browser-only preview data, and posts the full document.
 5. `config_post_handler()` bounds and validates the input, compares HomeKit
    topology, commits the config to NVS, then replaces the locked RAM copy.
    HomeKit membership/name changes schedule a restart; reordering does not.
 6. The LVGL refresh timer compares the current config with the rendered snapshot.
-   A change rebuilds the grid; widget and switch snapshots update between
-   rebuilds. Compact layouts maintain a map back to original macro indices.
+   A change rebuilds the grid and restores the nearest page, clamped to the new
+   page count. A reboot starts on page one. Compact layouts maintain a map back
+   to original macro indices. GIF decoding and widget/switch updates pause
+   while pages scroll and refresh at scroll end.
 7. An actionable tile calls `goopad_trigger()`. Sound and HomeKit have local
-   paths; HTTP actions copy their input into a worker-owned structure and run
+   paths; HTTP and Wake-on-LAN actions copy their input into a worker-owned structure and run
    asynchronously. `/api/status` exposes the last action result.
 
 The editor restores an SD backup by reading `/api/backup` and posting it
@@ -96,9 +106,9 @@ sync and retain compatibility with existing saved layouts.
 * LVGL is driven by the display task under its mutex. Objects and their
   descriptors are owned by the UI; other tasks publish state through service
   APIs/locked snapshots rather than manipulating LVGL objects.
-* `s_config_lock` protects the JSON RAM copy. HTTP actions copy values before
+* `s_config_lock` protects the JSON RAM copy. HTTP and Wake-on-LAN actions copy values before
   releasing it; network work runs in separate tasks. `s_action_lock` protects
-  action counters/results and allows at most two outbound HTTP macro workers.
+  action counters/results and the foreground-waiter count.
 * PC and live-widget workers maintain cached snapshots under critical sections;
   the HTTP server and LVGL read those snapshots. Companion sensor collection
   similarly refreshes in a background thread. Avoid blocking a server handler
@@ -111,6 +121,40 @@ sync and retain compatibility with existing saved layouts.
   buffers use PSRAM. RGB scanout uses double frame buffers and internal DMA
   bounce buffers; the display code coordinates frame handoff with VSYNC.
   Allocation failures and socket limits are real design constraints.
+* For solid backgrounds, the display flush updates up to three PSRAM page
+  images from already-rendered, settled frames. During a swipe, valid cached
+  pages replace their live object trees; uncached or invalid pages continue
+  rendering live. Widget and HomeKit changes invalidate their page, and GIFs
+  pause during movement. The stationary custom image background always uses
+  live rendering. Cache entries are discarded on grid rebuild; no snapshots or
+  SD reads are performed at gesture start.
+* LVGL allocation prefers PSRAM, including small draw tasks. A logged fallback
+  to the normal allocator remains available if PSRAM is exhausted; internal
+  DMA, radio and RTOS allocations still require their own headroom.
+* Macro HTTP, Companion checks/monitoring and live-widget HTTP requests share
+  an outbound mutex and check internal heap before starting. Pending manual
+  actions and Companion checks take priority: background HTTPS polls use short
+  streaming socket waits and abandon their client when foreground work is
+  pending, then retry. DNS resolution and an already-running foreground request
+  cannot be preempted. PC monitoring retains the last valid snapshot for at
+  most 15 seconds during deferral or timeout and retries after one second; it
+  otherwise waits two seconds between polls. This does not reserve RAM against other
+  tasks or serialize the firmware updater.
+  The live-widget worker waits 500 ms after processing a due tile, one second
+  during a priority deferral or while awaiting Wi-Fi/time, and five seconds
+  when idle. A widget blocked on startup becomes due as soon as both Wi-Fi
+  and time are ready; previously fetched widgets keep their provider intervals.
+  Requests remain serialized and manual actions retain priority.
+  Button actions are handled in order by one worker with a bounded queue of
+  four waiting actions; a full queue is reported rather than silently dropping
+  an action. For repeated requests to the same pinned Companion URL and
+  certificate, that worker can reuse a TLS session; it closes sockets between
+  requests and discards the cache after ten seconds of worker inactivity, on
+  error, or when another pinned endpoint or certificate is used. JSON trees
+  use PSRAM to preserve internal radio and DMA memory.
+* The shareable diagnostic report is an allowlist of numeric events and memory
+  metrics, not a filtered copy of SDK logs. Its bounded RTC-memory ring survives
+  some resets, but not loss of power; raw serial messages may contain private data.
 
 Task names, stack sizes, pinning and actual lock usage are defined in the
 source, not a general scheduling guarantee. Before adding a worker, identify
@@ -145,17 +189,31 @@ reported user pairing/switch test remains limited.
 
 | Location | Contents | Important invariant |
 | --- | --- | --- |
-| NVS `goopad` namespace | JSON config, Wi-Fi credentials, admin credentials, HTTPS certificate/key, brightness and volume. | No automatic erase on init failure. A 12,000-byte request limit does not guarantee a 12,000-byte blob fits in the 24 KiB NVS partition. |
-| `storage` partition tail | HomeKit ownership header (4 KiB) and separate NVS block device (64 KiB). | Claimed only if initially erased; other bytes in this partition must remain erased. Do not mount/format it as SPIFFS, including on downgrade. |
+| NVS `goopad` namespace | Legacy JSON config, migration marker, Wi-Fi credentials, admin credentials, HTTPS certificate/key, brightness and volume. | No automatic erase on init failure; the legacy config is retained for older firmware. |
+| `storage` partition tail | Ownership header (4 KiB) and separate NVS block device (64 KiB) for configuration and HomeKit. | Claimed only if initially erased; other bytes in this partition must remain erased. Do not mount/format it as SPIFFS, including on downgrade. |
 | SD `/goopad/` | Icons, backgrounds, GIFs and uploaded audio. | The JSON refers to keys; assets are separate from configuration. |
 | SD `/goopad-config.json` | Explicit config-only backup. | Contains secrets from config but not SD assets, Wi-Fi credentials, device TLS key, or HomeKit pairing. Protect it. |
 | PC `%LOCALAPPDATA%\GooPad` | Companion config/token, TLS certificate/private key, log and optional startup executable copy. | Keep an existing certificate and key together; do not silently regenerate one half. |
 | OTA app slots | Two 4 MiB app slots and OTA selector metadata. | A normal OTA updates the inactive slot. Full/merged flashes may overwrite boot metadata or the working app. |
 
+On the first successful save, the config is committed to the larger store
+before its migration marker is written to the original NVS. Later saves use
+the larger store, retaining the original config for older firmware. Older
+firmware will see that older snapshot, not subsequent edits; if it edits the
+legacy config, newer firmware detects the change and loads the edited legacy
+version. Back up the current config before rolling back.
+
+The editor stores a shared Companion address and token once at the root and
+uses `sharedPc` with an endpoint path for compatible PC tiles. The firmware
+resolves these only for the corresponding PC action or widget and checks the
+paired certificate. Legacy per-tile values remain readable; firmware without
+`sharedPc` support cannot run the compacted PC tiles after rollback.
+
 The claim record uses flash-safe `CLAIMED` and `READY` states plus a marker in
-HomeKit NVS. A malformed header, nonblank unrelated partition data or a
+the separate NVS. A malformed header, nonblank unrelated partition data or a
 missing/mismatched ready marker fails closed. Never recover by erasing storage
-without an explicit, informed decision: pairing keys may be irreplaceable.
+without an explicit, informed decision: configuration and pairing keys may
+be irreplaceable.
 
 Neither device NVS nor HomeKit data is encrypted at rest in the documented
 development build. Flash encryption/secure boot are not enabled automatically.

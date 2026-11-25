@@ -35,10 +35,17 @@ and PSRAM settings rather than assuming an old build includes HomeKit.
 For the updater's PSRAM-backed TLS, also confirm
 `CONFIG_MBEDTLS_HARDWARE_AES` is disabled in the active configuration; existing
 `sdkconfig` files do not automatically inherit changed defaults.
+For the responsive-network build, also select
+`CONFIG_MBEDTLS_COMPILER_OPTIMIZATION_PERF` and
+`CONFIG_MBEDTLS_ECP_FIXED_POINT_OPTIM`; these increase app size. Enable
+`CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS` for repeated Companion action reuse.
+For the PSRAM-first LVGL allocator, select `CONFIG_LV_USE_CUSTOM_MALLOC`;
+existing configurations may still select the C library allocator instead.
+Select `CONFIG_LV_USE_FONT_COMPRESSED` for the bundled compressed fonts.
 `idf.py set-target` can reset configuration; do not run it casually against an
 existing configured workspace. Keep the SDK and the build's `SDKCONFIG`
-consistent. `main/CMakeLists.txt` embeds the editor and generates the compressed
-Font Awesome index at configure time.
+consistent. `main/CMakeLists.txt` generates the compressed editor and Font
+Awesome index and compressed catalog at configure time.
 
 The manifest declares IDF >=5.3, but HomeKit is gated on 6.1/NVS block-device
 support and older-IDF combinations have not been comprehensively verified.
@@ -56,7 +63,9 @@ partition layout, image, and recovery path are known before updating.
 The partition table is [`partitions.csv`](../partitions.csv): NVS at `0x9000`
 (24 KiB), OTA metadata at `0x10000`, `ota_0` at `0x20000`, `ota_1` at
 `0x420000`, and `storage` at `0x820000`. The `storage` tail may contain the
-only copy of HomeKit pairing keys. Do not erase NVS or format `storage`, and
+current configuration and the only copy of HomeKit pairing keys. Older firmware
+reads the retained pre-migration configuration rather than newer edits; back up
+the current configuration before rolling back. Do not erase NVS or format `storage`, and
 do not use a full-flash command on an existing device as a shortcut. `idf.py
 flash` and a merged image can write bootloader, partition table, OTA selector
 and an app slot; they are not equivalent to a safe app-only update.
@@ -78,9 +87,13 @@ first-flash image and an app-only OTA binary:
 ```
 
 The script's `-Port` option writes the merged image at flash offset 0. It is
-not the normal update procedure. It reads flash parameters from the root
-`sdkconfig`; ensure that file matches the build being packaged, especially
-when the build uses a different `SDKCONFIG`. Review version, image contents,
+not the normal update procedure. It reads resolved flash parameters from the
+selected build's `flasher_args.json` and rejects a different project/version;
+the workspace's local `sdkconfig` is not used for packaging. Commit
+`dependencies.lock` and build releases from a clean checkout with a fresh
+configuration seeded by `sdkconfig.defaults`. Record the source commit, SDK
+revision, tool versions and production diagnostic flags with the artifacts.
+Review version, image contents,
 licenses, release assets and signing/security expectations before distribution.
 [`tools/make_companion.ps1`](../tools/make_companion.ps1) packages the Windows
 Companion ZIP and the per-user Inno Setup installer; see the README for its
@@ -97,6 +110,33 @@ The installer is not code-signed, and release digests are not signatures.
 Run the smallest relevant tests first, then hardware validation when behavior
 depends on the board:
 
+* **Release packaging:** `.\tests\Test-ReleasePackaging.ps1` uses isolated fake
+  build artifacts and a mocked esptool; it never flashes a device.
+* **Configuration migration:** with Zig:
+
+  ```powershell
+  zig cc -Wall -Wextra -Werror -I tests\config_stubs -I main main\goopad_config_storage.c tests\test_config_storage.c -o build\test_config_storage.exe
+  .\build\test_config_storage.exe
+  ```
+
+  These tests use mock NVS; they do not prove flash behavior on a device.
+* **Network priority:** with an existing C compiler, for example Zig:
+
+  ```powershell
+  zig cc -Wall -Wextra -Werror -I tests\network_stubs -I main main\goopad_network.c tests\test_network.c -o build\test_network.exe
+  .\build\test_network.exe
+  ```
+
+  These host tests simulate streaming, preemption, timeouts and redirects;
+  they do not exercise ESP-IDF's network stack or physical input.
+* **Stock errors and widget image placement:**
+
+  ```powershell
+  zig cc -Wall -Wextra -Werror -I main -I managed_components\espressif__cjson\cJSON main\goopad_market.c main\goopad_alerts.c managed_components\espressif__cjson\cJSON\cJSON.c tests\test_market_layout.c -o build\test_market_layout.exe
+  .\build\test_market_layout.exe
+  ```
+
+  The provider-message checks use synthetic data, not saved API keys.
 * **Companion:** create an isolated venv, install
   [`companion/requirements.txt`](../companion/requirements.txt), then run:
 
@@ -111,7 +151,22 @@ depends on the board:
   `tests/test_editor.js` as a classic script and run
   `await runGooPadEditorTests()` in the browser console. The suite uses
   synthetic layouts and mocked saves and refuses a live device URL. It covers
-  UI/config behavior, not the ESP32 renderer or network stack.
+  UI/config behavior, not the ESP32 renderer or network stack. In an automated
+  runner, disable the `updateWidgetPreview` and `refreshMonitorPreview`
+  background intervals before loading the page so periodic requests do not
+  race the suite's fetch mocks. Leave gesture/debounce timeouts enabled.
+  Run `node tests/test_gif_normalization.js` with Zig installed to compare
+  the editor's GIF normalization against the compiled firmware routine.
+  Run `zig cc -Wall -Wextra -Werror -I main -I managed_components\espressif__cjson\cJSON main\goopad_companion.c managed_components\espressif__cjson\cJSON\cJSON.c tests\test_companion_config.c -o build\test_companion_config.exe`
+  and then `.\build\test_companion_config.exe` to test shared PC pairing
+  resolution and now-playing request construction, including invalid references.
+  Run `node tests/test_media_gestures.js` with Zig installed to compile the
+  actual LVGL media callback against event/action mocks and check tap, hold,
+  release suppression, cancelled presses and explicit action-error logging.
+  It does not prove physical touch or Windows player behavior.
+  Wake-on-LAN validation should also be checked on the device; a controlled UDP
+  receiver on the same subnet can verify the exact magic packet without waking
+  an actual computer. Packet transmission does not prove a target can wake.
 * **Device:** [`tests/Test-GooPadDevice.ps1`](../tests/Test-GooPadDevice.ps1)
   requires PowerShell 7, device HTTPS and credentials. `-NonMutating` avoids
   layout/power changes but still sends rejected validation requests. The
@@ -119,6 +174,117 @@ depends on the board:
   restore it; run only with permission and a backup, and do not run while
   someone else is editing. The script uses `-SkipCertificateCheck`, so it is
   a controlled-LAN diagnostic, **not** a TLS identity-verification test.
+  An isolated test build may define `GOOPAD_RENDER_DIAGNOSTIC` for the
+  firmware's two-page scroll, framebuffer, fallback and synthetic-touch checks.
+  It automatically scrolls the device and generates touch events; never enable
+  it in a production build. These checks do not replace physical touch tests.
+  For example, with a separate build directory and SDK config, pass
+  `-D CMAKE_C_FLAGS=-DGOOPAD_RENDER_DIAGNOSTIC` to `idf.py`. Check the serial
+  `RENDER_DIAG` results, and replace the test image with a normal build afterward.
+* **Read-only soak:** [`tests/Test-GooPadSoak.ps1`](../tests/Test-GooPadSoak.ps1)
+  polls authenticated HTTPS status and diagnostics for five minutes by default
+  after relevant changes, not every chat session. Request a longer duration
+  explicitly, or extend it when investigating resets, leaks or timing problems.
+  Supply a SHA-256 fingerprint of the device's **public certificate**, verified
+  through a trusted channel. For example, after exporting that certificate as
+  PEM and verifying it belongs to your device:
+
+  ```powershell
+  $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPemFile('C:\path\goopad-public-cert.pem')
+  $pin = $cert.GetCertHashString([System.Security.Cryptography.HashAlgorithmName]::SHA256)
+  $credential = Get-Credential -UserName admin -Message 'GooPad admin password'
+  .\tests\Test-GooPadSoak.ps1 -Device 'https://goopad.local' -Credential $credential -CertificateSha256 $pin -DurationSeconds 300 -ReportPath 'C:\Temp\goopad-soak.jsonl'
+  ```
+
+  The hostname/IP must match the certificate. The optional JSONL report is
+  created only if it does not already exist and is flushed after each record.
+  It contains numeric health metrics and error categories, not credentials,
+  configuration, SSIDs, URLs or widget text. A nonzero exit means an error was
+  observed; warnings include Wi-Fi disconnects and network deferrals. The
+  optional `-RequireCompanion` switch additionally fails a sample unless PC
+  monitoring has a valid CPU/RAM snapshot, catching "PC unavailable" and
+  "Update deferred" rather than treating a healthy HTTPS server as a working
+  Companion connection. Use it on a paired device after widgets finish startup.
+  Reports include only Companion availability and the number of deferred
+  widgets, never their text. It does not assert that a song is currently playing.
+  Add `-MaxWidgetDeferralSeconds 15` to fail on a widget continuously deferred
+  for more than 15 seconds; the default zero disables that optional limit.
+  The report records its duration without logging widget contents.
+  The first diagnostic ring is a baseline, so earlier events are not reported.
+  The device retains only 48 events without sequence IDs; events can be missed
+  between samples, especially identical events, and obvious gaps are reported.
+  This does not capture raw serial logs, continuously verify rendering or
+  exercise touch or actions. A short test validates setup, not long-term
+  stability. To test the harness using a synthetic local HTTPS server, run
+  `python -m unittest discover -s tests -p test_soak.py -v` in an environment
+  with the Companion's `cryptography` dependency and PowerShell 7.
+  Reports include separate status and diagnostics request latency, as well as
+  combined polling latency; these measure the client/network/HTTPS path, not
+  physical tap-to-action response time. Deferred-network events now identify
+  their source in `detail`: 1 macro, 2 manual PC diagnostic, 3 live widget,
+  4 PC monitor/now-playing. Result 263 means the shared network lock was busy;
+  result 257 indicates the internal-memory admission threshold was reached.
+  Older builds record detail 0, which cannot identify the requesting worker.
+
+## Other boards
+
+See the [board porting guide](boards.md) before targeting another ESP32.
+Never use a Guition pin map, partition layout or merged image on unverified
+Waveshare hardware. Screen/controller names alone do not establish compatibility.
+
+## Unicode fallback fonts
+
+The current development build uses compact compiled essential Latin/punctuation
+and a matching SD-backed Lato/Noto pack with 51,647 glyphs per size.
+Read [multilingual fonts/resources](unicode-fonts.md) for the format, licenses,
+offline behavior, installation and native cache/bitmap regression.
+Startup checks printable ASCII and representative multilingual mappings in
+all 68 font variants. This does not prove universal script shaping.
+
+Regenerate using an installed `lv_font_conv` 1.5.3 and Node:
+
+```powershell
+.\tools\make_multilingual_resources.ps1 -ConverterPath C:\font-tools\node_modules\lv_font_conv\lv_font_conv.js -NodePath C:\node\node.exe -CacheDir C:\font-cache -OutputDir C:\goopad-resources
+node tests\test_multilingual_pack.js C:\goopad-resources
+```
+
+Regeneration updates the firmware's filename/SHA manifest; build and install
+matching resources together, retaining the old filenames for recovery.
+Run production `reconfigure build` and check actual headroom before deployment;
+never expand/erase live partitions to force a font build to fit.
+The old full-Lato generator/test remain historical asset tooling.
+
+## SD editor and styled-font resources
+
+Production configuration generates the web archive and its compiled asset
+manifest from the editor and browser fonts. Gzip and identity HTTP clients
+receive their respective stored representation; neither loads the whole page
+into PSRAM. An embedded recovery page remains available without SD.
+
+```powershell
+python tools\make_web_resources.py main C:\goopad-resources main\goopad_web_manifest.h
+python -m unittest discover -s tests -p test_web_resources.py
+```
+
+The archive normalizes gzip timestamps/OS metadata for reproducible immutable
+filenames. Native tests execute the actual loader and HTTP handlers, including
+gzip/identity, missing/corrupt/truncated files, interrupted sends, 1 KiB chunks
+and recovery responses. Browser recovery tests must mock requests or run only
+on a local file page; never exercise uploads/actions against user fixtures.
+
+Styled-pack tooling parses the 60 generated font C inputs and preserves their
+pixels, metrics and kerning; those reference sources and licenses are required
+to reproduce the pack. Production compiles only essential fallbacks, not those
+styled C inputs. Run the focused native suite with the matching Unicode pack:
+
+```powershell
+.\tests\run_styled_native_tests.ps1 -ResourceDirectory C:\goopad-resources -NodeExe C:\node\node.exe -ZigExe C:\zig\zig.exe -UnicodePack C:\goopad-resources\text-371771469d5d.gfp
+```
+
+It covers original-source parity, actual glyph decoding, warm lookups, shared
+32 KiB LRU/pin lifetime and independent missing/corrupt-pack failures.
+Install the matching `web` and `styled` resources after app-only OTA, reboot
+for font initialization, and verify configuration/pairing plus PSRAM on-device.
 * **HomeKit:** separately check paired controller discovery, local and remote
   switch state/notifications, reconnect, reboot and topology changes with
   actual Apple Home hardware where available. Do not delete a user's pairing
@@ -176,6 +342,16 @@ a disposable pairing. Never assume a config backup restores HomeKit keys.
   irreversible eFuses without an explicit security/recovery plan.
 * Logs, SD backups, configuration snapshots, serial captures and test fixtures
   may contain secrets. Sanitize before sharing; do not commit real material.
+  The About page's diagnostic download is separately constructed from an
+  allowlist of numeric fields; use it instead of forwarding raw serial output.
+  USB serial commands at 115200 baud are `help`, `status`, `diag`,
+  `test pc [post]`, and `run <1-32>`; `run` performs the real saved action. `test pc`
+  queues a read-only `/status` request to the paired PC monitor through the
+  same worker as a macro; the `post` variant sends `{}` to that read-only path
+  and normally receives HTTP 404. Event 7 records its result and latency without
+  changing the saved configuration or last action. Only the `GOOPAD_DIAG`
+  JSON record is designed for sharing, not surrounding SDK/serial messages.
+  Physical serial access permits action execution and remains privileged.
 * If NVS initialization fails, inspect the serial error and preserve it. If
   HomeKit reports unavailable, inspect `/api/homekit`, switch config and storage
   logs first; a claimed/nonblank partition must not be blindly formatted.

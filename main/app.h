@@ -149,6 +149,7 @@ void ui_refresh(void);
 /* GooPad product UI and macro service. */
 void goopad_ui_boot(lv_display_t *disp);
 void goopad_ui_init(lv_display_t *disp);
+void goopad_ui_capture_frame(const uint8_t *frame, const lv_area_t *area, bool last);
 void goopad_init(void);
 void goopad_wifi_join(const char *ssid, const char *password);
 bool goopad_wifi_connected(void);
@@ -157,6 +158,7 @@ bool goopad_configured(void);
 void goopad_get_config(char *out, size_t capacity);
 esp_err_t goopad_install_ota_from_sd(void);
 esp_err_t goopad_trigger(unsigned index);
+esp_err_t goopad_media_skip(unsigned index);
 esp_err_t goopad_navigation_sound(unsigned index);
 const char *goopad_initial_password(void);
 esp_err_t goopad_set_controls(int brightness, int volume);
@@ -174,7 +176,12 @@ const goopad_widget_style_t *goopad_widget_style(const char *key);
 bool goopad_widget_graphic_valid(const char *graphic, const char *widget, const char *stat);
 bool goopad_pc_stat_value(unsigned index, double *out);
 void goopad_live_widget_text(unsigned index, char *out, size_t capacity);
+int goopad_weather_code(unsigned index);
 bool goopad_prepare_gif(uint8_t *data, size_t *size, size_t capacity);
+#ifdef GOOPAD_CAPACITY_TEST
+esp_err_t goopad_capacity_set(const char *kind, unsigned count);
+bool goopad_capacity_active(void);
+#endif
 
 /* hw_*.c */
 esp_err_t hw_display_init(lv_display_t **out_disp);

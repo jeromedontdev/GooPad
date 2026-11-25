@@ -3,17 +3,30 @@
  */
 #include "app.h"
 #include "board.h"
+#include "goopad_diagnostics.h"
 
+#include "cJSON.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "freertos/FreeRTOS.h"
 #include "nvs_flash.h"
 
+#include <stdlib.h>
+
 static const char *TAG = "main";
+
+static void *json_malloc(size_t size)
+{
+    return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+}
 
 void app_main(void)
 {
     ESP_LOGI(TAG, "=== GooPad starting ===");
+
+    cJSON_Hooks json_hooks = {.malloc_fn = json_malloc, .free_fn = free};
+    cJSON_InitHooks(&json_hooks);
 
     esp_err_t err = nvs_flash_init();
     if (err != ESP_OK) {
@@ -51,7 +64,9 @@ void app_main(void)
     if (hw_audio_init() != ESP_OK) {
         ESP_LOGE(TAG, "audio init failed; sound actions unavailable");
     }
+    goopad_diag_init();
     goopad_init();
+    goopad_diag_serial_init();
     goopad_ui_init(disp);
     esp_ota_mark_app_valid_cancel_rollback();
     ESP_LOGI(TAG, "GooPad ready");

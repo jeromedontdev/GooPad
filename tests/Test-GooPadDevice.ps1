@@ -85,6 +85,15 @@ $invalid.macros[0].tileName = 'Test tile'
 $invalid.macros[0].gifFit = 'stretch'
 Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
 $invalid.macros[0].Remove('gifFit')
+foreach ($mac in @('', '00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF', '01:11:22:33:44:55',
+                   '02:11-22:33:44:55', '02:11:22:33:44', '02:11:22:33:44:GG')) {
+    $invalid.macros[0].actionMode = 'wake_on_lan'
+    $invalid.macros[0].wakeMac = $mac
+    Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
+}
+$invalid.macros[0].Remove('wakeMac')
+Expect (Request '/api/config' 'POST' ($invalid | ConvertTo-Json -Depth 20 -Compress)) 400
+$invalid.macros[0].actionMode = 'simple_link'
 foreach ($setting in @(
     @{clockFormat='23h'}, @{dateFormat='custom'}, @{pcStat='unknown'}, @{temperatureUnit='K'},
     @{widgetTheme='unknown'}, @{widgetGraphic='galaxy'}, @{widgetTextSize='28'},
@@ -93,6 +102,12 @@ foreach ($setting in @(
     @{homeToken="bad`r`nvalue"}, @{homeToken=('x' * 513)},
     @{widget='weather'}, @{weatherLatitude=91}, @{weatherLongitude=-181},
     @{widget='stock'}, @{widget='crypto'}, @{marketSymbol='BTC&bad'}, @{stockKey="bad`r`nkey"},
+    @{stockProvider='unknown'}, @{stockProvider=123}, @{finnhubKey="bad`r`nkey"}, @{finnhubKey=('x' * 65)},
+    @{widget='stock'; stockProvider='finnhub'; marketSymbol='AAPL'; stockKey='valid'},
+    @{widget='air_quality'}, @{widget='github'}, @{githubUser='a--b'}, @{githubUser='bad/name'},
+    @{font='not-a-font'}, @{textAlign='justify'}, @{textDecoration='bold'}, @{textSpacing=-1}, @{textSpacing=2.5},
+    @{textSize=13}, @{focusMinutes=0}, @{focusMinutes=181}, @{breakMinutes=1.5},
+    @{widget='weather'; widgetGraphic='analog'; weatherLatitude=40; weatherLongitude=-74},
     @{widget='clock'; widgetGraphic='calendar'},
     @{widget='pc_monitor'; pcStat='gpu_temp'; widgetGraphic='ring'}
     @{emojiRender='unknown'}, @{emojiImageKey=123}

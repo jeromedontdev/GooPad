@@ -31,9 +31,14 @@ For maintainers: [architecture and code map](docs/architecture.md),
    inactive, so you can save a layout before adding every action. Swipe between
    pages; the page dots show the current page.
 
-The browser editor is served from the device and remains available at its
-current DHCP address. Reserve an address for GooPad in your router if you want
-a stable bookmark.
+The browser editor and preview fonts are streamed from the matching SD resource
+pack, without loading the complete editor into device RAM. If the card or pack
+is missing/damaged, an embedded recovery page lets you restore resources or
+upload application-only firmware; configuration and pairing are not erased.
+Keep the matching resources under `/goopad/resources/` and retain old packs
+for rollback. See [SD resources](docs/unicode-fonts.md).
+The site remains at the current DHCP address. Reserve an address for GooPad in
+your router if you want a stable bookmark.
 If nonvolatile storage cannot be initialized, startup stops rather than erasing
 Wi-Fi credentials and configuration. Check the serial log and recover a backup
 before deliberately reinitializing storage.
@@ -41,13 +46,22 @@ before deliberately reinitializing storage.
 ## Macros and customization
 
 Each tile supports an optional label, color, visual, and a plain-language action.
-Choose **Icon / emoji**, **Font Awesome**, **Image**, or **Animated GIF** from its visual-type
+Open **Icon & graphic** and choose **Icon / emoji**, **Font Awesome**, **Image**, or **Animated GIF** from its visual-type
 dropdown. Blank labels stay blank; the visual is enlarged and centered.
 The live preview is the editor's centerpiece: select any tile, including an
 empty slot, to edit it. Choose the button type at the top of its settings.
-Only that tile's controls are shown. You can configure
+New empty tiles show a **Choose an action** prompt until a type is selected.
+Action settings appear first; expand **Icon & graphic**, **Appearance**, **Text**,
+or **Sound** for the remaining controls. Only that tile's controls are shown. You can configure
 positions in any order. **Button label** is optional on-screen text; tiles have
 no separate editor name.
+Under **Appearance**, choose a tile width and height in grid positions. For
+example, select the top-left tile of a 3×3 page and set both to 2 to make a
+2×2 tile. Move or clear neighboring tiles first; resizing never removes them.
+Tiles cannot extend past the page or the 32-position limit. Turn off **Compact
+configured tiles** to use enlarged tiles; **Hide empty tiles** still works.
+Shrinking a tile reveals its covered positions again. Moving a large tile or
+changing the grid is rejected if the result would overlap or cross a boundary.
 **Clear tile** leaves other positions untouched. Drag a preview tile onto an
 empty position to move it, or onto another tile to swap them. Hold a dragged
 tile over a navigation arrow, or near the preview's left/right edge, to change pages. Mouse swiping starts
@@ -57,8 +71,11 @@ the current page and leaves all tiles unselected; **−** removes the current pa
 tiles. Other pages shift with their contents. At least one page remains, with
 up to 32 positions total; insertion is rejected if it would discard configured
 tiles beyond that limit. Turn off **Compact configured tiles** to edit pages.
-Page changes apply when you save.
-Enable **Hide empty tiles (keep positions)** above the preview to remove empty
+Page changes apply when you save. GooPad stays on the nearest current page when
+the layout reloads, or moves to the last page if that page was removed. A device
+restart returns to the first page.
+Open **Layout settings** below the preview to change the grid and enable
+**Hide empty tiles (keep positions)** to remove empty
 boxes without shifting configured tiles or removing pages. The preview's empty
 spaces remain selectable for editing and accept dragged tiles. Alternatively,
 **Compact configured tiles** packs configured tiles together and hides unused
@@ -67,6 +84,11 @@ pages. Existing compact layouts retain their behavior. Save to apply either opti
 Save progress, confirmation, and errors appear only there. **Save appearance**
 returns to the preview so its result is visible. **About & help** includes
 downloads, setup instructions, examples, troubleshooting, and source links.
+The **Text** section offers 16 font families, including handwriting,
+display, monospace and pixel styles. Styled tile fonts are SD-backed; core
+Montserrat and essential offline fonts remain embedded. Without matching SD
+fonts, core fallback text remains readable. Some browser previews use similar
+system fonts.
 **Custom web request** sends a GET or POST from GooPad and allows a JSON body
 and optional `X-GooPad-Token` header. Existing service-link tiles remain GET
 requests. To open a website on your
@@ -74,6 +96,17 @@ PC, choose **Windows PC macro** and the **Open a website** starter or step.
 It uses the Companion pairing in Settings and opens HTTP(S) links in the PC's
 default browser. Existing website tiles keep working. Requests from GooPad
 validate HTTPS certificates.
+To wake a computer, choose **Wake a computer (Wake-on-LAN)** and enter the
+target network adapter's MAC address (on Windows, its **Physical Address** in
+`ipconfig /all`). Enable Wake-on-LAN in the computer's firmware and operating
+system/network-adapter settings; support varies by adapter and power state, and
+wired Ethernet is usually needed. Windows Fast Startup can prevent waking from
+shutdown; test sleep separately. GooPad sends a UDP magic packet to its own
+IPv4 subnet's broadcast address, so the computer must be reachable on that
+subnet; routed networks and Wi-Fi client isolation may block it. The Companion
+is not required. The action result confirms only that GooPad sent the packet,
+not that the computer received it or woke. Wake packets have no authentication;
+keep the feature on a trusted local network.
 The searchable icon picker includes 275+
 symbols, and the icon field accepts other short icon codes or glyphs.
 **Full-color emoji** renders the browser's emoji as a transparent 160×160
@@ -89,8 +122,12 @@ bundled catalog. The picker first downloads a small compressed name index and
 only fetches matching drawings. Selection progress stays inside the picker;
 direct-code progress uses the main page. Repeated selections reuse uploaded
 assets, and lossless run-length compression reduces icon-upload traffic.
-Image/GIF upload status uses a bright, bold bordered notice beneath its picker,
-distinct from the field description; errors are red.
+Selected tile images, GIFs, and custom backgrounds remain in the browser until
+you save; closing the page discards unsaved selections. On Save, GooPad
+automatically reuses matching SD assets before uploading any new ones, then
+saves their configuration and reports lookup or upload
+errors without saving broken references. In an Image or Animated GIF picker,
+use **Browse saved images and GIFs** to reuse SD assets without re-uploading.
 Font Awesome selections and uploaded images are converted to
 160×160 RGB565 with an 8-bit alpha plane and saved under
 `/goopad` on the SD card; a card is required to use them. The **Settings** page
@@ -134,17 +171,20 @@ matched to the browser. Update that offset after daylight-saving changes.
 Each widget has 25 color presets, including Midnight glass, Cloud,
 Lavender, Mint, Aurora, Ember, Arctic, and Berry, or Custom to use your own tile, gradient
 end, text, outline and graphic-accent colors. Switching away from Custom
-preserves those colors for switching back. The optional **Modern card** layout
+preserves those colors for switching back. New tiles use **Classic**; existing
+tiles without an explicit style retain **Modern**. Every tile can select
+Classic, Modern, or Layered. The **Modern** layout
 adds a compact heading and accent to larger rounded or square tiles, and falls
 back to the classic layout on smaller tiles and other shapes to keep readings
-legible. Existing widgets retain their original appearance until changed.
+legible. Layered adds the newer caption and icon surfaces where they fit.
 Choose text-only or an icon badge, a live analog clock, a calendar card, or a
 PC usage bar/ring. Usage graphics support CPU, RAM and GPU percentages; the
 combined PC summary graphic shows CPU usage. Missing readings dim the gauge
 and show an unavailable message rather than a fabricated zero reading.
 Text size supports Auto or 12, 14, 16, 20, 28 and 40 device pixels, fitting down
 to keep readings inside the tile. Tiny tiles simplify graphics to text when
-necessary. Device graphics use lightweight LVGL vectors, not uploaded assets.
+necessary. Built-in graphics use lightweight LVGL vectors; selected icons can
+also use uploaded assets.
 PC stats use the paired Companion. Choose CPU/RAM combined, CPU usage,
 RAM percentage or used GiB, GPU usage, dedicated GPU RAM used, CPU temperature,
 or GPU temperature, download/upload speed, or fastest reported fan RPM per tile.
@@ -170,28 +210,92 @@ Companion running as your normal user. No remote web server is needed.
 Unsupported sensors display **Unavailable**, not a fake zero; CPU package/GPU
 core readings are preferred, with the highest matching temperature used if needed.
 
-Additional widgets include countdown (an absolute date/time; synchronized clock
-required) and stopwatch. Tap the stopwatch to start/pause, hold to reset; it
-resets when the layout reloads or the device restarts.
+Countdown shows calendar days until a date using the device's configured UTC
+offset and synchronized clock. Tap the stopwatch or Pomodoro timer to start or
+pause; hold to reset. Pomodoro focus and break durations are configurable from
+1 to 180 minutes (defaults: 25 and 5); it chimes and pauses between phases.
+Both timers reset when the layout reloads or the device restarts.
+
+All widgets can combine their reading with a selected icon, emoji,
+image, or GIF using **Icon & graphic → Icon / graphic → Selected icon and text**. Weather defaults
+to its automatic multicolor condition icon; a selected icon replaces it.
+Choose **Visual placement → Fill tile behind text** to enlarge the selected
+visual behind the reading and label. Fill trims transparent outer margins when
+scaling still images, including previously saved assets; interior transparency
+remains. Text contrast depends on the visual.
+Each tile can choose a bundled font, label
+size, alignment, decoration, and letter spacing; widgets also have a separate
+reading size. Fonts fit down to available space in discrete device sizes.
+Goo Script, Pacifico, Goo Terminal, and Goo Rounded use bundled browser previews;
+other browser previews use approximate system fonts. The additional font subsets
+include ASCII and the degree symbol; other glyphs fall back to Montserrat when
+available. Goo Sans, Goo Serif, Goo Display and Goo Script are bitmap subsets
+derived from Lato, Bree Serif, Abril Fatface and Lobster, respectively. Goo
+Terminal and Goo Rounded are derived from Share Tech Mono and Righteous. Their
+licenses, and those of the other bundled families, are in
+[main/fonts/licenses](./main/fonts/licenses/).
 
 Weather uses latitude/longitude and Celsius or Fahrenheit. Weather data by
 [Open-Meteo.com](https://open-meteo.com/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/):
 temperatures are rounded and weather codes summarized. The free endpoint is for
 non-commercial use and transmits the coordinates to Open-Meteo. Weather refreshes
-every 15 minutes. Crypto uses Coinbase USD spot prices every five minutes.
-Stock prices use an Alpha Vantage key and refresh every six hours per tile.
-Alpha Vantage's free quota is 25 requests per day shared by the key: several
-tiles or frequent reboots may exhaust it, and quotes may be delayed. The stock
-key is stored in device configuration and backups; protect both. Live widgets
+every 15 minutes. Choose **Market price**, then Stock or Cryptocurrency.
+**Weather alerts (US NWS)** sends the chosen coordinates to the US National
+Weather Service about every minute per tile (with at least 30 seconds between
+all NWS requests) and shows the number and first event. It reports
+unavailable or stale data rather than treating an incomplete response as clear.
+Coverage is limited to NWS alerts. This display is not a substitute for official
+emergency alerts and must not be your sole source of warnings.
+Crypto uses Coinbase USD spot prices every five minutes.
+The **Exchange rate** widget uses Frankfurter without an API key. Enter two
+different three-letter currency codes; it refreshes every six hours and shows
+the reference-rate date. These are not live market or transaction rates.
+Air quality uses Open-Meteo's model-based US AQI and refreshes every 30 minutes;
+it is not a local sensor or a substitute for official warnings. GitHub profile
+stats show public repository and follower counts every 30 minutes without a token,
+subject to GitHub's shared unauthenticated rate limit.
+For stocks, choose Finnhub (the default for new tiles) or Alpha Vantage, and
+enter that provider's key. Finnhub's free personal-use US stock quotes refresh
+every minute per tile; its published rate limit is shared by the key, so many
+tiles, other apps or reboots can cause throttling. Alpha Vantage refreshes every
+six hours per tile; its free quota is 25 requests per day per key. Existing
+stock tiles remain on Alpha Vantage. Quotes may be delayed. Provider errors are
+shown without raw responses; Finnhub authentication uses a header and does not
+follow redirects. Keys are stored in device configuration and backups; protect
+both. Live widgets
 use verified HTTPS and show unavailable on errors or provider limits. They are
-informational, not financial advice.
+informational, not financial advice. Refreshes can be deferred while the
+network is busy or the clock is waiting to synchronize. PC stats normally poll
+about two seconds after the previous request; some hardware sensors refresh only
+every ten seconds. During brief contention or a request timeout, the last PC
+reading remains visible for up to 15 seconds; persistent problems are shown.
+
+**PC now playing** uses the paired Windows Companion and displays the current
+Windows media session's title and artist. Enable **Share now playing** locally
+in Companion; it is off by default. Metadata is shared only with authenticated
+paired clients. Apps that do not expose Windows media sessions will not appear.
+Paused, disabled and unavailable states are shown explicitly.
+
+Button actions run in order through a bounded queue (one running, up to four
+waiting). If it is full, GooPad reports the rejection; acceptance means queued,
+not necessarily completed. Manual network actions take precedence over background
+polls, but an already-running action, DNS, a slow network or the receiving service
+can still cause delays.
+
+About & help can download a diagnostic report containing only numeric event
+codes, reset reason and memory statistics. Raw serial output, configuration
+backups and screenshots may contain private information and are not shareable
+diagnostic reports.
 
 Home Assistant switch/light tiles support toggle, on and off through its REST
 API. Enter a long-lived access token and an HTTPS address with a publicly
 trusted certificate; HTTP and self-signed certificates are not supported. The
-token is stored in the device configuration and backups. These controls do not
-show live switch state. This action only controls entities available to Home
-Assistant.
+token is stored in the device configuration and backups. Action tiles do not
+show live switch state. To read any entity's state, add a separate **Home
+Assistant state** widget with its entity ID, address and token. It polls about
+every 30 seconds; long or unavailable states may be reported unavailable and
+delayed data is marked stale. Only entities available to Home Assistant can be
+read or controlled.
 
 ### Apple Home bridge
 
@@ -225,12 +329,14 @@ confirmed Apple Home pairing and switch operation. Broader compatibility testing
 remains limited.
 
 Animated GIFs require SD and are limited to 160×160 pixels, 128 KB, 240 frames,
-and four GIF tiles per layout. Device frame delays are clamped to at least
-100 ms (10 fps); animations pause on hidden pages and behind the Info panel.
+and four GIF tiles per layout.
+Device frame delays are clamped to at least
+100 ms (10 fps); animations pause on hidden pages, during page scrolling and
+behind the Info panel.
 The browser preview may animate faster than the device. Resize or compress
 larger GIFs before uploading. Upload progress and errors appear beside the
 GIF file chooser; saving a GIF without a successfully uploaded asset is rejected.
-Choose **GIF size → Fill whole tile** to zoom proportionally and crop to the
+Choose **Visual placement → Fill tile behind text** to zoom proportionally and crop to the
 tile shape, with any button label overlaid. **Fit inside tile** preserves the
 existing centered-icon sizing. This changes display size, not upload limits.
 TLS allocations use PSRAM to avoid exhausting internal RAM when browsers
@@ -299,6 +405,9 @@ Secure pairing is the only pairing UI: there are no separate address/token/
 certificate fields or Copy buttons. Existing saved pairing is retained when
 saving unrelated appearance changes. The Companion executable, window,
 taskbar and tray share the original GooPad grid icon.
+On Save, PC tiles share the root pairing instead of repeating its address and
+token. Older firmware cannot use these compact PC tiles; keep a compatible
+backup before downgrading.
 
 Choose **Windows PC macro (guided builder)** on a tile. Starters include Copy,
 Paste, Screenshot, Play/Pause and Mute. Add/reorder/remove up to 12 steps:
@@ -567,3 +676,26 @@ The ESP32 itself does not include an SSH client; SSH actions are delegated to
 the allowlisted Windows companion. The source retains the original hardware
 diagnostics files as reference, but GooPad no longer launches the test UI or
 writes hardware-test files to the SD card.
+
+## Porting and now-playing controls
+
+Now-playing tiles support tap to play/pause and hold to skip to the next track
+through the paired Windows Companion's existing media-key actions. Releasing
+after a hold does not also toggle playback. Media keys address Windows' active
+player; sharing metadata must still be enabled locally in the Companion.
+
+The development firmware's matching SD resource pack supplies 51,647 glyphs per
+size, including Chinese, Japanese, Korean, extended Latin (Æ/æ), punctuation,
+other scripts and grayscale outline emoji. Printable ASCII/basic extended Latin
+and punctuation remain usable without the card. Selected styled glyphs retain
+their appearance. See [multilingual resources](docs/unicode-fonts.md) for setup,
+coverage, offline behavior and complex-script/emoji-sequence limitations.
+
+Now-playing uses a persistent 250 ms Windows sampler and a 500 ms device poll,
+instead of the old five-second sampling cache. Full UTF-8 title/artist text is
+retained up to 80 Unicode characters each. Windows/player publication delay
+remains outside GooPad's control.
+
+For other hardware, see the [board porting guide](docs/boards.md). Screen
+dimensions inform preview geometry and grid limits; Waveshare variants still
+require their exact controller/pin maps and hardware verification.

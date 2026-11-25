@@ -45,6 +45,15 @@ foreach ($f in @($bootloader, $partitions, $otaData, $app)) {
     if (-not (Test-Path $f)) { throw "Missing build artifact: $f" }
 }
 
+$description = Get-Content (Join-Path $build "project_description.json") -Raw | ConvertFrom-Json
+if ($description.project_name -ne "GooPad" -or $description.project_version -ne $version) {
+    throw "Selected build does not match GooPad version $version"
+}
+$settings = (Get-Content (Join-Path $build "flasher_args.json") -Raw | ConvertFrom-Json).flash_settings
+foreach ($key in @("flash_mode", "flash_freq", "flash_size")) {
+    if (-not $settings.$key) { throw "Missing $key in the selected build's flasher_args.json" }
+}
+
 $dist = Join-Path $root "dist"
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
 $out = Join-Path $dist "GooPad-$version-merged.bin"
@@ -53,17 +62,10 @@ $otaOut = Join-Path $dist "GooPad-ota-$version.bin"
 Write-Host "Merging..."
 # Flash parameters must match what the build actually produced, otherwise
 # the ROM loads the image with the wrong mode and the board boot-loops.
-# Read them from sdkconfig rather than hardcoding: CONFIG_ESPTOOLPY_FLASHMODE
-# is "dio" on this board even though FLASHMODE_QIO is also set, because the
-# bootloader overrides it.
-function Get-SdkValue([string]$key, [string]$default) {
-    $line = Select-String -Path "sdkconfig" -Pattern "^$key=`"([^`"]+)`"" | Select-Object -First 1
-    if ($line) { return $line.Matches[0].Groups[1].Value }
-    return $default
-}
-$flashMode = Get-SdkValue "CONFIG_ESPTOOLPY_FLASHMODE" "dio"
-$flashFreq = Get-SdkValue "CONFIG_ESPTOOLPY_FLASHFREQ" "80m"
-$flashSize = Get-SdkValue "CONFIG_ESPTOOLPY_FLASHSIZE" "16MB"
+# Use the selected build's resolved settings, not the workspace sdkconfig.
+$flashMode = $settings.flash_mode
+$flashFreq = $settings.flash_freq
+$flashSize = $settings.flash_size
 Write-Host "Flash params: mode=$flashMode freq=$flashFreq size=$flashSize"
 
 # Offsets come from partitions.csv: bootloader 0x0, partition table 0x8000,

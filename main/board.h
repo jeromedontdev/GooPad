@@ -141,4 +141,10 @@
 /* 22050 Hz, 16-bit stereo: this is the configuration that is known to
  * work with the NS4168 on ESP32-S3 under ESP-IDF 5/6. */
 #define BSP_I2S_SAMPLE_RATE    22050
+
+#define BSP_BOARD_NAME        "Guition ESP32-S3-4848S040"
+#endif
+
+#ifndef BSP_TILE_MIN_PX
+#define BSP_TILE_MIN_PX 64
 #endif

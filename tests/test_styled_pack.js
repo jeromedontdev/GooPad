@@ -30,7 +30,13 @@ const expectedCodepoints = [
 ];
 for (let family = 0; family < families.length; family++) {
   for (let variant = 0; variant < sizes.length; variant++) {
-    const font = parseFont(path.join(fontDirectory, `goopad_font_${families[family]}_${sizes[variant]}.c`), family, variant);
+    const sourceFile = path.join(fontDirectory, `goopad_font_${families[family]}_${sizes[variant]}.c`);
+    const font = parseFont(sourceFile, family, variant);
+    const source = fs.readFileSync(sourceFile, "utf8");
+    const plain = /\.bitmap_format\s*=\s*0\s*,/.test(source);
+    const bitmapBody = source.match(/glyph_bitmap\[\]\s*=\s*\{([\s\S]*?)\};/)[1]
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+    const originalBitmap = Buffer.from(bitmapBody.match(/0x[\da-f]+|\d+/gi).map(Number));
     assert.deepEqual(font.glyphs.map(glyph => glyph.cp), expectedCodepoints);
     const dirAt = 32 + (family * sizes.length + variant) * 40;
     assert.equal(pack[dirAt], family);
@@ -63,6 +69,14 @@ for (let family = 0; family < families.length; family++) {
       assert.equal(pack[at + 23], 2);
       const bitmapAt = pack.readUInt32LE(at + 4);
       assert.deepEqual(pack.subarray(bitmapAt, bitmapAt + expected.packed.length), expected.packed);
+      const original = originalBitmap.subarray(expected.glyph.bitmap_index,
+        expected.glyph.bitmap_index + expected.packed.length);
+      for (let pixel = 0; plain && pixel < expected.glyph.box_w * expected.glyph.box_h; pixel++) {
+        const shift = 6 - 2 * (pixel & 3);
+        assert.equal((pack[bitmapAt + (pixel >> 2)] >> shift) & 3,
+          (original[pixel >> 2] >> shift) & 3,
+          `${families[family]} ${sizes[variant]} U+${expected.cp.toString(16)} pixel ${pixel}`);
+      }
       glyphsChecked++;
     }
     const pairs = [...font.kernPairs].sort((a, b) => a.left - b.left || a.right - b.right);

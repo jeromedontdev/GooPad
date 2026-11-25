@@ -21,9 +21,84 @@ cca8dceb46a23605a490e75027f0d2af52d372dad5004226b30b27806a0c60e1
 KiB means 1,024 bytes; MiB means 1,048,576 bytes. All percentages below use the
 4,194,304-byte app slot, not the whole flash chip.
 
-## Current SD-backed editor and styled-font build
+## Current repaired SD-backed editor and styled-font build
 
-The installed production-config development image is **2,314,480 bytes**:
+The installed production-config development image is **2,315,712 bytes**:
+**1,878,592 bytes / 1.79 MiB / 44.79% free** in the unchanged 4 MiB slot.
+It retains **407,584 bytes / 398.03 KiB** of the SD offloading savings versus
+the preceding multilingual build. SHA-256:
+
+```text
+13fae5b6ea9593af1728ef94f3a095ba9309116fb829ed0b741a01dcd04ca7ca
+```
+
+| Linked category | Image bytes |
+| --- | ---: |
+| SDK/libraries excluding shared strings and device fonts | 1,711,650 |
+| Built-in Montserrat | 187,473 |
+| Shared merged string pool | 172,181 |
+| Other GooPad objects excluding loaders/notices/pooled strings | 124,321 |
+| Essential offline Lato fallbacks | 80,001 |
+| Compressed Font Awesome index | 10,913 |
+| Styled SD loader | 6,249 |
+| Font notices | 5,765 |
+| Embedded recovery page | 3,011 |
+| Web SD loader | 961 |
+| Unattributed linker/image envelope and padding | 13,187 |
+| **Actual image** | **2,315,712** |
+
+Initialized object contributions total **2,302,525 bytes**, excluding BSS/no-init.
+The corrected styled archive remains **471,647 bytes**; its immutable filename
+is `styled-a46365f6bdea.gsp`. The 290,422-byte web archive and existing
+multilingual/icon packs are unchanged. Styled metadata remains **43,144 bytes**
+and both glyph loaders still share **one 32 KiB bitmap budget**. Space metrics
+use existing descriptor padding; no new target descriptor allocation is added.
+
+The preceding styled deployment had conversion errors despite valid hashes
+and a clean health soak. Plain glyphs were decoded as compressed data,
+compressed RLE state used the wrong bit origin, row-XOR filtering was not
+reversed, and kerning was scaled 16 times too strongly. Independent comparisons
+against the original LVGL decoder now verify **5,760 glyph pixels/metrics and
+36,864 kerning combinations**; converter self-comparison was not sufficient.
+
+The compiled-font boot screen renders at **1,483 ms**, before the font canary
+finishes at **13,610 ms**. Repaired diagnostic firmware measured ten page
+animations at **403-541 ms** and the menu at **384 ms**, with zero font SD reads
+during motion and zero mismatches in ten cached-frame pixel comparisons.
+Dirty-region page-cache patches avoid unnecessary full recopying. Configuration
+and widget snapshots are deferred during motion. HTTPS/SD work now runs below
+LVGL and its renderer: lowering server priority from the SDK default 5 to 2
+removed the observed long render stalls; maximum measured cache copy fell from
+598,366 to **27,266 microseconds**. This does not certify a universal latency
+deadline for every layout or network.
+
+Application-only installation verified the active image, all 68 font variants,
+18 tiles/two pages, gzip/identity editor and all nine browser font hashes.
+Configuration, authentication and logical HomeKit data were preserved.
+Automatic diagnostic gestures/logging are **OFF** in the installed production
+build. This is still an integrated development-worktree image, not a firmware
+release reproduced from the scoped source commit.
+
+Final **300-second soak: 21 samples, zero errors/reboots, 109 existing
+network-admission warnings**. Free PSRAM ranged from **3,343,076 to 3,494,784
+bytes**; internal free memory stayed above **38,595 bytes**, with a minimum
+largest block of **21,504 bytes**. Styled metadata remained 43,144 bytes and
+shared font bitmaps peaked at 6,057 bytes. The PSRAM minimum is 4,188 bytes
+below the superseded run, while still 333,716 bytes above the pre-offloading
+minimum. Correct glyphs now occupy more of the same bounded bitmap cache;
+these independent short-run heap minima are not identical-allocation guarantees.
+Sampled media requests averaged **225 ms (139-549 ms)**; a subsequent status
+check observed a 1,145 ms media request. Network contention and occasional
+long requests remain; physical song-to-screen latency was not measured.
+
+## Superseded first SD-backed editor and styled-font build
+
+**Do not use the following image/pack as the font-repair recovery target.**
+Its valid checksums and health soak did not establish visual equivalence.
+The preceding section replaces its rendering and delivery claims; the following
+historical size and heap observations remain a record of that deployment.
+
+That superseded production-config development image was **2,314,480 bytes**:
 **1,879,824 bytes / 1.79 MiB / 44.82% free** in the unchanged 4 MiB slot.
 Moving styled fonts, browser fonts and the editor to SD recovers a measured
 **408,816 bytes / 399.23 KiB** versus the preceding multilingual build.

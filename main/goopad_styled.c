@@ -52,6 +52,7 @@ typedef struct {
     int16_t baseline;
     int8_t underline_position;
     uint8_t underline_thickness;
+    uint16_t space_advance;
     lv_font_t font;
 } styled_font_t;
 
@@ -189,8 +190,9 @@ static bool lookup(FILE *fp, styled_font_t *font, uint32_t cp, glyph_t *glyph, u
             if (begin + i == *index) {
                 *glyph = decoded;
             }
-            else if (!find(font, begin + i, true) && oldest(NULL, false)) {
-                retain(font, begin + i, &decoded);
+            else if (!find(font, begin + i, true)) {
+                cache_t *victim = oldest(NULL, false);
+                if (victim && !victim->bitmap) retain(font, begin + i, &decoded);
             }
         }
         return true;
@@ -228,7 +230,10 @@ static cache_t *oldest(cache_t *exclude, bool bitmap_only)
     for (unsigned i = 0; i < CACHE_ENTRIES; i++) {
         cache_t *entry = &cache[i];
         if (entry == exclude || entry->pins || (bitmap_only && !entry->bitmap)) continue;
-        if (!result || clock_tick - entry->stamp > clock_tick - result->stamp) result = entry;
+        if (!result ||
+            (!bitmap_only && !entry->bitmap && result->bitmap) ||
+            ((bitmap_only || !!entry->bitmap == !!result->bitmap) &&
+             clock_tick - entry->stamp > clock_tick - result->stamp)) result = entry;
     }
     return result;
 }
@@ -276,6 +281,17 @@ static bool glyph_dsc(const lv_font_t *font, lv_font_glyph_dsc_t *out, uint32_t 
     styled_font_t *source = font->user_data;
     bool is_tab = cp == '\t';
     if (is_tab) cp = ' ';
+    if (cp == ' ' && source->count == PACK_GLYPH_COUNT) {
+        out->adv_w = ((uint32_t)source->space_advance * (is_tab ? 2 : 1) + 8) >> 4;
+        out->box_w = out->box_h = 0;
+        out->ofs_x = out->ofs_y = 0;
+        out->format = LV_FONT_GLYPH_FORMAT_A2;
+        out->gid.index = 0;
+        out->stride = 0;
+        out->is_placeholder = false;
+        out->entry = NULL;
+        return true;
+    }
     cache_t *entry = find(source, cp, false);
     FILE *fp = NULL;
     if (!entry) {
@@ -295,7 +311,10 @@ static bool glyph_dsc(const lv_font_t *font, lv_font_glyph_dsc_t *out, uint32_t 
         if (!entry) { fclose(fp); return false; }
     }
     int16_t kern = 0;
-    if (source->kern_count && next) {
+    if (source->kern_count && next == ' ' && source->count == PACK_GLYPH_COUNT) {
+        kern = kerning(source, entry->glyph.glyph_id, 1);
+    }
+    else if (source->kern_count && next) {
         entry->pins++;
         cache_t *right = find(source, next, false);
         if (!right) {
@@ -449,6 +468,12 @@ static bool initialize(void)
             font->kern_offset >= font->end &&
             (uint64_t)font->kern_offset + (uint64_t)font->kern_count * KERN_RECORD_SIZE <= (uint32_t)length;
         ok = ok && kern_total <= 10000;
+        if (ok && font->count == PACK_GLYPH_COUNT) {
+            glyph_t space;
+            ok = read_record(fp, font, 0, &space) && space.cp == ' ' &&
+                space.glyph_id == 1 && !space.width && !space.height && !space.x && !space.y;
+            if (ok) font->space_advance = space.advance;
+        }
         if (ok) {
             font->font = (lv_font_t){
                 .line_height = font->line_height, .base_line = font->baseline,
@@ -481,6 +506,7 @@ static bool initialize(void)
                 const uint8_t *b = kern_bytes + j * KERN_RECORD_SIZE;
                 kern_pair_t *pair = &kern_pairs[font->kern_first + at + j];
                 *pair = (kern_pair_t){.left = u16(b), .right = u16(b + 2), .value = (int16_t)u16(b + 4)};
+                if (font->count == PACK_GLYPH_COUNT && pair->left == 1) ok = false;
                 if ((at + j) && (pair->left < kern_pairs[font->kern_first + at + j - 1].left ||
                     (pair->left == kern_pairs[font->kern_first + at + j - 1].left &&
                      pair->right <= kern_pairs[font->kern_first + at + j - 1].right))) ok = false;

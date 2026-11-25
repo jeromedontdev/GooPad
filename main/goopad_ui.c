@@ -1580,6 +1580,34 @@ static void refresh_cb(lv_timer_t *timer)
     }
 }
 
+void goopad_ui_boot(lv_display_t *disp)
+{
+    if (!ui_lock(1000)) {
+        ESP_LOGE(TAG, "LVGL lock timeout");
+        return;
+    }
+    s_screen = lv_display_get_screen_active(disp);
+    lv_obj_clean(s_screen);
+    lv_obj_set_style_bg_color(s_screen, color(0x111827), 0);
+    lv_obj_set_style_bg_opa(s_screen, LV_OPA_COVER, 0);
+    lv_obj_t *title = lv_label_create(s_screen);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_color(title, color(0xF5F5F7), 0);
+    lv_label_set_text(title, "GooPad");
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -72);
+    lv_obj_t *spinner = lv_spinner_create(s_screen);
+    lv_obj_set_size(spinner, 56, 56);
+    lv_spinner_set_anim_params(spinner, 1000, 90);
+    lv_obj_align(spinner, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_t *status = lv_label_create(s_screen);
+    lv_obj_set_style_text_font(status, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(status, color(0xCBD5E1), 0);
+    lv_label_set_text(status, "Starting...");
+    lv_obj_align(status, LV_ALIGN_CENTER, 0, 58);
+    ui_unlock();
+    ESP_LOGI(TAG, "Boot loading screen ready");
+}
+
 void goopad_ui_init(lv_display_t *disp)
 {
     if (!ui_lock(1000)) {

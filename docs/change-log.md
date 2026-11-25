@@ -18,6 +18,64 @@ Never include credentials, private keys, pairing codes, raw user configuration,
 serial captures or flash dumps. Do not claim historical work was committed or
 released merely because it was installed.
 
+## 2026-11-25 - Repairing garbled fonts, boot loading and swipe stalls
+
+- **Request:** fix garbled text, the missing loading screen and slow page/menu
+  swipes following the styled-font SD offload.
+- **Correction to prior entry:** the previous glyph parity check reused the
+  converter and did not prove visual equivalence. A valid resource hash and
+  a clean health soak did not catch the wrong pixels/kerning. The previous
+  `styled-55567412e0ca.gsp` pack and resource ZIP are superseded.
+- **Changes:** correctly copy plain 2bpp glyphs, decode compressed glyphs with
+  glyph-relative RLE state, undo the format-1 row-XOR filter and apply LVGL's
+  fixed-point kerning scale. The corrected immutable archive is
+  `styled-a46365f6bdea.gsp`. Metrics eviction/prefetch preserve resident glyph
+  bitmaps; validated space metrics use existing descriptor padding.
+  Selected text is prewarmed, including offscreen captions. Same-page cache
+  invalidations patch dirty rectangles and become valid on the final flush.
+  Configuration/widget reads are deferred during page/menu motion.
+  HTTPS runs at priority 2, below LVGL (4) and its software renderer (3).
+  A compiled-font loading screen appears before SD/service initialization;
+  the exhaustive canary yields the LVGL lock between font variants.
+- **Compatibility:** application-only OTA preserved configuration,
+  authentication and logical HomeKit data. Corrected styled reuploads reuse
+  existing content; web/multilingual/icon resources and old immutable files
+  were not erased. Styled metadata remains 43,144 bytes and the shared glyph
+  bitmap budget remains 32 KiB.
+- **Validation:** reproduced original Lato36 `!` pixel 4 as 2 instead of 1.
+  Independent tests compile all 60 original fonts and the actual LVGL
+  plain/RLE decoder: 5,760 glyph pixel/metric comparisons and 36,864 adjacent
+  kerning combinations pass. Warm text remains no-I/O after exhaustive
+  other-font measurement; mixed caches stay within 32 KiB. All 16
+  UI-capture/refresh, web-resource and soak-harness tests pass.
+  Hardware diagnostics verify synthetic touch swipe/click, menu swipe,
+  page topology, fallback and ten cache/frame checks with zero mismatches.
+  Ten page animations measured 403-541 ms; menu animation 384 ms.
+  Earlier 1,216 ms page stalls persisted with zero font reads during motion;
+  protecting rendering from higher-priority HTTPS work removed the observed
+  stalls. Maximum observed cache copy dropped from 598,366 to 27,266 us.
+- **Delivery:** production reconfigure/build and app-only installation passed,
+  with automatic render diagnostics OFF. The loading screen renders at
+  1,483 ms; the 68-variant canary passes at 13,610 ms, followed by all 18
+  tiles/two pages. Identity/gzip editor and all nine WOFF2 hashes match.
+  Image size 2,315,712 bytes, 44.79% of its app slot free; see the reconciled
+  [storage ledger](storage-layout.md) for SHA and exact attribution.
+  Final 300-second soak: 21 samples, zero errors/reboots, 109 existing
+  network-admission warnings (previously 124). Minimum PSRAM 3,343,076 bytes,
+  internal minimum 38,595 bytes, largest-block minimum 21,504 bytes.
+  Styled metadata remained 43,144 bytes; shared font bitmap peak 6,057 bytes.
+  Sampled media requests averaged 225 ms (139-549 ms); a subsequent request
+  took 1,145 ms. No physical song-to-screen deadline is claimed.
+- **Publication scope:** the scoped source foundation includes corrected
+  generators/loaders, independent font tests, documentation, isolated early-boot
+  UI and HTTPS scheduling changes. Page-cache/prewarming/motion integration and its
+  actual capture regression still depend on the earlier dirty application
+  backlog. Do not blanket-stage that backlog or publish the installed binary
+  as if it were reproduced from the scoped commit.
+- **Remaining:** reconcile the earlier application integration before a
+  source-matched firmware release. The five-minute observation is not a
+  universal UI/network latency or long-term leak certification.
+
 ## 2026-11-25 - Editor, browser fonts and styled fonts offloaded to SD
 
 - **Request:** implement the recommended SD storage savings without reducing

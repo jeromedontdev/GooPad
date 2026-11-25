@@ -2377,6 +2377,8 @@ static esp_err_t start_server(void)
     config.httpd.max_uri_handlers = 25;
     config.httpd.max_open_sockets = 6;
     config.httpd.core_id = 1;
+    /* SD streaming and TLS must not preempt LVGL (4) or its renderer (3). */
+    config.httpd.task_priority = 2;
     esp_err_t err = goopad_tls_configure(&config, s_ip_address);
     if (err == ESP_OK) err = httpd_ssl_start(&s_server, &config);
     if (err != ESP_OK) return err;

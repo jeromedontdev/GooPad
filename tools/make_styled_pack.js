@@ -40,21 +40,19 @@ function arrayName(block, name) {
   return value === "NULL" ? null : value;
 }
 function decodeLvglRle(input, offset, pixels, bpp) {
-  let bit = offset * 8, state = 0, prev = 0, count = 0;
+  const data = input.subarray(offset);
+  let bit = 0, state = 0, prev = 0, count = 0;
   const getBits = length => {
+    if (bit + length > data.length * 8) throw new Error("Compressed glyph bitmap truncated");
     let result = 0;
-    for (let i = 0; i < length; i++, bit++) {
-      result = (result << 1) | ((input[bit >>> 3] ?? 0) >> (7 - (bit & 7)) & 1);
-    }
+    for (let i = 0; i < length; i++, bit++)
+      result = (result << 1) | ((data[bit >>> 3] >> (7 - (bit & 7))) & 1);
     return result;
   };
   const next = () => {
     if (state === 0) {
       const current = getBits(bpp);
-      if (bit !== bpp && prev === current) {
-        count = 0;
-        state = 1;
-      }
+      if (bit !== bpp && prev === current) { count = 0; state = 1; }
       prev = current;
       return current;
     }
@@ -65,11 +63,7 @@ function decodeLvglRle(input, offset, pixels, bpp) {
         if (count === 11) {
           count = getBits(6);
           if (count) state = 2;
-          else {
-            prev = getBits(bpp);
-            state = 0;
-            return prev;
-          }
+          else { prev = getBits(bpp); state = 0; return prev; }
         }
         return prev;
       }
@@ -77,16 +71,10 @@ function decodeLvglRle(input, offset, pixels, bpp) {
       state = 0;
       return prev;
     }
-    if (--count === 0) {
-      state = 0;
-      prev = getBits(bpp);
-      return prev;
-    }
+    if (--count === 0) { state = 0; prev = getBits(bpp); return prev; }
     return prev;
   };
-  const decoded = Buffer.alloc(pixels);
-  for (let i = 0; i < pixels; i++) decoded[i] = next();
-  return decoded;
+  return Buffer.from(Array.from({ length: pixels }, next));
 }
 function parseFont(file, family, variant) {
   const source = fs.readFileSync(file, "utf8");
@@ -125,16 +113,28 @@ function parseFont(file, family, variant) {
       }
     }
   }
-  const bpp = Number(field(source.match(/static const lv_font_fmt_txt_dsc_t font_dsc\s*=\s*\{([\s\S]*?)\};/)?.[1] ?? "", "bpp"));
+  const descriptor = source.match(/static const lv_font_fmt_txt_dsc_t font_dsc\s*=\s*\{([\s\S]*?)\};/)?.[1] ?? "";
+  const bpp = Number(field(descriptor, "bpp"));
   const kerningScale = Number(field(source.match(/static const lv_font_fmt_txt_dsc_t font_dsc\s*=\s*\{([\s\S]*?)\};/)?.[1] ?? "", "kern_scale"));
   if (bpp !== 2) throw new Error(`Expected 2-bpp source font in ${file}`);
+  const format = Number(field(descriptor, "bitmap_format"));
+  if (![0, 1, 2].includes(format)) throw new Error(`Unsupported bitmap format in ${file}`);
   const output = [...cpToGlyph].sort((a, b) => a[0] - b[0]).map(([cp, gid]) => {
     const glyph = glyphs[gid];
     if (!glyph) throw new Error(`Invalid glyph id ${gid} for U+${cp.toString(16)} in ${file}`);
     const pixels = glyph.box_w * glyph.box_h;
-    const values = pixels ? decodeLvglRle(bitmap, glyph.bitmap_index, pixels, bpp) : Buffer.alloc(0);
-    const packed = Buffer.alloc(Math.ceil(pixels / 4));
-    for (let i = 0; i < pixels; i++) packed[i >> 2] |= values[i] << (6 - 2 * (i & 3));
+    const bytes = Math.ceil(pixels / 4);
+    if (format === 0 && glyph.bitmap_index + bytes > bitmap.length)
+      throw new Error(`Bitmap bounds invalid for U+${cp.toString(16)} in ${file}`);
+    let packed;
+    if (format === 0) packed = Buffer.from(bitmap.subarray(glyph.bitmap_index, glyph.bitmap_index + bytes));
+    else {
+      const values = decodeLvglRle(bitmap, glyph.bitmap_index, pixels, bpp);
+      if (format === 1)
+        for (let i = glyph.box_w; i < pixels; i++) values[i] ^= values[i - glyph.box_w];
+      packed = Buffer.alloc(bytes);
+      for (let i = 0; i < pixels; i++) packed[i >> 2] |= values[i] << (6 - 2 * (i & 3));
+    }
     return { cp, gid, glyph, packed, family, variant };
   });
   const kernData = source.match(/static const lv_font_fmt_txt_kern_pair_t kern_pairs\s*=\s*\{([\s\S]*?)\};/)?.[1];
@@ -144,7 +144,7 @@ function parseFont(file, family, variant) {
     const kernValues = array(source, arrayName(kernData, "values"));
     if (ids.length !== kernValues.length * 2) throw new Error(`Invalid kerning pair table in ${file}`);
     for (let i = 0; i < kernValues.length; i++)
-      kernPairs.push({ left: ids[i * 2], right: ids[i * 2 + 1], delta: kernValues[i] * kerningScale });
+      kernPairs.push({ left: ids[i * 2], right: ids[i * 2 + 1], delta: (kernValues[i] * kerningScale) >> 4 });
   }
   const metrics = source.match(/\.line_height\s*=\s*(\d+)[\s\S]*?\.base_line\s*=\s*(-?\d+)/);
   if (!metrics) throw new Error(`Missing line metrics in ${file}`);

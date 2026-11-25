@@ -144,8 +144,8 @@ int main(int argc, char **argv)
     check_cold_metrics_batch(&fallback);
 
     const uint8_t righteous_a_12[] = {
-        0x15,0x54,0x15,0x55,0x54,0x00,0x03,0x1d,0x0e,
-        0xaa,0x80,0x0b,0xff,0xff,0xfb,0xff,0xff,0xfb
+        0x0b,0xe0,0x2f,0xf8,0x38,0x2c,0x74,0x1d,0x74,
+        0x1d,0x7f,0xfd,0x7f,0xfd,0x74,0x1d,0x74,0x1d
     };
     lv_font_t *righteous = &fonts[9 * VARIANT_COUNT + 3].font;
     assert(righteous->line_height == 14 && righteous->base_line == 3);
@@ -156,7 +156,7 @@ int main(int argc, char **argv)
     assert(righteous->get_glyph_dsc(righteous, &a, 'A', 0));
     assert(reads == reads_before + 1);
     assert(a.adv_w == 8 && a.box_w == 8 && a.box_h == 9 && a.ofs_x == 0 && a.ofs_y == 0);
-    assert(righteous->get_glyph_dsc(righteous, &av, 'A', 'V') && av.adv_w == 5);
+    assert(righteous->get_glyph_dsc(righteous, &av, 'A', 'V') && av.adv_w == 8);
     reads_before = reads;
     assert(!righteous->get_glyph_dsc(righteous, &av, 0x1f600, 0));
     assert(reads == reads_before);
@@ -199,13 +199,27 @@ int main(int argc, char **argv)
     assert(!a.entry);
 
     static const char warm_text[] = "AVATAR WA";
-    for (unsigned pass = 0; pass < 2; pass++) {
+    for (unsigned pass = 0; pass < 3; pass++) {
+        if (pass == 2) {
+            for (unsigned family = 0; family < FAMILY_COUNT; family++)
+                for (unsigned variant = 0; variant < VARIANT_COUNT; variant++) {
+                    const lv_font_t *measured = goopad_styled_font(family, variant, &fallback);
+                    for (uint32_t cp = 32; cp < 127; cp++) {
+                        lv_font_glyph_dsc_t dsc = {.resolved_font = measured};
+                        assert(measured->get_glyph_dsc(measured, &dsc, cp, 0));
+                    }
+                }
+        }
         uint32_t before = reads;
         for (unsigned i = 0; i < sizeof(warm_text) - 1; i++) {
             lv_font_glyph_dsc_t dsc = {.resolved_font = righteous};
             uint32_t next = warm_text[i + 1] ? (uint8_t)warm_text[i + 1] : 0;
+            uint32_t glyph_reads = reads;
             assert(righteous->get_glyph_dsc(righteous, &dsc, (uint8_t)warm_text[i], next));
             if (dsc.box_w && dsc.box_h) assert(righteous->get_glyph_bitmap(&dsc, &draw));
+            if (pass && reads != glyph_reads)
+                fprintf(stderr, "Warm pass %u glyph %c unexpectedly read %u SD records\n",
+                        pass, warm_text[i], (unsigned)(reads - glyph_reads));
         }
         if (pass) assert(reads == before);
     }

@@ -84,7 +84,7 @@ if ($UnicodePack) {
         $lvgl = Join-Path $root "managed_components\lvgl__lvgl"
         $selectorArgs = @(
             "cc", "-std=c11", "-O0", "-ffunction-sections", "-fdata-sections",
-            "-DLV_CONF_SKIP", "-DCONFIG_LV_USE_FONT_PLACEHOLDER=1",
+            "-DLV_CONF_SKIP", "-DCONFIG_LV_USE_FONT_PLACEHOLDER=1", "-DLV_USE_FONT_COMPRESSED=1",
             '-DGOOPAD_BOARD_HEADER="unicode_board.h"',
             ('-DGOOPAD_STYLED_PATH="goopad/resources/' + $packName + '"'),
             "-DLV_FONT_MONTSERRAT_8=1", "-DLV_FONT_MONTSERRAT_10=1",
@@ -101,8 +101,16 @@ if ($UnicodePack) {
             (Join-Path $root "main\goopad_styled.c"),
             (Join-Path $root "main\goopad_unicode.c"),
             (Join-Path $lvgl "src\font\lv_font.c"),
+            (Join-Path $lvgl "src\font\fmt_txt\lv_font_fmt_txt.c"),
             "-Wl,--gc-sections", "-o", (Join-Path $build "test_font_selector_lvgl.exe")
         )
+        foreach ($family in @("lato", "pacifico", "anton", "archivoblack", "abrilfatface",
+                             "lobster", "breeserif", "cousine", "sharetechmono", "righteous",
+                             "acme", "bangers", "patrickhand", "pressstart2p", "spacemono")) {
+            foreach ($size in @(36, 24, 16, 12)) {
+                $selectorArgs += Join-Path $fontDirectory "goopad_font_${family}_${size}.c"
+            }
+        }
         & $ZigExe @selectorArgs
         if ($LASTEXITCODE -ne 0) { throw "Actual-LVGL selector test compilation failed ($LASTEXITCODE)." }
 

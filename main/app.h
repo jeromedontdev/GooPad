@@ -147,6 +147,7 @@ void ui_unlock(void);
 void ui_refresh(void);
 
 /* GooPad product UI and macro service. */
+void goopad_ui_boot(lv_display_t *disp);
 void goopad_ui_init(lv_display_t *disp);
 void goopad_init(void);
 void goopad_wifi_join(const char *ssid, const char *password);

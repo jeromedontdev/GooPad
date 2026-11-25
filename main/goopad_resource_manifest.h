@@ -1,7 +1,7 @@
 #pragma once
 #include "goopad_web_manifest.h"
-#define GOOPAD_STYLED_FILE "styled-55567412e0ca.gsp"
-#define GOOPAD_STYLED_SHA256 "55567412e0cac303847bdec4fe39ae02cc5c338b0e44679e6621dedab26f21e5"
+#define GOOPAD_STYLED_FILE "styled-a46365f6bdea.gsp"
+#define GOOPAD_STYLED_SHA256 "a46365f6bdea856b60470faeeec70420fb232f6ee4ed9ec2285442491c875ca3"
 
 #define GOOPAD_TEXT_FILE "text-371771469d5d.gfp"
 #define GOOPAD_TEXT_SHA256 "371771469d5d19159b6fd6a6bd8da3d4744c58d0585f89793452987756d74ed6"

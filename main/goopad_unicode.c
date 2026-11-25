@@ -175,7 +175,10 @@ static cache_t *oldest(cache_t *exclude, bool bitmap_only)
     for (unsigned i = 0; i < CACHE_ENTRIES; i++) {
         cache_t *entry = &cache[i];
         if (entry == exclude || entry->pins || (bitmap_only && !entry->bitmap)) continue;
-        if (!result || clock_tick - entry->stamp > clock_tick - result->stamp) result = entry;
+        if (!result ||
+            (!bitmap_only && !entry->bitmap && result->bitmap) ||
+            ((bitmap_only || !!entry->bitmap == !!result->bitmap) &&
+             clock_tick - entry->stamp > clock_tick - result->stamp)) result = entry;
     }
     return result;
 }

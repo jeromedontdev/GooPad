@@ -37,6 +37,7 @@ void app_main(void)
         }
     }
 
+    goopad_ui_boot(disp);
     if (hw_touch_init(disp) != ESP_OK) {
         ESP_LOGE(TAG, "touch init failed");
     }

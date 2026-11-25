@@ -33,7 +33,7 @@ codepoint directory and lazily reads metadata/decodes bitmaps. It does not load 
 PSRAM. A **206,588-byte** sorted codepoint directory avoids approximately
 16 random SD index seeks per uncached glyph; lookups need one record read.
 This directory is bounded at 512 KiB. The metrics cache has 512 entries
-(24 KiB on ESP32), and an LRU bitmap cache is capped at **32 KiB**, with
+(26,624 bytes on ESP32), and an LRU bitmap cache is capped at **32 KiB**, with
 pinned-glyph lifetime protection. Per-glyph CRC16, descriptor
 bounds and decode limits fail explicitly on corrupt data.
 
@@ -47,6 +47,27 @@ Styled cold metrics prefetch 16 adjacent records into the existing cache;
 the extra 448 bytes are stack-only. The target's resident styled metadata is
 43,144 bytes and Unicode metrics are 26,624 bytes. The full canary remains
 enabled and verifies every printable ASCII character in all 68 selectors.
+Metrics prefetch cannot evict rendered bitmap entries; space advances use
+existing descriptor padding, avoiding recurring SD reads for spaces without
+increasing the target descriptor allocation.
+
+The styled generator reads the source's `bitmap_format`: plain 2-bpp glyphs
+are copied as-is; compressed glyphs use glyph-relative RLE state and undo
+LVGL's row-XOR prefilter. Kerning uses LVGL's fixed-point scaling before
+adding the result to the advance. The corrected pack is
+`styled-a46365f6bdea.gsp` (full hash in the firmware manifest). The earlier
+`styled-55567412e0ca.gsp` contains incorrectly converted glyphs and kerning;
+do not install it with repaired firmware or reuse the superseded resource ZIP.
+
+The device prewarms selected label glyphs into the existing bounded cache,
+including offscreen captions, rather than opening SD files on the first swipe.
+Small widget invalidations patch only dirty page-cache regions; cache validity
+is restored on the final flush. Configuration and widget snapshots are deferred
+while page/menu animations run. HTTPS/SD streaming runs at priority 2, below
+LVGL (4) and its software renderer (3), avoiding network-induced render starvation.
+Boot presents a compiled-font loading screen before
+SD/Wi-Fi initialization, and the exhaustive canary yields the LVGL lock between
+variants so that screen can continue rendering.
 
 The full Font Awesome catalog is also SD-backed; its small compressed search
 index remains embedded. Existing user images, configuration and pairing are
@@ -128,6 +149,13 @@ The native styled runner checks source parity, glyph decoding, 360 cold reads
 for a 5,700-descriptor sweep, warm no-I/O lookup, mixed-cache bounds, corruption
 and independent pack failure. It also compiles the real LVGL descriptor
 lookup with the actual font selector to check all fallback chains.
+It now compiles all 60 original generated fonts and LVGL's actual plain/RLE
+decoder: 5,760 original-vs-SD pixel/metric comparisons and 36,864 adjacent-glyph
+kerning combinations. This is independent of the pack converter; the earlier
+converter-against-itself parity checks did not establish visual equivalence.
+Run `python -m unittest tests.test_ui_cache` in the integrated worktree for
+actual frame-capture dirty-region, final-flush and new-page regression checks.
+It also checks that page/menu motion defers configuration reads until motion ends.
 The web handler test requires the integrated SD HTTP handlers; this application
 integration remains part of the development worktree until the source backlog
 is reconciled. Generated packs must ship with the accompanying OFL notices.

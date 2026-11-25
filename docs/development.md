@@ -75,6 +75,14 @@ against failure to reach that point, not every later bug or network failure.
 Observe boot logs and verify the actual feature, persisted config and paired
 bridge after the update. If HTTPS is unreachable, distinguish Wi-Fi/DHCP,
 LAN routing and certificate problems from a failed boot; do not erase data.
+HTTPS can become responsive before initialization and OTA validation finish.
+Wait for initialization/font-canary completion before disruptive serial
+bootloader checks; resetting an unvalidated candidate can trigger rollback.
+For a version-changing upgrade, HomeKit deliberately updates `hap_main/fw_rev`
+and advances `hap_main/config_num` once (wrapping 65535 to 1). Validate those
+exact transitions separately from the reboot advertisement `state_num`;
+all other logical pairing/configuration records and the ownership marker
+must remain identical. Do not ignore arbitrary NVS differences.
 Manual serial recovery must first identify the live device, partition table,
 active selector and known-good slot; never assume a COM port or slot.
 

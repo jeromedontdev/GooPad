@@ -49,8 +49,9 @@ lock. Do not hold that lock over network or SD operations.
 
 The historical pre-offload Unicode ESP-IDF 6.1 HomeKit build was 4,162,208
 bytes, leaving 32,096 bytes in each app slot. The subsequently installed
-SD-resource/PC-repair build was 2,316,192 bytes, leaving 1,878,112 bytes
-(44.78%); consult the storage ledger for the latest release measurement.
+SD-resource/PC-repair build was 2,316,192 bytes. The clean 0.7.3 release build
+is 2,316,320 bytes, leaving 1,877,984 bytes (44.77%); consult the storage ledger
+for source, SDK and image identities.
 An earlier build's linked DIRAM was 154,214 of 341,760
 reported bytes; that is a **link-time** figure, not free runtime heap.
 Rerun the size tool for the active build. Radio, DMA, task stacks, TLS and draw

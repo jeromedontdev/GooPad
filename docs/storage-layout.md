@@ -21,9 +21,35 @@ cca8dceb46a23605a490e75027f0d2af52d372dad5004226b30b27806a0c60e1
 KiB means 1,024 bytes; MiB means 1,048,576 bytes. All percentages below use the
 4,194,304-byte app slot, not the whole flash chip.
 
-## Current Companion-reliability build
+## Complete 0.7.3 release build
 
-The installed production-config development image is **2,316,192 bytes**,
+The clean production build from source commit
+`34fd9f80e609505403d5127b659fdcf2674cc70e` is **2,316,320 bytes**, leaving
+**1,877,984 bytes / 44.77% free** in its unchanged 4 MiB OTA slot. SHA-256:
+
+```text
+c8a52ecde58835a373dbd6dc392b29ad30662f56917f1b36ca4f79e945168207
+```
+
+It was built in a separate clean checkout with a fresh configuration seeded
+by the committed defaults and component lockfile, using ESP-IDF 6.1 commit
+`fff9895c82d744c7237be8847347bdd1b07c6643`. Production render/capacity
+diagnostics are OFF. The resolved configuration matches the preceding
+verified production configuration. The release includes the matching SD
+resources, dependency/font notices and build-input/checksum records; these
+record provenance, not a promise of bit-identical output across toolchains,
+build paths, platforms or timestamps.
+
+The [published 0.7.3 release](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.3)
+matches the verified active app-only installation. The final five-minute
+functional soak observed 56/56 available PC snapshots and no errors/reboots.
+Both soak reports are retained: the initial run caught one recovered PC
+polling timeout, while the repeat observed none. See the change log for the
+remaining network-wait warnings and measured runtime heap minima.
+
+## Previous Companion-reliability development build
+
+The preceding installed production-config development image was **2,316,192 bytes**,
 leaving **1,878,112 bytes / 44.78% free** in its unchanged 4 MiB app slot.
 It is **480 bytes larger** than the preceding font-repair image. SHA-256:
 
@@ -46,8 +72,9 @@ installation. Automatic render diagnostics remain OFF.
 The object-attribution table and font performance/soak figures below describe
 the preceding **font-repair** image, not new Companion reliability results.
 See the [change log](change-log.md) for connection validation and publication
-scope. The installed image still includes earlier uncommitted integration;
-it must not be published as a binary reproduced from a scoped source commit.
+scope. That image included earlier uncommitted integration and was not
+published as a binary reproduced from a scoped source commit. The complete
+0.7.3 integration above resolves that earlier source-provenance blocker.
 
 ## Previous repaired SD-backed editor and styled-font build
 

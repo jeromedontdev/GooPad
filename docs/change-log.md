@@ -18,6 +18,60 @@ Never include credentials, private keys, pairing codes, raw user configuration,
 serial captures or flash dumps. Do not claim historical work was committed or
 released merely because it was installed.
 
+## 2026-11-25 - Publishing the complete 0.7.3 release
+
+- **Request:** create the release commit and publish the complete product.
+- **Source/build:** release commit and tag `v0.7.3` point to
+  `34fd9f80e609505403d5127b659fdcf2674cc70e`, including the accumulated
+  integration rather than another narrow repair patch. A separate clean
+  checkout, pinned component lockfile and fresh defaults produced the actual
+  released image. Its resolved configuration matches the preceding verified
+  production configuration. ESP-IDF 6.1 tracked sources were clean at
+  `fff9895c82d744c7237be8847347bdd1b07c6643`. Diagnostics remain OFF.
+- **Image/storage:** 2,316,320 bytes, leaving 1,877,984 bytes / 44.77% of
+  the 4 MiB app slot free. SHA-256:
+  `c8a52ecde58835a373dbd6dc392b29ad30662f56917f1b36ca4f79e945168207`.
+  The SD pack matches the existing text, icon, corrected styled and web
+  archives; no new glyph-cache budget is introduced by this release.
+- **Installation/persistence:** COM9/chip, partitions, validated recovery
+  bytes and pinned HTTPS were checked before application-only OTA. The
+  strict check initially flagged HomeKit's expected firmware-version metadata.
+  A controlled recovery/upgrade repeated the comparison: only `fw_rev` and
+  its single `config_num` increment changed; all other logical pairing/config
+  records, ownership marker and authentication matched. An early serial
+  inspection also encountered a still-unvalidated candidate and automatic
+  rollback; waiting for initialization before disruptive checks resolved the
+  deployment-harness timing issue, without a firmware change or data erase.
+  Actual released slot bytes, version, 68 font variants, early loading
+  screen, editor gzip/identity, nine browser fonts and SD icon search passed.
+- **Soak:** the initial 300-second run kept PC monitoring available in 56/56
+  samples, with zero functional errors/reboots, but serial monitoring caught
+  one recovered 8,094 ms PC polling timeout. Its extra zero-serial-fault check
+  failed; that report is retained, not replaced. A second 300-second run with
+  the same criteria passed: 56/56 available snapshots, zero observed deferred
+  widgets, errors, reboots or serial polling faults. There were 28 bounded PC
+  slot-wait warnings, none widget admission warnings. Minimum sampled
+  internal free/largest block were 39,599/17,408 bytes; minimum PSRAM free
+  was 3,349,780 bytes. The three currently configured network providers had
+  valid output shapes; GET-only PC diagnostics returned HTTP 200 in 4,607 ms.
+  Saved configuration was unchanged. These are observations, not guarantees
+  of timeout-free networks or subsecond media updates.
+- **Packages/publication:** the matching Companion installer and ZIP were
+  built from the same clean source. Embedded executable and installer versions,
+  exact bundled source/executable bytes, ZIP integrity and dependency notices
+  were checked without replacing the user's running Companion. The stable
+  [0.7.3 release](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.3)
+  contains nine assets: OTA, installer, portable ZIP, SD resources, firmware
+  notices, both sanitized soak reports, build inputs and SHA256SUMS. Every
+  uploaded size/digest and the peeled remote tag target were verified before
+  publication. Latest-stable metadata exposes both updater-required filenames;
+  downloaded OTA/checksum files match the verified local bytes.
+- **Remaining:** cold Companion TLS can still take 2-4 seconds and one initial
+  polling deadline expired as recorded above. Only Guition hardware was
+  verified; Windows packages are not code-signed. This follow-up documentation
+  records delivery; the released firmware's source identity remains the tagged
+  integration commit above.
+
 ## 2026-11-25 - Preparing the complete 0.7.3 release
 
 - **Request:** commit and publish a complete release, not another patch-only

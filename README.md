@@ -11,6 +11,16 @@ For maintainers: [architecture and code map](docs/architecture.md),
 [API and data contracts](docs/api.md). Future coding agents should also read
 [AGENTS.md](AGENTS.md).
 
+## Current release
+
+[GooPad 0.7.3](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.3)
+includes the application-only firmware, matching Windows Companion installer
+and portable ZIP, SD resources, notices, checksums and hardware-soak reports.
+For configured devices, use the OTA image only; preserve configuration,
+HomeKit pairing and existing SD files. Install the matching SD resources
+before upgrading. See the release notes for validation and remaining latency
+limitations.
+
 ## First boot
 
 1. Power the board and use its touch-screen keyboard to enter Wi-Fi details.

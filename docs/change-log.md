@@ -686,3 +686,37 @@ not a complete historical changelog.
   binary release required. Scoped commit/push includes the new ledger, agent
   link, Unicode-guide correction and this log; the broader pre-existing
   runtime memory document remains in the accumulated worktree.
+
+## 2026-11-25 - Tile editor grouping and display options
+
+- **Request:** simplify tile choices, fix sound guidance and 12-hour time
+  formatting, add image-only tiles and Clock alarms.
+- **Changes:** grouped existing widgets under Clock, Weather, Market and PC;
+  grouped Apple Home and Home Assistant actions/state under Smart home. Renamed
+  the action choices and Time heading, removed GitHub from new choices, hid
+  action card styles behind filled visuals, clarified sound-only validation,
+  and added a no-action image/GIF option. Twelve-hour output omits the leading
+  zero; 24-hour output is unchanged.
+- **Compatibility:** grouping does not change saved widget identifiers.
+  Existing GitHub tiles remain editable. Image-only tiles use the existing
+  `simple_link` format with an empty URL and an image; no NVS, SD, Wi-Fi or
+  HomeKit migration is required. Rollback retains those records, but older
+  editors do not expose the new grouped choices.
+- **Validation:** browser editor regression passed 4,929 checks over 2,520
+  layouts. `python -m unittest discover -s tests -p test_web_resources.py -v`
+  passed all four resource/actual C-loader tests after regenerating the web
+  manifest. An intermediate run failed because the generated manifest lagged
+  the editor edit; regeneration fixed it. ESP-IDF 6.1 `reconfigure build`
+  passed from fresh production defaults with HomeKit, NVS block device, custom
+  LVGL allocation and compressed fonts enabled. The development image reports
+  0.7.5, is 2,316,256 bytes and leaves 1,878,048 bytes in the 4 MiB app slot.
+  The generated web pack matches the final editor source. This build is not a
+  new versioned release.
+- **Delivery/remaining:** alarms are not implemented: the existing widget
+  refresh stops during Wi-Fi loss and UI activity, so it cannot safely serve
+  as an alarm scheduler. Implement and test a scheduler independent of UI and
+  connectivity, including clock changes, audio contention, restart and power
+  loss, before offering alarms. Device identity, pinned credentials and a
+  verified recovery slot were not established; no OTA installation, physical
+  behavior test or five-minute device soak was performed. No binary release
+  is claimed.

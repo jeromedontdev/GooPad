@@ -107,7 +107,7 @@ system fonts.
 **Custom web request** sends a GET or POST from GooPad and allows a JSON body
 and optional `X-GooPad-Token` header. Existing service-link tiles remain GET
 requests. To open a website on your
-PC, choose **Windows PC macro** and the **Open a website** starter or step.
+PC, choose **Macro** and the **Open a website** starter or step.
 It uses the Companion pairing in Settings and opens HTTP(S) links in the PC's
 default browser. Existing website tiles keep working. Requests from GooPad
 validate HTTPS certificates.
@@ -174,10 +174,13 @@ stored image; switching back to Custom restores it. Removing it from the layout
 requires saving. Images are stored separately on SD, so a config-only backup
 does not include the assets.
 
-Choose **Live widget** for a live clock, date, or **PC stats**.
-Widgets are display-only on the device; select them in the editor to configure
-them. Time format offers 12/24-hour displays, with optional seconds and optional
-AM/PM for 12-hour clocks; the default
+Choose **Widgets**, then **Clock**, **Weather**, **Market**, or **PC** and a
+widget type. **Smart home** groups Apple Home, Home Assistant actions and Home
+Assistant state. **Image only** makes a non-actionable image or GIF tile; select
+its visual under **Icon & graphic**.
+Select widgets in the editor to configure them; stopwatch, Pomodoro and
+now-playing widgets also respond to touch. Time format offers 12/24-hour displays, with optional seconds and optional
+AM/PM for 12-hour clocks. Twelve-hour displays omit a leading zero; the default
 remains 24-hour without seconds. Date format offers year-month-day, month/day/year,
 day/month/year, and short month/day; the default remains year-month-day. Date preview text
 scales to the tile's dimensions. Clock/date use network time or time
@@ -188,7 +191,8 @@ Lavender, Mint, Aurora, Ember, Arctic, and Berry, or Custom to use your own tile
 end, text, outline and graphic-accent colors. Switching away from Custom
 preserves those colors for switching back. New tiles use **Classic**; existing
 tiles without an explicit style retain **Modern**. Every tile can select
-Classic, Modern, or Layered. The **Modern** layout
+Classic, Modern, or Layered; action tiles hide this choice when a fill visual
+covers their card styling. The **Modern** layout
 adds a compact heading and accent to larger rounded or square tiles, and falls
 back to the classic layout on smaller tiles and other shapes to keep readings
 legible. Layered adds the newer caption and icon surfaces where they fit.
@@ -254,7 +258,8 @@ Weather uses latitude/longitude and Celsius or Fahrenheit. Weather data by
 [Open-Meteo.com](https://open-meteo.com/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/):
 temperatures are rounded and weather codes summarized. The free endpoint is for
 non-commercial use and transmits the coordinates to Open-Meteo. Weather refreshes
-every 15 minutes. Choose **Market price**, then Stock or Cryptocurrency.
+every 15 minutes. Choose **Weather** for conditions, alerts or air quality;
+choose **Market** for Stock, Cryptocurrency or Exchange rate.
 **Weather alerts (US NWS)** sends the chosen coordinates to the US National
 Weather Service about every minute per tile (with at least 30 seconds between
 all NWS requests) and shows the number and first event. It reports
@@ -266,9 +271,8 @@ The **Exchange rate** widget uses Frankfurter without an API key. Enter two
 different three-letter currency codes; it refreshes every six hours and shows
 the reference-rate date. These are not live market or transaction rates.
 Air quality uses Open-Meteo's model-based US AQI and refreshes every 30 minutes;
-it is not a local sensor or a substitute for official warnings. GitHub profile
-stats show public repository and follower counts every 30 minutes without a token,
-subject to GitHub's shared unauthenticated rate limit.
+it is not a local sensor or a substitute for official warnings. Existing GitHub
+profile widgets remain editable, but cannot be chosen for new tiles.
 For stocks, choose Finnhub (the default for new tiles) or Alpha Vantage, and
 enter that provider's key. Finnhub's free personal-use US stock quotes refresh
 every minute per tile; its published rate limit is shared by the key, so many
@@ -368,6 +372,7 @@ An existing SD configuration backup can be downloaded with an authenticated
 
 Each button can play a click, beep, chime, or alert through the board's I2S
 speaker, either alongside its web action or with **Play a sound only**.
+Sound-only tiles require a sound selection before saving.
 Select **Uploaded WAV / MP3** to upload a sound up to 30 seconds (15 MB input).
 The browser decodes and resamples it to 22050 Hz mono PCM WAV; the device
 streams it from SD on a separate task. Repeat taps while playback is busy
@@ -426,7 +431,7 @@ On Save, PC tiles share the root pairing instead of repeating its address and
 token. Older firmware cannot use these compact PC tiles; keep a compatible
 backup before downgrading.
 
-Choose **Windows PC macro (guided builder)** on a tile. Starters include Copy,
+Choose **Macro** on a tile. Starters include Copy,
 Paste, Screenshot, Play/Pause and Mute. Add/reorder/remove up to 12 steps:
 hotkeys, media keys, typed text, waits, HTTP(S) websites, PowerShell commands,
 and locally approved app actions. No webhook or JSON knowledge is required.

@@ -386,7 +386,11 @@ static void update_widgets(void)
             else if (s_widget_types[i] == 3)
                 goopad_pc_stat_text(s_widget_stats[i], s_widget_fahrenheit[i], text, sizeof(text));
             else if (!synced) strlcpy(text, "Sync time\nin the website", sizeof(text));
-            else strftime(text, sizeof(text), s_widget_formats[i], &now);
+            else {
+                strftime(text, sizeof(text), s_widget_formats[i], &now);
+                if (s_widget_types[i] == 1 && !strncmp(s_widget_formats[i], "%I", 2) && text[0] == '0')
+                    memmove(text, text + 1, strlen(text));
+            }
             if (strcmp(lv_label_get_text(s_widget_labels[i]), text)) {
                 invalidate_macro_page(i);
                 fit_widget_text(i, text);
@@ -1919,7 +1923,7 @@ static void build_grid_screen(void)
                         static const char *stat_titles[] = {"PC STATS", "CPU", "RAM", "RAM USED", "GPU",
                                                              "GPU RAM", "CPU TEMP", "GPU TEMP",
                                                              "DOWNLOAD", "UPLOAD", "FAN"};
-                        const char *title = type == 1 ? "CLOCK" : type == 2 ? "DATE" : type == 4 ? "COUNTDOWN" :
+                        const char *title = type == 1 ? "TIME" : type == 2 ? "DATE" : type == 4 ? "COUNTDOWN" :
                                             type == 5 ? "STOPWATCH" : type == 6 ? "WEATHER" : type == 7 ? "STOCK" :
                                             type == 8 ? "CRYPTO" : type == 9 ? "POMODORO" : type == 10 ? "GITHUB" :
                                             type == 11 ? "AIR QUALITY" : type == 12 ? "EXCHANGE" :

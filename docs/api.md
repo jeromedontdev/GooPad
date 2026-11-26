@@ -154,6 +154,13 @@ behavior, keep the frontend and validator aligned, and test upgrades and
 round trips. Do not add a required property to existing records without a
 migration strategy.
 
+The editor's Clock, Weather, Market, PC and Smart home groups are presentation
+only: they retain the existing mode and widget values above. Image-only tiles
+save as `simple_link` with an empty URL and an image asset, and do not execute
+an action. New GitHub profile widgets are no longer offered, but saved
+`github` widgets remain supported. Twelve-hour time formatting omits a leading
+zero; the stored `clockFormat` keys are unchanged.
+
 ## Companion routes
 
 | Method and path | Behavior |

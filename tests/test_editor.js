@@ -39,6 +39,47 @@ globalThis.runGooPadEditorTests = async function () {
   setDeviceDisplay({});
   check(![...document.querySelector('#rows').options].find(option=>option.value==="4").disabled,"Legacy firmware retains 480x480 grid support");
   globalThis.fetch=fetchOriginal;
+  reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);
+  const actionOptions=[...document.querySelector('[data-k="actionMode"]').options].map(option=>option.textContent);
+  check(actionOptions.includes("Widgets")&&actionOptions.includes("Macro")&&actionOptions.includes("Smart home")&&actionOptions.includes("Image only"),"Action options use the requested names");
+  change("actionMode","widget");
+  const chooseGroup=group=>{const control=document.querySelector("[data-widget-category]");control.value=group;control.dispatchEvent(new Event("change"))};
+  for(const [group,values] of Object.entries(widgetGroups)){
+   chooseGroup(group);
+   const selector=document.querySelector('[data-k="widget"]');
+   check(selector.value===values[0]&&[...selector.options].filter(option=>!option.hidden).map(option=>option.value).join(",")===values.join(","),"Widget category exposes its suboptions: "+group);
+   for(const value of values){change("widget",value);render();check(document.querySelector("[data-widget-category]").value===group&&document.querySelector('[data-k="widget"]').value===value,"Widget selection reopens in its category: "+value)}
+  }
+  check(!document.querySelector('[data-k="widget"] option[value="github"]'),"New widgets do not offer GitHub profile stats");
+  change("actionMode","smart_home");
+  for(const type of ["home_assistant","homekit","home_state"]){
+   const control=document.querySelector("[data-smart-home-type]");control.value=type;control.dispatchEvent(new Event("change"));
+   check(document.querySelector('[data-k="actionMode"]').value==="smart_home"&&document.querySelector("[data-smart-home-type]").value===type,"Smart home selection survives rerender: "+type);
+  }
+  change("actionMode","widget");
+  check(cfg.macros[0].widget==="clock"&&!document.querySelector('[data-mode-field="widget"]').classList.contains("hidden"),"Switching from Home Assistant state to Widgets exposes Clock");
+  reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);change("actionMode","display");
+  let missingImage=false;try{prepareMacroAction(structuredClone(cfg.macros[0]),0)}catch{missingImage=true}
+  check(missingImage&&document.querySelector('[data-section="sound"]').classList.contains("hidden"),"Image-only tiles require an image and hide sound controls");
+  change("iconSource","image");Object.assign(cfg.macros[0],{iconImage:"i0000000000000001",iconFormat:"rgb565a8",iconSize:160});
+  const display=structuredClone(cfg.macros[0]);prepareMacroAction(display,0);
+  check(display.actionMode==="simple_link"&&display.url===""&&display.sound==="none"&&display.iconImage==="i0000000000000001","Image-only tiles save in the compatible display-only format");
+  const formerWeather={...cfg.macros[0],widget:"weather",widgetGraphic:"text"};prepareMacroAction(formerWeather,0);
+  check(!("widget" in formerWeather)&&!("widgetGraphic" in formerWeather),"Image-only conversion does not retain an incomplete widget type");
+  let savedDisplay;
+  globalThis.fetch=async (url,options={})=>url==="/api/config"&&options.method==="POST"
+   ? (savedDisplay=JSON.parse(options.body),new Response("{}")):fetchOriginal(url,options);
+  await document.querySelector("#save").onclick();
+  check(savedDisplay?.macros[0].actionMode==="simple_link"&&savedDisplay.macros[0].iconImage===display.iconImage,"Image-only tile is submitted as a display-only record");
+  globalThis.fetch=fetchOriginal;cfg.macros[0]=savedDisplay.macros[0];render();
+  check(document.querySelector('[data-k="actionMode"]').value==="display","Saved image-only tiles reopen as Image only");
+  change("visualFit","cover");
+  check(document.querySelector('[data-k="widgetLayout"]').closest(".field").classList.contains("hidden"),"Covered visuals hide inapplicable card styles");
+  change("visualFit","contain");
+  check(!document.querySelector('[data-k="widgetLayout"]').closest(".field").classList.contains("hidden"),"Contained visuals expose card styles");
+  reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);change("actionMode","sound");
+  let missingSound=false;try{prepareMacroAction(structuredClone(cfg.macros[0]),0)}catch{missingSound=true}
+  check(missingSound&&document.querySelector('[data-mode-field="sound"]').textContent.includes("required")&&document.querySelector('[data-section="sound"] .section-hint').textContent==="Required sound","Sound-only guidance matches save validation");
   reset({pageCount:1,macros:[make(0)]});selectTile(0);
   const clockOptions=document.querySelector('[data-widget-option="clock"]');
   check(!clockOptions.classList.contains("hidden"),"Clock format options are visible when editing a clock");
@@ -121,6 +162,7 @@ globalThis.runGooPadEditorTests = async function () {
    const tile=document.querySelector('[data-tile="0"]');
    check(tile.classList.contains("visual-cover")&&!!tile.querySelector(".visual-background")&&!tile.querySelector(".widget-graphic"),`${mode} ${source} visual fills behind content`);
    check(document.querySelector('[data-k="visualFit"]').value==="cover"&&!document.querySelector('[data-k="visualFit"]').closest(".field").classList.contains("hidden"),`${mode} ${source} exposes background placement`);
+   check(document.querySelector('[data-k="widgetLayout"]').closest(".field").classList.contains("hidden")===(mode!=="widget"),`${mode} ${source} shows card styles only when applicable with a fill visual`);
    change("visualFit","contain");
    check(!document.querySelector('[data-tile="0"]').classList.contains("visual-cover"),`${mode} ${source} returns to contained visual`);
   }
@@ -136,7 +178,7 @@ globalThis.runGooPadEditorTests = async function () {
   await croppedCoverPreview(paddedSource);await Promise.resolve();
   check(document.querySelector('[data-tile="0"] .visual-background').src===cropped,"Cover preview displays the cropped image");
   check(cfg.macros[0].imagePreview===paddedSource,"Cover preview does not rewrite the saved visual");
-  for(const mode of ["advanced","widget","pc_macro","wake_on_lan","home_assistant","homekit","sound"]){
+  for(const mode of ["advanced","widget","pc_macro","wake_on_lan","smart_home","sound"]){
    reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);change("actionMode",mode);
    const selector=document.querySelector('[data-k="widgetLayout"]');
    check(selector.closest('[data-section="appearance"]')&&!selector.closest(".field").classList.contains("hidden")&&selector.options.length===3,"All styles are available for "+mode);
@@ -323,7 +365,8 @@ globalThis.runGooPadEditorTests = async function () {
   check(pageSave?.pageCount===3 && currentPreviewPage()===2,"Saving preserves the editor preview page");
   globalThis.fetch=fetchOriginal;
   reset({pageCount:1,macros:[emptyMacro()],companionAddress:"192.0.2.20",companionToken:"x".repeat(32),companionCertificate:certificate});selectTile(0);
-  change("actionMode","homekit");
+  change("actionMode","smart_home");
+  const smartType=document.querySelector("[data-smart-home-type]");smartType.value="homekit";smartType.dispatchEvent(new Event("change"));
   change("homekitName","Desk light");
   prepareMacroAction(cfg.macros[0],0);
   const homekitId=cfg.macros[0].homekitId;
@@ -559,7 +602,7 @@ globalThis.runGooPadEditorTests = async function () {
   check(cfg.macros[0].actionMode==="advanced" && cfg.macros[0].method==="GET" && cfg.macros[0].url==="https://example.com/trigger", "Existing service links remain equivalent web requests");
   for(const decoration of [{name:"Label"},{icon:"★"},{iconImage:"icon.png"},{faIcon:"solid:star"},{sound:"click"}]){
    reset({macros:[{...emptyMacro(),...decoration}]});selectTile(0);
-   check(document.querySelector('[data-k="actionMode"]').value==="advanced" && !document.querySelector('[data-section="icon"]').classList.contains("hidden"),"Existing decorated or sound-only links remain editable");
+   check(document.querySelector('[data-k="actionMode"]').value===(decoration.sound?"advanced":"display") && !document.querySelector('[data-section="icon"]').classList.contains("hidden"),"Existing decorated or sound-only links remain editable");
   }
   reset({macros:[{...emptyMacro(),actionMode:"advanced",url:"https://example.com/existing",method:"POST",body:'{"example":true}'}]});selectTile(0);
   check(document.querySelector('[data-k="actionMode"]').value==="advanced" && document.querySelector('[data-k="url"]').value==="https://example.com/existing" && document.querySelector('[data-k="body"]').value==='{"example":true}',"Existing custom request retains its fields and values");
@@ -581,7 +624,11 @@ globalThis.runGooPadEditorTests = async function () {
   }
   document.querySelector("#deviceTheme").value="midnight";document.querySelector("#deviceTheme").dispatchEvent(new Event("change"));
   change("clockFormat","12h_plain");
-  check(widgetTimeText(cfg.macros[0],new Date("2026-11-21T14:30:45Z"))==="02:30", "12-hour without AM/PM");
+  check(widgetTimeText(cfg.macros[0],new Date("2026-11-21T14:30:45Z"))==="2:30", "12-hour without leading zero");
+  change("clockFormat","12h_seconds");
+  check(widgetTimeText(cfg.macros[0],new Date("2026-11-21T09:05:03Z"))==="9:05:03 AM"&&widgetTimeText(cfg.macros[0],new Date("2026-11-21T12:05:03Z"))==="12:05:03 PM","12-hour format preserves noon and seconds without leading zeros");
+  change("clockFormat","24h");
+  check(widgetTimeText(cfg.macros[0],new Date("2026-11-21T09:05:03Z"))==="09:05","24-hour format keeps its leading zero");
   change("clockFormat","12h_plain_seconds");
   check(widgetTimeText(cfg.macros[0],new Date("2026-11-21T00:30:45Z"))==="12:30:45", "Midnight without AM/PM and with seconds");
   change("widgetTextSize","40"); change("widgetGraphic","analog"); change("widget","date");
@@ -612,13 +659,12 @@ globalThis.runGooPadEditorTests = async function () {
   change("focusMinutes","37");
   change("widgetGraphic","custom_icon");change("icon","★");
   check(!document.querySelector('[data-k="iconSource"]').closest(".field").classList.contains("hidden") && document.querySelector('[data-tile="0"] .widget-graphic .ico')?.textContent==="★","Text widget displays the chosen icon");
-  for(const widget of ["clock","date","pc_monitor","weather","air_quality","countdown","stopwatch","pomodoro","github"]){
+  for(const widget of ["clock","date","pc_monitor","weather","air_quality","countdown","stopwatch","pomodoro"]){
    change("widget",widget);
    check(!document.querySelector("[data-widget-graphic]").classList.contains("hidden") && !document.querySelector('[data-k="iconSource"]').closest(".field").classList.contains("hidden") && document.querySelector('[data-tile="0"] .widget-graphic .ico')?.textContent==="★","Custom icon is editable and previewed for "+widget);
   }
-  change("widget","market");
   for(const type of ["stock","crypto"]){
-   const selector=document.querySelector("[data-market-type]");selector.value=type;selector.dispatchEvent(new Event("change"));
+   change("widget",type);
    check(!document.querySelector('[data-k="iconSource"]').closest(".field").classList.contains("hidden") && document.querySelector('[data-tile="0"] .widget-graphic .ico')?.textContent==="★","Custom icon is editable and previewed for "+type);
   }
   change("widget","pomodoro");
@@ -669,7 +715,7 @@ globalThis.runGooPadEditorTests = async function () {
   let airRejected=false;try{prepareMacroAction(cfg.macros[0],0)}catch{airRejected=true}
   check(airRejected,"Air quality rejects invalid coordinates");
   change("weatherLatitude","40.71");prepareMacroAction(cfg.macros[0],0);
-  change("widget","market");change("marketSymbol","aapl");
+  change("widget","stock");change("marketSymbol","aapl");
   check(cfg.macros[0].widget==="stock" && document.querySelector('[data-k="stockProvider"]').value==="finnhub" && !document.querySelector('[data-stock-provider="finnhub"]').classList.contains("hidden"),"New stock defaults to Finnhub and shows its key field");
   let stockRejected=false;try{prepareMacroAction(cfg.macros[0],0)}catch{stockRejected=true}
   check(stockRejected,"Finnhub requires its own API key");
@@ -689,15 +735,16 @@ globalThis.runGooPadEditorTests = async function () {
   prepareMacroAction(cfg.macros[0],0);check(cfg.macros[0].stockProvider==="alphavantage","Saving legacy stock keeps Alpha Vantage");
   change("stockProvider","finnhub");prepareMacroAction(cfg.macros[0],0);render();
   check(document.querySelector('[data-k="stockProvider"]').value==="finnhub" && cfg.macros[0].stockKey==="test123" && cfg.macros[0].finnhubKey==="finn-test_123","Finnhub round trip retains both provider keys");
-  const marketType=document.querySelector("[data-market-type]");marketType.value="crypto";marketType.dispatchEvent(new Event("change"));
+  change("widget","crypto");
   check(cfg.macros[0].widget==="crypto" && document.querySelector('[data-widget-option="stock"]').classList.contains("hidden"),"Market type switches to cryptocurrency and hides the stock key");
-  render();check(document.querySelector('[data-k="widget"]').value==="market" && document.querySelector("[data-market-type]").value==="crypto","Existing cryptocurrency tile opens under Market");
+  render();check(document.querySelector('[data-k="widget"]').value==="crypto" && document.querySelector("[data-widget-category]").value==="market","Existing cryptocurrency tile opens under Market");
   change("marketSymbol","BTC&bad");
   let cryptoRejected=false;try{prepareMacroAction(cfg.macros[0],0)}catch{cryptoRejected=true}
   check(cryptoRejected,"Unsafe crypto symbol rejected");
   change("marketSymbol","btc");prepareMacroAction(cfg.macros[0],0);
   check(cfg.macros[0].marketSymbol==="BTC","Crypto symbol normalized");
-  change("widget","github");change("githubUser","bad--name");
+  cfg.macros[0].widget="github";render();change("githubUser","bad--name");
+  check(document.querySelector('[data-widget-category] option[value="legacy"]').disabled,"Existing GitHub tiles remain editable without offering them as a new choice");
   let githubRejected=false;try{prepareMacroAction(cfg.macros[0],0)}catch{githubRejected=true}
   check(githubRejected,"Invalid GitHub usernames are rejected");
   change("githubUser","octocat");prepareMacroAction(cfg.macros[0],0);

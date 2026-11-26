@@ -367,6 +367,7 @@ globalThis.runGooPadEditorTests = async function () {
   reset({pageCount:1,macros:[emptyMacro()],companionAddress:"192.0.2.20",companionToken:"x".repeat(32),companionCertificate:certificate});selectTile(0);
   check(!document.querySelector('[data-k="actionMode"] option[value="pc_open_url"]'),"New PC websites are configured inside the PC builder");
   change("actionMode","widget");chooseGroup("pc");change("widget","wake_on_lan");
+  check(document.querySelector('[data-k="widget"] option[value="wake_on_lan"]').textContent==="Wake-on-LAN","PC option uses the Wake-on-LAN label");
   check(!document.querySelector('[data-mode-field="wake_on_lan"]').classList.contains("hidden"),"Wake-on-LAN displays the guided MAC field");
   check(document.querySelector('[data-k="actionMode"]').value==="widget"&&document.querySelector("[data-widget-category]").value==="pc"&&document.querySelector('[data-k="widget"]').value==="wake_on_lan"&&!document.querySelector(".tile-action-buttons").classList.contains("hidden"),"Wake-on-LAN remains an actionable PC option");
   change("wakeMac","02-11-22-33-44-aa");

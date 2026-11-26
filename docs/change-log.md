@@ -18,6 +18,22 @@ Never include credentials, private keys, pairing codes, raw user configuration,
 serial captures or flash dumps. Do not claim historical work was committed or
 released merely because it was installed.
 
+## 2026-11-26 - Rename Wake-on-LAN option
+
+- **Request/changes:** rename the PC widget option to **Wake-on-LAN**, then
+  commit and publish without another soak. The README uses the same label.
+- **Compatibility:** this changes only presentation; existing `wake_on_lan`
+  actions and their saved MAC addresses remain unchanged.
+- **Validation:** editor browser regression passed 4,947 checks across 2,520
+  layouts; all four web-resource/loader tests passed. Build and deployment
+  checks are pending.
+- **Delivery:** the preceding clean-source 0.7.6 image was installed and
+  soaked as recorded below; this label change is not yet installed or
+  released. No additional soak is planned at the user's request.
+- **Remaining:** finish validation, safe deployment and publication. Alarm
+  playback and Wake-on-LAN actions have not been triggered on the live device;
+  the GitHub social-preview image still needs an authenticated settings browser.
+
 ## 2026-11-26 - Tile navigation, Wake-on-LAN and branding
 
 - **Request:** reorganize device appearance and tile editing, group Wake-on-LAN

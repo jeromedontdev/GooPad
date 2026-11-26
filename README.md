@@ -111,7 +111,7 @@ PC, choose **Macro** and the **Open a website** starter or step.
 It uses the Companion pairing in Settings and opens HTTP(S) links in the PC's
 default browser. Existing website tiles keep working. Requests from GooPad
 validate HTTPS certificates.
-To wake a computer, choose **Widgets → PC → Wake a computer (Wake-on-LAN)** and enter the
+To wake a computer, choose **Widgets → PC → Wake-on-LAN** and enter the
 target network adapter's MAC address (on Windows, its **Physical Address** in
 `ipconfig /all`). Enable Wake-on-LAN in the computer's firmware and operating
 system/network-adapter settings; support varies by adapter and power state, and

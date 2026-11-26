@@ -25,14 +25,23 @@ released merely because it was installed.
 - **Compatibility:** this changes only presentation; existing `wake_on_lan`
   actions and their saved MAC addresses remain unchanged.
 - **Validation:** editor browser regression passed 4,947 checks across 2,520
-  layouts; all four web-resource/loader tests passed. Build and deployment
-  checks are pending.
-- **Delivery:** the preceding clean-source 0.7.6 image was installed and
-  soaked as recorded below; this label change is not yet installed or
-  released. No additional soak is planned at the user's request.
-- **Remaining:** finish validation, safe deployment and publication. Alarm
-  playback and Wake-on-LAN actions have not been triggered on the live device;
-  the GitHub social-preview image still needs an authenticated settings browser.
+  layouts; all four web-resource/loader tests passed. The clean-source ESP-IDF
+  6.1 production build from `ebd6e39` passed, with 2,318,928 bytes used
+  and 1,875,376 bytes free in its app slot. Release checksums, SD ZIP CRC
+  and matching web-pack digest, and Companion ZIP and installer-chain
+  contents were verified. The final package, ZIP and installer passed Defender
+  scans (signatures `1.463.478.0`, engine `1.1.26100.4`).
+- **Delivery:** app-only OTA and its matching editor resource were installed
+  on the verified COM9 device. Pinned HTTPS, configuration, HomeKit records
+  and the previous recovery image were verified; active and recovery images
+  were compared using device-side flash MD5 against known SHA-256-verified
+  images. The preceding clean-source image passed the soak recorded below;
+  the final label-only build was not soaked again at the user's request.
+  Source commit `ebd6e39` was pushed to the product repository. Release
+  publication is pending.
+- **Remaining:** publish and verify the release. Alarm playback and
+  Wake-on-LAN actions have not been triggered on the live device; the GitHub
+  social-preview image still needs an authenticated settings browser.
 
 ## 2026-11-26 - Tile navigation, Wake-on-LAN and branding
 

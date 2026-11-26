@@ -21,18 +21,18 @@ cca8dceb46a23605a490e75027f0d2af52d372dad5004226b30b27806a0c60e1
 KiB means 1,024 bytes; MiB means 1,048,576 bytes. All percentages below use the
 4,194,304-byte app slot, not the whole flash chip.
 
-## Current 0.7.6 development build
+## Current 0.7.6 build
 
 The clean-source 0.7.6 build installed on COM9 is **2,318,928 bytes**, leaving
 **1,875,376 bytes** in its app slot. Its SHA-256 is
-`0b8d4ebdc77c932bc6c2c7a8b0bcb57e0001bc8bbb0d27770e2e379e4ae11b2f`.
+`1af7df81a9baa9d06ed8dfc9cc814e7131be38a99b491e83e082fba6ae5bd65a`.
 The active slot was compared with this known, SHA-256-verified image using
-device-side flash MD5; the preceding validated development image remains in
-the recovery slot. The preceding image was **2,318,800 bytes**, leaving
-**1,875,504 bytes**; its SHA-256 was
-`65b74005623389d2c7ac2422704b8e149e295c9ca2a7e6d6a7379a0878b0d0a6`.
-Neither image has been released. See the [change log](change-log.md) for
-deployment and soak status.
+device-side flash MD5; the preceding clean-source image remains in the
+recovery slot. That image was also **2,318,928 bytes**, with SHA-256
+`0b8d4ebdc77c932bc6c2c7a8b0bcb57e0001bc8bbb0d27770e2e379e4ae11b2f`.
+The preceding image passed a five-minute soak; the final label-only build was
+not soaked again at the user's request. Release publication is pending. See
+the [change log](change-log.md) for deployment and validation status.
 
 ## Companion-only 0.7.4 release
 

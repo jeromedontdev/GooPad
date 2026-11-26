@@ -57,13 +57,24 @@ released merely because it was installed.
   was unavailable during the initial boot sample and available in the
   following 20/20 samples; no widget was observed deferred. After startup,
   sampled free PSRAM ranged from 3,610,048 to 3,724,024 bytes.
+- **Repeat soak:** after allowing startup to finish, the 300.097-second
+  read-only run with `-RequireCompanion -MaxWidgetDeferralSeconds 15` had
+  20/20 available PC snapshots, no deferred widgets, errors or reboots, and
+  28 bounded PC network-lock warnings. Serial monitoring reported no PC
+  request, TLS, watchdog, panic or brownout faults; saved configuration
+  remained unchanged. The warning mechanism is documented shared-lock
+  contention and was also observed in the validated 0.7.3 release.
+- **Release preparation:** the SD bundle was checked against the firmware's
+  text, icon, styled-font and web manifests; all 93 firmware notices were
+  checked against source, SDK and font notices. Companion frozen bytecode,
+  source and portable ZIP were checked against the tested package. These
+  prepared artifacts have not been published.
 - **Source publication:** commit `fbd1606` was pushed to the GooPad product
   repository's `main`. Git reported a permission error pruning an unrelated
   worktree administrative directory; the commit and push succeeded.
 - **Remaining:** physical action/alarm behavior still needs user testing
   before release; no live configuration or actions were changed for the
-  soak. Version 0.7.6 has not been released. The repeated PC polling
-  deferrals also warrant review before publishing. GitHub's repository
+  soak. Version 0.7.6 has not been released. GitHub's repository
   social-preview image requires a signed-in settings browser; the available
   browser is signed out.
 

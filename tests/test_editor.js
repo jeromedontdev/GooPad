@@ -50,6 +50,27 @@ globalThis.runGooPadEditorTests = async function () {
    check(selector.value===values[0]&&[...selector.options].filter(option=>!option.hidden).map(option=>option.value).join(",")===values.join(","),"Widget category exposes its suboptions: "+group);
    for(const value of values){change("widget",value);render();check(document.querySelector("[data-widget-category]").value===group&&document.querySelector('[data-k="widget"]').value===value,"Widget selection reopens in its category: "+value)}
   }
+  reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);change("actionMode","widget");change("widget","alarm");
+  check(!document.querySelector('[data-widget-option="alarm"]').classList.contains("hidden"),"Alarm settings appear under Clock");
+  change("alarmTime","06:45");change("alarmSound","beep");
+  const enabled=document.querySelector('[data-k="alarmEnabled"]');enabled.checked=false;enabled.dispatchEvent(new Event("change"));
+  let savedAlarm;
+  globalThis.fetch=async (url,options={})=>url==="/api/config"&&options.method==="POST"
+   ? (savedAlarm=JSON.parse(options.body),new Response("{}")):fetchOriginal(url,options);
+  await document.querySelector("#save").onclick();
+  globalThis.fetch=fetchOriginal;
+  check(savedAlarm?.macros[0].alarmTime==="06:45"&&savedAlarm.macros[0].alarmEnabled===false&&savedAlarm.macros[0].alarmSound==="beep"&&/^a[0-9a-f]{14}$/.test(savedAlarm.macros[0].alarmId),"Alarm save includes settings and a stable identity");
+  cfg.macros[0]=savedAlarm.macros[0];render();
+  check(document.querySelector('[data-k="alarmTime"]').value==="06:45"&&!document.querySelector('[data-k="alarmEnabled"]').checked&&document.querySelector('[data-k="alarmSound"]').value==="beep","Alarm settings reopen intact");
+  const id=cfg.macros[0].alarmId;change("alarmTime","08:30");prepareMacroAction(cfg.macros[0],0);
+  check(cfg.macros[0].alarmId===id,"Editing an alarm preserves its identity");
+  for(const bad of [{alarmTime:"24:00"},{alarmEnabled:"true"},{alarmSound:"none"},{alarmId:"invalid"}]){
+   let rejected=false;try{prepareMacroAction({...cfg.macros[0],...bad},0)}catch{rejected=true}
+   check(rejected,"Invalid alarm settings are rejected");
+  }
+  change("widget","clock");
+  check(document.querySelector('[data-widget-option="alarm"]').classList.contains("hidden"),"Switching away hides alarm settings");
+  reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);change("actionMode","widget");
   check(!document.querySelector('[data-k="widget"] option[value="github"]'),"New widgets do not offer GitHub profile stats");
   change("actionMode","smart_home");
   for(const type of ["home_assistant","homekit","home_state"]){

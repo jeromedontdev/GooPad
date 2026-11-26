@@ -166,6 +166,14 @@ depends on the board:
   ```
 
   The provider-message checks use synthetic data, not saved API keys.
+* **Daily alarms:** with Zig and the managed cJSON dependency:
+
+  ```powershell
+  zig cc -Wall -Wextra -Werror -I main -I managed_components\espressif__cjson\cJSON main\goopad_alarm.c managed_components\espressif__cjson\cJSON\cJSON.c tests\test_alarm.c -o build\test_alarm.exe
+  .\build\test_alarm.exe
+  ```
+
+  These host tests exercise the scheduler, not physical audio or timekeeping.
 * **Companion:** create an isolated venv, install
   [`companion/requirements.txt`](../companion/requirements.txt), then run:
 

@@ -29,6 +29,7 @@ set(goopad_sources
         "goopad_homekit_storage.c"
         "goopad_network.c"
         "goopad_alerts.c"
+        "goopad_alarm.c"
         "goopad_market.c"
         "goopad_ui.c"
         "goopad_fonts.c"

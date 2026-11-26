@@ -106,6 +106,16 @@ badge remains unchanged. `visualFit` accepts `"contain"` or `"cover"` for
 the selected visual. When absent, action GIFs retain their legacy `gifFit`
 behavior; other visuals default to contain. Pomodoro `focusMinutes` and `breakMinutes` accept
 whole minutes from 1 through 180 and default to 25 and 5 when absent.
+The `alarm` widget requires a unique `alarmId` (`a` plus 14 lowercase hex
+digits), `alarmTime` (`HH:MM` in 24-hour time), boolean `alarmEnabled`, and
+`alarmSound` (`alert`, `chime`, or `beep`). A background task checks saved
+alarms against synchronized time and the fixed `timeOffsetMinutes`; it retries
+busy audio every five seconds within the matching minute. Same-day deduplication
+is in RAM, not persistent: restarting during that minute can repeat an alarm,
+and missed alarms are not replayed. Power loss, unsynchronized or adjusted
+time, volume and audio contention can prevent playback. Firmware predating
+alarms rejects `widget: "alarm"`; remove those tiles or restore a compatible
+backup before downgrading.
 The `exchange_rate` widget requires different uppercase three-letter
 `currencyBase` and `currencyQuote` codes. Frankfurter is polled every six hours;
 the displayed date belongs to the provider's reference rate.

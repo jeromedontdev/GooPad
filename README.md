@@ -235,6 +235,16 @@ pause; hold to reset. Pomodoro focus and break durations are configurable from
 1 to 180 minutes (defaults: 25 and 5); it chimes and pauses between phases.
 Both timers reset when the layout reloads or the device restarts.
 
+Choose **Clock → Alarm** for a daily alarm, with a time, enable switch and
+alert, chime or beep. It runs independently of the visible page and Wi-Fi
+after the clock is synchronized, using the configured speaker volume and fixed
+UTC offset. Adjust the offset for daylight-saving changes. GooPad must be
+powered on; missed alarms are not replayed. A restart during the alarm minute
+can repeat it, and muted audio, audio contention or a clock adjustment can
+prevent it from sounding. Do not rely on it as your only alarm or for safety.
+Older firmware rejects configurations containing alarm widgets: remove them or
+restore a compatible configuration before downgrading.
+
 All widgets can combine their reading with a selected icon, emoji,
 image, or GIF using **Icon & graphic → Icon / graphic → Selected icon and text**. Weather defaults
 to its automatic multicolor condition icon; a selected icon replaces it.

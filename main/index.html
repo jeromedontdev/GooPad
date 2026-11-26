@@ -401,7 +401,7 @@ function editorActionMode(m){
  return mode==="simple_link"?"advanced":mode
 }
 const widgetGroups={
- clock:["clock","date","countdown","pomodoro","stopwatch"],
+ clock:["clock","date","countdown","pomodoro","stopwatch","alarm"],
  weather:["weather","weather_alerts","air_quality"],
  market:["stock","crypto","exchange_rate"],
  pc:["pc_monitor","now_playing"]
@@ -467,7 +467,9 @@ function render(){
   <div class="field"><label>Button sound (device speaker)</label><select data-k="sound"><option value="none">None</option><option value="click">Click</option><option value="beep">Beep</option><option value="chime">Chime</option><option value="alert">Alert</option><option value="file">Uploaded WAV / MP3</option></select></div>
   <div class="field wide" data-sound-upload><label>Upload sound (WAV / MP3, at most 30 seconds)</label><input data-k="soundUpload" type="file" accept=".wav,.mp3,audio/wav,audio/mpeg"><span class="hint" data-sound-name>${esc(m.soundName||"Choose a file. Audio is converted in your browser and stored on SD.")}</span></div>
   <div class="field wide mode-field" data-mode-field="page_navigation"><span class="hint">Page navigation tiles have been removed from the editor. This existing tile will keep working until you clear it or choose another action.</span></div>
-  <div class="field wide mode-field" data-mode-field="widget"><label>Widget category</label><select data-widget-category><option value="clock">Clock</option><option value="weather">Weather</option><option value="market">Market</option><option value="pc">PC</option>${m.widget==="github"?'<option value="legacy" disabled>Existing widget</option>':""}</select><label>Widget type</label><select data-k="widget"><option value="clock">Time</option><option value="date">Date</option><option value="countdown">Countdown to a date</option><option value="pomodoro">Pomodoro timer</option><option value="stopwatch">Stopwatch</option><option value="weather">Weather</option><option value="weather_alerts">Weather alerts (US NWS)</option><option value="air_quality">Air quality (US AQI)</option><option value="stock">Stock</option><option value="crypto">Cryptocurrency</option><option value="exchange_rate">Exchange rate</option><option value="pc_monitor">PC stats</option><option value="now_playing">PC now playing</option>${m.widget==="github"?'<option value="github">GitHub profile stats (existing)</option>':""}<option value="home_state" hidden>Home Assistant state</option></select><details class="widget-help"><summary>Widget tips</summary><span class="hint">PC stats use the pairing in Settings. Time uses synchronized time and the UTC offset in Settings. Tap a stopwatch or Pomodoro to start or pause; hold to reset. Pomodoro pauses and chimes between focus and break phases. Timer state resets when the layout reloads or device restarts.</span></details></div>
+  <div class="field wide mode-field" data-mode-field="widget"><label>Widget category</label><select data-widget-category><option value="clock">Clock</option><option value="weather">Weather</option><option value="market">Market</option><option value="pc">PC</option>${m.widget==="github"?'<option value="legacy" disabled>Existing widget</option>':""}</select><label>Widget type</label><select data-k="widget"><option value="clock">Time</option><option value="date">Date</option><option value="countdown">Countdown to a date</option><option value="pomodoro">Pomodoro timer</option><option value="stopwatch">Stopwatch</option><option value="alarm">Alarm</option><option value="weather">Weather</option><option value="weather_alerts">Weather alerts (US NWS)</option><option value="air_quality">Air quality (US AQI)</option><option value="stock">Stock</option><option value="crypto">Cryptocurrency</option><option value="exchange_rate">Exchange rate</option><option value="pc_monitor">PC stats</option><option value="now_playing">PC now playing</option>${m.widget==="github"?'<option value="github">GitHub profile stats (existing)</option>':""}<option value="home_state" hidden>Home Assistant state</option></select><details class="widget-help"><summary>Widget tips</summary><span class="hint">PC stats use the pairing in Settings. Time uses synchronized time and the UTC offset in Settings. Tap a stopwatch or Pomodoro to start or pause; hold to reset. Pomodoro pauses and chimes between focus and break phases. Timer state resets when the layout reloads or device restarts.</span></details></div>
+  <div class="field" data-widget-option="alarm"><label>Daily alarm time</label><input data-k="alarmTime" type="time" value="${esc(m.alarmTime??"07:00")}"><label><input data-k="alarmEnabled" type="checkbox" ${m.alarmEnabled!==false?"checked":""}> Alarm enabled</label></div>
+  <div class="field wide" data-widget-option="alarm"><label>Alarm sound</label><select data-k="alarmSound"><option value="alert">Alert</option><option value="chime">Chime</option><option value="beep">Beep</option></select><span class="hint">Plays once daily using the device's fixed UTC offset and speaker volume. GooPad must be powered on with synchronized time. Missed alarms are not replayed; do not rely on this as your only alarm.</span></div>
   <div class="field" data-widget-option="pomodoro"><label>Focus minutes</label><input data-k="focusMinutes" type="number" min="1" max="180" step="1" value="${esc(m.focusMinutes??25)}"></div>
   <div class="field" data-widget-option="pomodoro"><label>Break minutes</label><input data-k="breakMinutes" type="number" min="1" max="180" step="1" value="${esc(m.breakMinutes??5)}"></div>
   <div class="field wide" data-widget-option="clock"><label>Time format</label><select data-k="clockFormat"><option value="24h">24-hour (14:30)</option><option value="12h">12-hour (2:30 PM)</option><option value="12h_plain">12-hour, no AM/PM (2:30)</option><option value="24h_seconds">24-hour with seconds (14:30:45)</option><option value="12h_seconds">12-hour with seconds (2:30:45 PM)</option><option value="12h_plain_seconds">12-hour with seconds, no AM/PM (2:30:45)</option></select></div>
@@ -528,6 +530,7 @@ function render(){
   card.querySelector('[data-k="homeOperation"]').value=m.homeOperation||"toggle";
   card.querySelector('[data-k="clockFormat"]').value=m.clockFormat||"24h";
   card.querySelector('[data-k="dateFormat"]').value=m.dateFormat||"iso";
+  card.querySelector('[data-k="alarmSound"]').value=m.alarmSound||"alert";
   card.querySelector('[data-k="pcStat"]').value=m.pcStat||"summary";
   card.querySelector('[data-k="temperatureUnit"]').value=m.temperatureUnit||"C";
   card.querySelector('[data-k="widgetTheme"]').value=m.widgetTheme||"custom";
@@ -843,7 +846,7 @@ function preview(){
      else if(m.widgetGradient)b.style.background=`linear-gradient(#${m.color||"4F46E5"},#${m.widgetGradient})`;
      const native=widgetDimensions(m,cols,rows),graphic=m.widgetGraphic||"text",panel=m.widgetLayout!=="classic"&&native.width>=110&&native.height>=100&&!["circle","pill","soft"].includes(m.shape),header=panel?20:0,fits=native.height-(m.name?28:12)-header>=(m.widget==="pc_monitor"?50:38);
      if(m.widgetLayout==="layered"&&!cover&&!panel&&native.width>=80&&native.height>=70){const fontHeight=Math.ceil((m.textSize||14)*1.3),surfaceHeight=native.height-(m.name?36+Math.max(0,fontHeight-16):16),fg=parseInt(palette?.[2]||m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"),16),brightness=((fg>>16)*3+((fg>>8)&255)*6+(fg&255))/10,unit=value=>`calc(100cqw * ${value} / ${native.width})`;if(surfaceHeight>=24){b.classList.add("widget-surface");b.style.setProperty("--surface-inset",unit(m.shape==="circle"?Math.floor(native.width/8):8));b.style.setProperty("--surface-top",unit(8));b.style.setProperty("--surface-height",unit(surfaceHeight));b.style.setProperty("--surface-radius",unit(12));b.style.setProperty("--surface-color",brightness<128?"#0002":"#fff2")}}
-     if(panel){const heading=document.createElement("span"),unit=value=>`calc(100cqw * ${value} / ${native.width})`;b.classList.add("widget-panel");b.style.setProperty("--widget-header",unit(28));b.style.setProperty("--widget-heading-top",unit(9));b.style.setProperty("--widget-heading-left",unit(12));b.style.setProperty("--widget-heading-size",unit(10));b.style.setProperty("--widget-accent","#"+(palette?.[3]||m.widgetAccent||"A5B4FC"));heading.className="widget-heading";heading.setAttribute("aria-hidden","true");heading.textContent=m.widget==="date"?"DATE":m.widget==="countdown"?"COUNTDOWN":m.widget==="stopwatch"?"STOPWATCH":m.widget==="pomodoro"?"POMODORO":m.widget==="weather"?"WEATHER":m.widget==="weather_alerts"?"NWS ALERTS":m.widget==="air_quality"?"AIR QUALITY":m.widget==="stock"?"STOCK":m.widget==="crypto"?"CRYPTO":m.widget==="exchange_rate"?"EXCHANGE":m.widget==="github"?"GITHUB":m.widget==="home_state"?"HOME STATE":m.widget==="now_playing"?"NOW PLAYING":m.widget==="pc_monitor"?({summary:"PC STATS",cpu:"CPU",ram:"RAM",ram_used:"RAM USED",gpu:"GPU",gpu_memory:"GPU RAM",cpu_temp:"CPU TEMP",gpu_temp:"GPU TEMP",net_down:"DOWNLOAD",net_up:"UPLOAD",fan:"FAN"}[m.pcStat||"summary"]):"TIME";b.append(heading)}
+     if(panel){const heading=document.createElement("span"),unit=value=>`calc(100cqw * ${value} / ${native.width})`;b.classList.add("widget-panel");b.style.setProperty("--widget-header",unit(28));b.style.setProperty("--widget-heading-top",unit(9));b.style.setProperty("--widget-heading-left",unit(12));b.style.setProperty("--widget-heading-size",unit(10));b.style.setProperty("--widget-accent","#"+(palette?.[3]||m.widgetAccent||"A5B4FC"));heading.className="widget-heading";heading.setAttribute("aria-hidden","true");heading.textContent=m.widget==="date"?"DATE":m.widget==="countdown"?"COUNTDOWN":m.widget==="stopwatch"?"STOPWATCH":m.widget==="pomodoro"?"POMODORO":m.widget==="alarm"?"ALARM":m.widget==="weather"?"WEATHER":m.widget==="weather_alerts"?"NWS ALERTS":m.widget==="air_quality"?"AIR QUALITY":m.widget==="stock"?"STOCK":m.widget==="crypto"?"CRYPTO":m.widget==="exchange_rate"?"EXCHANGE":m.widget==="github"?"GITHUB":m.widget==="home_state"?"HOME STATE":m.widget==="now_playing"?"NOW PLAYING":m.widget==="pc_monitor"?({summary:"PC STATS",cpu:"CPU",ram:"RAM",ram_used:"RAM USED",gpu:"GPU",gpu_memory:"GPU RAM",cpu_temp:"CPU TEMP",gpu_temp:"GPU TEMP",net_down:"DOWNLOAD",net_up:"UPLOAD",fan:"FAN"}[m.pcStat||"summary"]):"TIME";b.append(heading)}
      if(!cover&&(graphic!=="text"||m.widget==="weather")&&fits){const image=document.createElement("span");image.className="widget-graphic";image.setAttribute("aria-hidden","true");b.classList.add("has-graphic");b.classList.toggle("has-bar",graphic==="bar");b.append(image)}
      const widget=document.createElement("span");widget.className="widget";widget.dataset.widget=m.widget||"clock";formatPreview(widget,m,native.width);b.append(widget)
     }
@@ -864,6 +867,7 @@ let pcMonitorPreview="CPU --%\nRAM --%",pcStatsPreview={},pcStatsFPreview={},liv
 function widgetTimeText(m,time){
  if(m.widget==="stopwatch")return "00:00:00";
  if(m.widget==="pomodoro")return "Focus\n"+String(m.focusMinutes??25).padStart(2,"0")+":00";
+ if(m.widget==="alarm")return (m.alarmTime??"07:00")+"\n"+(m.alarmEnabled===false?"Off":"Daily");
  if(m.widget==="countdown"){
   if(!Number.isInteger(m.countdownAt))return "Choose a date";
   const offset=Number($("#timeOffset").value)*60,days=Math.max(0,Math.floor((m.countdownAt+offset)/86400)-Math.floor(time.getTime()/86400000));
@@ -1074,6 +1078,16 @@ function prepareMacroAction(m,index){
  if(m.actionMode!=="wake_on_lan")delete m.wakeMac;
  if(m.actionMode==="widget"){
   m.widget=m.widget||"clock";m.sound="none";m.method="GET";m.action="http";m.body="";
+  if(m.widget==="alarm"){
+   if(m.alarmTime===undefined)m.alarmTime="07:00";
+   if(!/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(m.alarmTime))throw Error(`Button ${index+1}: choose a valid alarm time.`);
+   if(m.alarmEnabled===undefined)m.alarmEnabled=true;
+   if(typeof m.alarmEnabled!=="boolean")throw Error(`Button ${index+1}: choose whether the alarm is enabled.`);
+   if(m.alarmSound===undefined)m.alarmSound="alert";
+   if(!["alert","chime","beep"].includes(m.alarmSound))throw Error(`Button ${index+1}: choose an alarm sound.`);
+   if(!m.alarmId)m.alarmId="a"+Array.from(crypto.getRandomValues(new Uint8Array(7)),v=>v.toString(16).padStart(2,"0")).join("");
+   if(!/^a[0-9a-f]{14}$/.test(m.alarmId))throw Error(`Button ${index+1}: invalid alarm identity.`);
+  }
   if(m.widget==="pomodoro")for(const [key,fallback] of [["focusMinutes",25],["breakMinutes",5]]){
    if(m[key]===undefined)m[key]=fallback;
    if(!Number.isInteger(m[key])||m[key]<1||m[key]>180)throw Error(`Button ${index+1}: choose whole-minute focus and break times from 1 to 180.`);
@@ -1209,6 +1223,11 @@ $("#save").onclick=async()=>{
   if(cfg.macros.filter(m=>m.iconFormat==="gif").length>4)throw Error("Use at most four GIF tiles per layout.");
   if(cfg.companionAddress||cfg.companionToken||cfg.companionCertificate)cfg.companionAddress=pcConnection(cfg.companionAddress,cfg.companionToken).origin;
   await new Promise(resolve=>requestAnimationFrame(resolve));cfg.macros.forEach(prepareMacroAction);
+  const alarmIds=new Set();
+  for(const [index,macro] of cfg.macros.entries())if(macro.actionMode==="widget"&&macro.widget==="alarm"){
+   if(alarmIds.has(macro.alarmId))throw Error(`Button ${index+1}: duplicate alarm identity. Clear and recreate this alarm.`);
+   alarmIds.add(macro.alarmId)
+  }
   await upgradeLegacyFaIcons();await upgradeEmojiIcons();
   const configBody=()=>{const {backgroundPreview,...settings}=cfg;return JSON.stringify({...settings,macros:cfg.macros.map(savedMacro)})};
   if(new TextEncoder().encode(configBody()).length>12000)throw Error("Configuration exceeds 12 KB. Shorten PC sequences or reduce the number of macros.");

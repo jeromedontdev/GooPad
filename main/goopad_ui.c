@@ -108,6 +108,8 @@ static lv_point_precise_t s_widget_points[MAX_MACROS][2][2];
 static unsigned s_widget_graphic_modes[MAX_MACROS], s_widget_sizes[MAX_MACROS];
 static unsigned s_widget_fonts[MAX_MACROS], s_widget_spacing[MAX_MACROS];
 static unsigned s_focus_minutes[MAX_MACROS], s_break_minutes[MAX_MACROS];
+static char s_alarm_times[MAX_MACROS][6];
+static bool s_alarm_enabled[MAX_MACROS];
 static int s_widget_widths[MAX_MACROS], s_widget_heights[MAX_MACROS], s_widget_minutes[MAX_MACROS], s_widget_sides[MAX_MACROS];
 static int s_widget_meter_values[MAX_MACROS];
 static int64_t s_countdown_targets[MAX_MACROS], s_stopwatch_elapsed[MAX_MACROS], s_stopwatch_started[MAX_MACROS];
@@ -272,6 +274,8 @@ static void clear_dynamic_assets(void)
         s_widget_fonts[i] = s_widget_spacing[i] = 0;
         s_focus_minutes[i] = 25;
         s_break_minutes[i] = 5;
+        s_alarm_times[i][0] = '\0';
+        s_alarm_enabled[i] = false;
         s_widget_minutes[i] = -1;
         s_widget_meter_values[i] = -2;
         s_countdown_targets[i] = s_stopwatch_elapsed[i] = s_stopwatch_started[i] = 0;
@@ -381,6 +385,11 @@ static void update_widgets(void)
                 snprintf(text, sizeof(text), "%s\n%02lld:%02lld",
                     s_pomodoro_break[i] ? "Break" : "Focus",
                     (long long)(seconds / 60), (long long)(seconds % 60));
+            } else if (s_widget_types[i] == 16) {
+                if (!goopad_alarm_ready()) strlcpy(text, "Alarm error", sizeof(text));
+                else if (!s_alarm_enabled[i]) snprintf(text, sizeof(text), "%s\nOff", s_alarm_times[i]);
+                else if (!synced) strlcpy(text, "Sync time\nin the website", sizeof(text));
+                else snprintf(text, sizeof(text), "%s\nDaily", s_alarm_times[i]);
             } else if (s_widget_types[i] >= 6)
                 goopad_live_widget_text(i, text, sizeof(text));
             else if (s_widget_types[i] == 3)
@@ -1841,6 +1850,7 @@ static void build_grid_screen(void)
                                     cJSON_IsString(widget) && !strcmp(widget->valuestring, "weather_alerts") ? 13 :
                                     cJSON_IsString(widget) && !strcmp(widget->valuestring, "home_state") ? 14 :
                                     cJSON_IsString(widget) && !strcmp(widget->valuestring, "now_playing") ? 15 :
+                                    cJSON_IsString(widget) && !strcmp(widget->valuestring, "alarm") ? 16 :
                                     cJSON_IsString(widget) && !strcmp(widget->valuestring, "stopwatch") ? 5 :
                                     cJSON_IsString(widget) && !strcmp(widget->valuestring, "countdown") ? 4 :
                                     cJSON_IsString(widget) && !strcmp(widget->valuestring, "pc_monitor") ? 3 :
@@ -1849,6 +1859,11 @@ static void build_grid_screen(void)
                     if (type == 4) {
                         cJSON *target = cJSON_GetObjectItemCaseSensitive(macro, "countdownAt");
                         s_countdown_targets[index] = cJSON_IsNumber(target) ? (int64_t)target->valuedouble : 0;
+                    } else if (type == 16) {
+                        cJSON *time = cJSON_GetObjectItemCaseSensitive(macro, "alarmTime");
+                        cJSON *enabled = cJSON_GetObjectItemCaseSensitive(macro, "alarmEnabled");
+                        if (cJSON_IsString(time)) strlcpy(s_alarm_times[index], time->valuestring, sizeof(s_alarm_times[index]));
+                        s_alarm_enabled[index] = cJSON_IsTrue(enabled);
                     } else if (type == 5 || type == 9) {
                         if (type == 9) {
                             cJSON *focus = cJSON_GetObjectItemCaseSensitive(macro, "focusMinutes");
@@ -1928,7 +1943,7 @@ static void build_grid_screen(void)
                                             type == 8 ? "CRYPTO" : type == 9 ? "POMODORO" : type == 10 ? "GITHUB" :
                                             type == 11 ? "AIR QUALITY" : type == 12 ? "EXCHANGE" :
                                             type == 13 ? "NWS ALERTS" : type == 14 ? "HOME STATE" :
-                                            type == 15 ? "NOW PLAYING" : stat_titles[s_widget_stats[index]];
+                                            type == 15 ? "NOW PLAYING" : type == 16 ? "ALARM" : stat_titles[s_widget_stats[index]];
                         lv_obj_t *heading = label(tile, title, 14, color(graphic_accent));
                         lv_obj_set_style_text_font(heading, tile_font(0, 10), 0);
                         lv_obj_set_style_text_letter_space(heading, 1, 0);

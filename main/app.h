@@ -156,6 +156,7 @@ bool goopad_wifi_connected(void);
 bool goopad_wifi_connecting(void);
 bool goopad_configured(void);
 void goopad_get_config(char *out, size_t capacity);
+bool goopad_alarm_ready(void);
 esp_err_t goopad_install_ota_from_sd(void);
 esp_err_t goopad_trigger(unsigned index);
 esp_err_t goopad_media_skip(unsigned index);

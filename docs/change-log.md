@@ -723,3 +723,30 @@ not a complete historical changelog.
   `main` branch and verified remotely. Git reported a permission error while
   trying to prune a separate worktree administrative directory during commit;
   the commit and push succeeded, and that unrelated directory was left alone.
+
+## 2026-11-25 - Daily Clock alarms
+
+- **Request:** complete the Clock alarm option left open by the editor cleanup.
+- **Changes:** added daily alarm settings and a dedicated background scheduler,
+  independent of UI refresh and Wi-Fi, with stable IDs, same-day in-memory
+  deduplication and bounded retries when audio is busy. The tile reports
+  disabled, unsynchronized and worker-error states.
+- **Compatibility/recovery:** older firmware rejects alarm widgets; remove them
+  or restore a compatible backup before downgrading. Alarms require power,
+  synchronized time, a correct fixed UTC offset and audible volume; a restart
+  during the matching minute may repeat one and missed alarms are not replayed.
+  Simultaneous audio, time adjustments or failures may prevent playback. No
+  NVS, SD, Wi-Fi or HomeKit migration was performed.
+- **Validation:** the Zig host scheduler tests passed, including validation,
+  retries, reordering, offsets and midnight boundaries. Browser editor tests
+  passed 4,939 checks across 2,520 layouts. All four web resource and actual
+  C-loader tests passed. ESP-IDF 6.1 production-config `reconfigure build`
+  passed with HomeKit, NVS block device, custom LVGL allocation and compressed
+  fonts enabled and hardware AES disabled. The development 0.7.5 app is
+  2,318,800 bytes, leaving 1,875,504 bytes in the 4 MiB app slot; its
+  generated web archive matches the final manifest.
+- **Delivery/remaining:** a generic USB-serial adapter was visible but no
+  board identity, pinned HTTPS credentials or valid recovery slot was verified.
+  No firmware was installed, physical audio/time behavior tested, or five-minute
+  device soak run. Source publication is planned separately; no versioned
+  binary release is justified until device validation and soak succeed.

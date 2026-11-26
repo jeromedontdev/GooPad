@@ -19,6 +19,7 @@
 #include "goopad_market.h"
 #include "goopad_network.h"
 #include "goopad_alerts.h"
+#include "goopad_alarm.h"
 #include "goopad_config_storage.h"
 #include "goopad_companion.h"
 #ifdef CONFIG_GOOPAD_HOMEKIT
@@ -100,6 +101,7 @@ static char s_initial_key[9];
 static char s_ssid[33];
 static volatile bool s_connected;
 static volatile bool s_wifi_connecting;
+static volatile bool s_alarm_ready;
 static volatile unsigned s_wifi_connect_attempts;
 static httpd_handle_t s_server;
 static volatile bool s_server_starting;
@@ -1594,7 +1596,7 @@ static bool validate_config(const char *json)
                 (!widget || (cJSON_IsString(widget) &&
                              (!strcmp(widget->valuestring, "clock") || !strcmp(widget->valuestring, "date") ||
                               !strcmp(widget->valuestring, "pc_monitor") || !strcmp(widget->valuestring, "countdown") ||
-                              !strcmp(widget->valuestring, "stopwatch") || !strcmp(widget->valuestring, "pomodoro") || !strcmp(widget->valuestring, "weather") ||
+                              !strcmp(widget->valuestring, "stopwatch") || !strcmp(widget->valuestring, "pomodoro") || !strcmp(widget->valuestring, "alarm") || !strcmp(widget->valuestring, "weather") ||
                               !strcmp(widget->valuestring, "stock") || !strcmp(widget->valuestring, "crypto") ||
                               !strcmp(widget->valuestring, "github") || !strcmp(widget->valuestring, "air_quality") ||
                               !strcmp(widget->valuestring, "exchange_rate") || !strcmp(widget->valuestring, "weather_alerts") ||
@@ -1654,6 +1656,12 @@ static bool validate_config(const char *json)
                 (!icon_color || valid_hex_color(icon_color)) &&
                 (!tile_color || valid_hex_color(tile_color));
         if (!valid) break;
+    }
+    if (valid) {
+        goopad_alarm_schedule_t *alarms = heap_caps_calloc(1, sizeof(*alarms), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!alarms) ESP_LOGE(TAG, "Cannot validate alarms: memory unavailable");
+        valid = alarms && goopad_alarm_configure(alarms, root);
+        free(alarms);
     }
     if (valid) {
         uint8_t widths[MAX_MACROS], heights[MAX_MACROS];
@@ -3020,6 +3028,51 @@ static bool market_price(const cJSON *value, double *out)
     return true;
 }
 
+bool goopad_alarm_ready(void)
+{
+    return s_alarm_ready;
+}
+
+static bool alarm_play(unsigned index, const char *sound, void *context)
+{
+    (void)context;
+    esp_err_t err = hw_audio_play_sound(sound, NULL);
+    if (err != ESP_OK) ESP_LOGW(TAG, "Alarm tile %u could not play: %s", index + 1, esp_err_to_name(err));
+    return err == ESP_OK;
+}
+
+static void alarm_task(void *arg)
+{
+    (void)arg;
+    char *current = heap_caps_malloc(CONFIG_MAX_BYTES + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    char *previous = heap_caps_calloc(1, CONFIG_MAX_BYTES + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    goopad_alarm_schedule_t *schedule = heap_caps_calloc(1, sizeof(*schedule), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!current || !previous || !schedule) {
+        ESP_LOGE(TAG, "Alarm worker memory unavailable");
+        free(current); free(previous); free(schedule);
+        vTaskDelete(NULL);
+        return;
+    }
+    while (true) {
+        goopad_get_config(current, CONFIG_MAX_BYTES + 1);
+        if (strcmp(current, previous)) {
+            cJSON *root = cJSON_Parse(current);
+            bool valid = root && goopad_alarm_configure(schedule, root);
+            cJSON_Delete(root);
+            if (!valid) {
+                s_alarm_ready = false;
+                ESP_LOGE(TAG, "Alarm configuration unavailable; will retry");
+                vTaskDelay(pdMS_TO_TICKS(5000));
+                continue;
+            }
+            strlcpy(previous, current, CONFIG_MAX_BYTES + 1);
+        }
+        s_alarm_ready = true;
+        goopad_alarm_tick(schedule, time(NULL), esp_timer_get_time(), alarm_play, NULL);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
 static void live_widget_task(void *arg)
 {
     (void)arg;
@@ -4018,6 +4071,8 @@ void goopad_init(void)
         if (nvs_get_u8(controls, "volume", &value) == ESP_OK) hw_audio_set_volume(value);
         nvs_close(controls);
     }
+    if (xTaskCreatePinnedToCore(alarm_task, "alarms", 6144, NULL, tskIDLE_PRIORITY + 1, NULL, 1) != pdPASS)
+        ESP_LOGE(TAG, "Could not start alarm worker");
     read_string("ssid", s_ssid, sizeof(s_ssid));
     if (esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event, NULL) != ESP_OK ||
         esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event, NULL) != ESP_OK) {

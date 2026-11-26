@@ -37,6 +37,7 @@ service running on the ESP32.
 | --- | --- | --- |
 | Startup | [`main/main.c`](../main/main.c) | NVS, board, display, touch, SD, Wi-Fi, audio, services and UI initialization; OTA validation. |
 | Firmware service | [`main/goopad.c`](../main/goopad.c) | Configuration validation/persistence, Wi-Fi events, HTTPS handlers, action dispatch, OTA, status and widget workers. |
+| Daily alarms | [`main/goopad_alarm.c`](../main/goopad_alarm.c), [`main/goopad.c`](../main/goopad.c) | Validate saved schedules and check them in a worker independent of UI refresh and connectivity; deduplication is in RAM. |
 | Background network reads | [`main/goopad_network.c`](../main/goopad_network.c) | Bounded streaming HTTPS requests that yield to manual actions. |
 | Touch UI | [`main/goopad_ui.c`](../main/goopad_ui.c) | Setup, keyboard, tile layout, swipe and info menu, LVGL widget rendering, action callbacks. |
 | Shared interface | [`main/app.h`](../main/app.h) | Driver interfaces, application state, UI/service functions and widget interfaces. It still includes scaffolding-era declarations; inclusion is not proof a module is built. |

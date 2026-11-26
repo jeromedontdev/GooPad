@@ -719,4 +719,7 @@ not a complete historical changelog.
   loss, before offering alarms. Device identity, pinned credentials and a
   verified recovery slot were not established; no OTA installation, physical
   behavior test or five-minute device soak was performed. No binary release
-  is claimed.
+  is claimed. Source commit `d17014f` was pushed to the GooPad product
+  `main` branch and verified remotely. Git reported a permission error while
+  trying to prune a separate worktree administrative directory during commit;
+  the commit and push succeeded, and that unrelated directory was left alone.

@@ -57,10 +57,15 @@ released merely because it was installed.
   was unavailable during the initial boot sample and available in the
   following 20/20 samples; no widget was observed deferred. After startup,
   sampled free PSRAM ranged from 3,610,048 to 3,724,024 bytes.
+- **Source publication:** commit `fbd1606` was pushed to the GooPad product
+  repository's `main`. Git reported a permission error pruning an unrelated
+  worktree administrative directory; the commit and push succeeded.
 - **Remaining:** physical action/alarm behavior still needs user testing
   before release; no live configuration or actions were changed for the
-  soak. Version 0.7.6 has not been released. GitHub's repository social-preview image requires a
-  signed-in settings browser; the available browser is signed out.
+  soak. Version 0.7.6 has not been released. The repeated PC polling
+  deferrals also warrant review before publishing. GitHub's repository
+  social-preview image requires a signed-in settings browser; the available
+  browser is signed out.
 
 ## 2026-11-25 - Publishing the verified Companion antivirus repair
 

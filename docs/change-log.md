@@ -68,7 +68,20 @@ released merely because it was installed.
   text, icon, styled-font and web manifests; all 93 firmware notices were
   checked against source, SDK and font notices. Companion frozen bytecode,
   source and portable ZIP were checked against the tested package. These
-  prepared artifacts have not been published.
+  prepared artifacts have not been published. An independent build from an
+  archive of commit `fbd1606`, with locked managed components and fresh
+  defaults, passed with identical resolved SDK configuration and matching
+  web pack. Its app is 2,318,928 bytes, leaving 1,875,376 bytes; its image
+  digest differs from the preceding installed build. Two preflight attempts
+  stopped on corrupt/incomplete serial flash reads before any OTA request.
+  A retry using device-side flash MD5 against known, SHA-256-verified images
+  installed the clean image by app-only OTA; its prior validated image remains
+  the recovery slot. Configuration, HomeKit records and pinned HTTPS were
+  preserved. A strict 300.389-second soak of the clean image with
+  `-RequireCompanion -MaxWidgetDeferralSeconds 15` had 20/20 available PC
+  snapshots, no deferred widgets, errors, reboots or serial faults, and 40
+  PC network-lock warnings. Minimum internal free/largest block were
+  39,803/19,456 bytes and minimum PSRAM was 3,560,104 bytes.
 - **Source publication:** commit `fbd1606` was pushed to the GooPad product
   repository's `main`. Git reported a permission error pruning an unrelated
   worktree administrative directory; the commit and push succeeded.

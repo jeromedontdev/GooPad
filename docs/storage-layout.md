@@ -21,6 +21,19 @@ cca8dceb46a23605a490e75027f0d2af52d372dad5004226b30b27806a0c60e1
 KiB means 1,024 bytes; MiB means 1,048,576 bytes. All percentages below use the
 4,194,304-byte app slot, not the whole flash chip.
 
+## Current 0.7.6 development build
+
+The clean-source 0.7.6 build installed on COM9 is **2,318,928 bytes**, leaving
+**1,875,376 bytes** in its app slot. Its SHA-256 is
+`0b8d4ebdc77c932bc6c2c7a8b0bcb57e0001bc8bbb0d27770e2e379e4ae11b2f`.
+The active slot was compared with this known, SHA-256-verified image using
+device-side flash MD5; the preceding validated development image remains in
+the recovery slot. The preceding image was **2,318,800 bytes**, leaving
+**1,875,504 bytes**; its SHA-256 was
+`65b74005623389d2c7ac2422704b8e149e295c9ca2a7e6d6a7379a0878b0d0a6`.
+Neither image has been released. See the [change log](change-log.md) for
+deployment and soak status.
+
 ## Companion-only 0.7.4 release
 
 The [0.7.4 release](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.4)

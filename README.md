@@ -58,7 +58,7 @@ If nonvolatile storage cannot be initialized, startup stops rather than erasing
 Wi-Fi credentials and configuration. Check the serial log and recover a backup
 before deliberately reinitializing storage.
 
-## Macros and customization
+## Tiles and customization
 
 Each tile supports an optional label, color, visual, and a plain-language action.
 Open **Icon & graphic** and choose **Icon / emoji**, **Font Awesome**, **Image**, or **Animated GIF** from its visual-type
@@ -96,8 +96,8 @@ spaces remain selectable for editing and accept dragged tiles. Alternatively,
 **Compact configured tiles** packs configured tiles together and hides unused
 pages. Existing compact layouts retain their behavior. Save to apply either option.
 **Save to device** is below the live preview.
-Save progress, confirmation, and errors appear only there. **Save appearance**
-returns to the preview so its result is visible. **About & help** includes
+Save progress, confirmation, and errors appear only there. **Save settings**
+returns to the preview so its result is visible. **About** includes
 downloads, setup instructions, examples, troubleshooting, and source links.
 The **Text** section offers 16 font families, including handwriting,
 display, monospace and pixel styles. Styled tile fonts are SD-backed; core
@@ -111,7 +111,7 @@ PC, choose **Macro** and the **Open a website** starter or step.
 It uses the Companion pairing in Settings and opens HTTP(S) links in the PC's
 default browser. Existing website tiles keep working. Requests from GooPad
 validate HTTPS certificates.
-To wake a computer, choose **Wake a computer (Wake-on-LAN)** and enter the
+To wake a computer, choose **Widgets → PC → Wake a computer (Wake-on-LAN)** and enter the
 target network adapter's MAC address (on Windows, its **Physical Address** in
 `ipconfig /all`). Enable Wake-on-LAN in the computer's firmware and operating
 system/network-adapter settings; support varies by adapter and power state, and
@@ -145,8 +145,8 @@ errors without saving broken references. In an Image or Animated GIF picker,
 use **Browse saved images and GIFs** to reuse SD assets without re-uploading.
 Font Awesome selections and uploaded images are converted to
 160×160 RGB565 with an 8-bit alpha plane and saved under
-`/goopad` on the SD card; a card is required to use them. The **Settings** page
-contains preset themes plus Custom background controls, website appearance, backups, firmware
+`/goopad` on the SD card; a card is required to use them. **Tiles → Layout settings**
+contains device themes and Custom background controls. The **Settings** page contains website appearance, backups, firmware
 updates, and admin-password changes. Swipe downward from the top edge of the
 device to slide open its information menu; the old information icon is removed.
 Start within the top 32 pixels and pull down at least 64 pixels.
@@ -311,7 +311,7 @@ not necessarily completed. Manual network actions take precedence over backgroun
 polls, but an already-running action, DNS, a slow network or the receiving service
 can still cause delays.
 
-About & help can download a diagnostic report containing only numeric event
+About can download a diagnostic report containing only numeric event
 codes, reset reason and memory statistics. Raw serial output, configuration
 backups and screenshots may contain private information and are not shareable
 diagnostic reports.
@@ -420,7 +420,7 @@ Include these notices and the referenced licenses when distributing firmware.
 
 Download the Companion installer from
 [the latest release](https://github.com/jeromedontdev/GooPad/releases/latest),
-or use the portable **GooPadCompanion-Windows.zip** from the site's **About & help** tab.
+or use the portable **GooPadCompanion-Windows.zip** from the site's **About** tab.
 The installer installs for the current Windows user without administrator
 access. Quit any running portable copy before installing. Uninstalling removes
 the application but keeps configuration and pairing in `%LOCALAPPDATA%\GooPad`.
@@ -586,7 +586,7 @@ keys with the OpenSSH `known_hosts` file.
 
 ### Backup and firmware update
 
-The installed firmware version appears in website **About & help** and in the
+The installed firmware version appears in website **About** and in the
 device's swipe-down information panel.
 
 * **Backup to SD** writes `goopad-config.json` to the mounted card.

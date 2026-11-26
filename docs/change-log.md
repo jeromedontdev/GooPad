@@ -18,6 +18,50 @@ Never include credentials, private keys, pairing codes, raw user configuration,
 serial captures or flash dumps. Do not claim historical work was committed or
 released merely because it was installed.
 
+## 2026-11-26 - Tile navigation, Wake-on-LAN and branding
+
+- **Request:** reorganize device appearance and tile editing, group Wake-on-LAN
+  under PC, collapse FAQs, align branding with the Companion icon, and deliver
+  the changes to the identified device and product repository.
+- **Changes:** Tiles now contains device themes and background controls in
+  Layout settings; About replaces About & help. The README logo and editor
+  logo use the Companion's four-square design. The FAQ starts collapsed.
+- **Compatibility:** Wake-on-LAN is presented under Widgets → PC but remains
+  a `wake_on_lan` action in saved configurations. Device appearance still
+  uses the existing configuration and save path; no migration is required.
+- **Validation:** browser regression passed 4,946 checks across 2,520 layouts;
+  all four web-resource/loader tests and isolated release-packaging tests
+  passed. The documented Companion virtual environment passed 47 tests.
+  Running the same suite with the system Python first produced TLS handshake
+  failures; the isolated environment passed without those failures. The
+  versioned Companion package, ZIP and installer passed Defender scans
+  (signatures `1.463.470.0`, engine `1.1.26100.4`). The isolated actual
+  frozen legacy updater/installer/restart chain passed 61 samples in 300
+  seconds with no errors and preserved its test configuration and identity.
+  The packaging script's GNU license download was unreachable, so packaging
+  was completed with the previously distributed GNU license notice.
+  Earlier in this session the preceding editor/alarm development image was
+  installed on COM9 with an app-only OTA and its matching editor resource;
+  a 300-second read-only soak had 20 samples, no request errors or reboots,
+  and 40 PC polling deferral warnings. PC snapshots were available in all
+  20 samples and no widgets were observed deferred.
+- **Delivery:** ESP-IDF 6.1 production `reconfigure build` passed for 0.7.6;
+  the 2,318,800-byte app leaves 1,875,504 bytes in the 4 MiB slot. App-only
+  OTA and matching editor resource were installed on COM9. Pinned HTTPS,
+  configuration, previous recovery image, and HomeKit pairing/ownership
+  records were verified; HomeKit firmware revision and configuration counter
+  advanced as expected. A 300.232-second read-only device soak had 21 samples,
+  no errors or reboots, and 48 PC polling deferral warnings (event type 2,
+  result 263, detail 4). This event is the PC worker timing out on the shared
+  network lock; it is not an internal-memory deferral. Companion monitoring
+  was unavailable during the initial boot sample and available in the
+  following 20/20 samples; no widget was observed deferred. After startup,
+  sampled free PSRAM ranged from 3,610,048 to 3,724,024 bytes.
+- **Remaining:** physical action/alarm behavior still needs user testing
+  before release; no live configuration or actions were changed for the
+  soak. Version 0.7.6 has not been released. GitHub's repository social-preview image requires a
+  signed-in settings browser; the available browser is signed out.
+
 ## 2026-11-25 - Publishing the verified Companion antivirus repair
 
 - **Request/delivery:** completed the antivirus repair as

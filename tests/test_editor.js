@@ -42,6 +42,9 @@ globalThis.runGooPadEditorTests = async function () {
   reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);
   const actionOptions=[...document.querySelector('[data-k="actionMode"]').options].map(option=>option.textContent);
   check(actionOptions.includes("Widgets")&&actionOptions.includes("Macro")&&actionOptions.includes("Smart home")&&actionOptions.includes("Image only"),"Action options use the requested names");
+  check(!document.querySelector('[data-k="actionMode"] option[value="wake_on_lan"]'),"Wake-on-LAN is not a top-level action");
+  check(document.querySelector("#macrosTab").textContent==="Tiles"&&document.querySelector("#aboutTab").textContent==="About","Navigation uses Tiles and About");
+  check([...document.querySelectorAll("#aboutView details")].every(details=>!details.open),"Help FAQs start collapsed");
   change("actionMode","widget");
   const chooseGroup=group=>{const control=document.querySelector("[data-widget-category]");control.value=group;control.dispatchEvent(new Event("change"))};
   for(const [group,values] of Object.entries(widgetGroups)){
@@ -200,7 +203,9 @@ globalThis.runGooPadEditorTests = async function () {
   check(document.querySelector('[data-tile="0"] .visual-background').src===cropped,"Cover preview displays the cropped image");
   check(cfg.macros[0].imagePreview===paddedSource,"Cover preview does not rewrite the saved visual");
   for(const mode of ["advanced","widget","pc_macro","wake_on_lan","smart_home","sound"]){
-   reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);change("actionMode",mode);
+   reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);
+   if(mode==="wake_on_lan"){change("actionMode","widget");chooseGroup("pc");change("widget","wake_on_lan")}
+   else change("actionMode",mode);
    const selector=document.querySelector('[data-k="widgetLayout"]');
    check(selector.closest('[data-section="appearance"]')&&!selector.closest(".field").classList.contains("hidden")&&selector.options.length===3,"All styles are available for "+mode);
   }
@@ -268,6 +273,7 @@ globalThis.runGooPadEditorTests = async function () {
   }
   check(primaryColors.size===6 && secondaryColors.size===6,"Website themes recolor primary and secondary buttons");
   check(!document.querySelector(".layout-settings").open && !!document.querySelector(".layout-settings #cols"),"Layout settings start collapsed without removing controls");
+  check(!!document.querySelector(".layout-settings #deviceTheme")&&!!document.querySelector(".layout-settings #backgroundUpload")&&!document.querySelector("#settingsView #deviceTheme"),"Device themes and custom backgrounds are in Layout settings");
   document.querySelector(".layout-settings summary").click();
   check(document.querySelector(".layout-settings").open && document.querySelector("#cols").checkVisibility(),"Layout settings can be opened");
   document.querySelector(".layout-settings summary").click();
@@ -360,8 +366,9 @@ globalThis.runGooPadEditorTests = async function () {
   check(website.url==="https://192.0.2.20:8787/open" && website.secret===cfg.companionToken && website.method==="POST" && JSON.parse(website.body).url===website.pcTarget, "Website uses verified HTTPS pairing and default port");
   reset({pageCount:1,macros:[emptyMacro()],companionAddress:"192.0.2.20",companionToken:"x".repeat(32),companionCertificate:certificate});selectTile(0);
   check(!document.querySelector('[data-k="actionMode"] option[value="pc_open_url"]'),"New PC websites are configured inside the PC builder");
-  change("actionMode","wake_on_lan");
+  change("actionMode","widget");chooseGroup("pc");change("widget","wake_on_lan");
   check(!document.querySelector('[data-mode-field="wake_on_lan"]').classList.contains("hidden"),"Wake-on-LAN displays the guided MAC field");
+  check(document.querySelector('[data-k="actionMode"]').value==="widget"&&document.querySelector("[data-widget-category]").value==="pc"&&document.querySelector('[data-k="widget"]').value==="wake_on_lan"&&!document.querySelector(".tile-action-buttons").classList.contains("hidden"),"Wake-on-LAN remains an actionable PC option");
   change("wakeMac","02-11-22-33-44-aa");
   prepareMacroAction(cfg.macros[0],0);
   check(cfg.macros[0].wakeMac==="02:11:22:33:44:AA" && cfg.macros[0].url==="" && macroConfigured(cfg.macros[0]),"Wake MAC is normalized and configured without a web request");
@@ -369,8 +376,8 @@ globalThis.runGooPadEditorTests = async function () {
   globalThis.fetch=async(url,options)=>url==="/api/config"?(wakeSaved=JSON.parse(options.body),new Response("{}")):fetchOriginal(url,options);
   await document.querySelector("#save").onclick();
   check(wakeSaved?.macros[0].wakeMac==="02:11:22:33:44:AA" && wakeSaved.macros[0].actionMode==="wake_on_lan","Saving retains the guided wake action");
-  cfg.macros[0]=wakeSaved.macros[0];selectTile(0);
-  check(document.querySelector('[data-k="wakeMac"]').value==="02:11:22:33:44:AA","Saved wake action round-trips into the editor");
+  cfg.macros[0]=structuredClone(wakeSaved.macros[0]);selectTile(0);
+  check(document.querySelector('[data-k="wakeMac"]').value==="02:11:22:33:44:AA"&&document.querySelector('[data-k="widget"]').value==="wake_on_lan"&&document.querySelector("[data-widget-category]").value==="pc","Saved wake action reopens under PC");
   globalThis.fetch=fetchOriginal;
   for(const mac of ["","00:00:00:00:00:00","ff:ff:ff:ff:ff:ff","01:11:22:33:44:55","02:11-22:33:44:55","02:11:22:33:44","02:11:22:33:44:gg"]){
    cfg.macros[0].wakeMac=mac;
@@ -379,6 +386,8 @@ globalThis.runGooPadEditorTests = async function () {
   }
   cfg.macros[0].actionMode="simple_link";prepareMacroAction(cfg.macros[0],0);
   check(!("wakeMac" in cfg.macros[0]),"Changing action removes the wake address");
+  reset({pageCount:1,macros:[wakeSaved.macros[0]]});selectTile(0);change("widget","pc_monitor");
+  check(cfg.macros[0].actionMode==="widget"&&cfg.macros[0].widget==="pc_monitor"&&document.querySelector('[data-mode-field="wake_on_lan"]').classList.contains("hidden"),"Switching a saved wake action back to a PC widget works");
   reset({});scrollPreviewPage(2);
   let pageSave;
   globalThis.fetch=async(url,options)=>url==="/api/config"?(pageSave=JSON.parse(options.body),new Response("{}")):fetchOriginal(url,options);

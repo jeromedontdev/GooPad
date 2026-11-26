@@ -31,8 +31,9 @@ device-side flash MD5; the preceding clean-source image remains in the
 recovery slot. That image was also **2,318,928 bytes**, with SHA-256
 `0b8d4ebdc77c932bc6c2c7a8b0bcb57e0001bc8bbb0d27770e2e379e4ae11b2f`.
 The preceding image passed a five-minute soak; the final label-only build was
-not soaked again at the user's request. Release publication is pending. See
-the [change log](change-log.md) for deployment and validation status.
+not soaked again at the user's request. This image is published in
+[v0.7.6](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.6).
+See the [change log](change-log.md) for deployment and validation status.
 
 ## Companion-only 0.7.4 release
 

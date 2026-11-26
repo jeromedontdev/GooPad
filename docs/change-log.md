@@ -37,11 +37,13 @@ released merely because it was installed.
   were compared using device-side flash MD5 against known SHA-256-verified
   images. The preceding clean-source image passed the soak recorded below;
   the final label-only build was not soaked again at the user's request.
-  Source commit `ebd6e39` was pushed to the product repository. Release
-  publication is pending.
-- **Remaining:** publish and verify the release. Alarm playback and
-  Wake-on-LAN actions have not been triggered on the live device; the GitHub
-  social-preview image still needs an authenticated settings browser.
+  Source commit `ebd6e39` was pushed to the product repository. Published
+  [v0.7.6](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.6)
+  as latest with its tag at that source commit; all eight published assets
+  were downloaded and their SHA-256 digests matched the verified local files.
+- **Remaining:** alarm playback and Wake-on-LAN actions have not been
+  triggered on the live device; the GitHub social-preview image still needs
+  an authenticated settings browser. Windows packages are unsigned.
 
 ## 2026-11-26 - Tile navigation, Wake-on-LAN and branding
 

@@ -748,5 +748,8 @@ not a complete historical changelog.
 - **Delivery/remaining:** a generic USB-serial adapter was visible but no
   board identity, pinned HTTPS credentials or valid recovery slot was verified.
   No firmware was installed, physical audio/time behavior tested, or five-minute
-  device soak run. Source publication is planned separately; no versioned
-  binary release is justified until device validation and soak succeed.
+  device soak run. Source commit `602671c` was pushed to the GooPad product
+  `main` branch. Git again reported a permission error pruning a separate
+  worktree administrative directory; the commit and push succeeded and the
+  unrelated directory was left alone. No versioned binary release is justified
+  until device validation and soak succeed.

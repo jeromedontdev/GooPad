@@ -68,7 +68,7 @@ footer{padding:20px 26px 32px}a{color:var(--accent)}body.light a{color:#175fb8}
 .preview button.widget-surface::after{content:"";position:absolute;left:var(--surface-inset);right:var(--surface-inset);top:var(--surface-top);height:var(--surface-height);border-radius:var(--surface-radius);background:var(--surface-color);pointer-events:none}.preview button.widget-surface>.widget,.preview button.widget-surface>.widget-graphic,.preview button.widget-surface>small{position:relative;z-index:1}
 .preview button.action-card>.ico,.preview button.action-card>img,.preview button.action-card>.icon-mask{position:absolute;left:var(--card-inset);top:var(--card-inset);width:var(--card-icon);height:var(--card-icon)}.preview button.action-card>.ico{display:grid;place-items:center;font-size:var(--card-icon);line-height:1}.preview button.action-card>small{position:absolute;left:var(--card-inset);bottom:var(--card-bottom);width:calc(100% - 2 * var(--card-inset))!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .preview .modern-accent{position:absolute;top:var(--accent-top);left:33.333%;width:33.333%;height:var(--accent-height);border-radius:4px;background:var(--widget-accent);pointer-events:none}
-.preview-page.radial{display:block;position:relative}.preview-page.radial>.preview-cell{position:absolute}
+.preview-page{display:block;position:relative}.preview-page>.preview-cell{position:absolute}
 .preview button.liquid-glass{backdrop-filter:blur(12px) saturate(1.25);-webkit-backdrop-filter:blur(12px) saturate(1.25);box-shadow:inset 0 1px 1px #ffffffe0,inset 0 -1px 1px #ffffff66,0 4px 12px #526a8c26}
 .preview button.material{box-shadow:0 2px 4px #1d1b201a}
 .preview button.material:active{background:#e5dced!important}.preview button.liquid-glass:active{background:linear-gradient(#ffffffe6,#ffffff80)!important}
@@ -82,16 +82,57 @@ footer{padding:20px 26px 32px}a{color:var(--accent)}body.light a{color:#175fb8}
 .gradient-rail button[aria-pressed=true]{outline:3px solid var(--accent);outline-offset:2px}
 .gradient-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.gradient-tools input[type=color]{width:52px}.gradient-tools input[type=range]{flex:1;min-width:100px;padding:0}
 .font-emphasis{display:flex;gap:20px;align-items:center}
+/* Workspace chrome is separate from the device preview and its saved colors. */
+:root{--bg:#0e1016;--panel:#181c25;--line:#343b49;--ink:#f3f5fa;--muted:#aab3c3;--accent:#a9c5ff;--green:#80d9b3;--button:#252c39;--primary:#537de9;--primary-border:#7095f5}
+body.light{--bg:#f4f6fa;--panel:#fff;--line:#dce1ea;--ink:#1a2535;--muted:#59687d;--accent:#345fc1;--button:#edf1f7;--primary:#345fc1;--primary-border:#345fc1}
+body{background:var(--bg);font-size:14px;line-height:1.55}
+header{max-width:none;padding:0 32px;border-bottom:1px solid var(--line);background:var(--panel)}
+.header-inner{width:100%;max-width:1440px;min-height:76px;margin:auto;display:flex;align-items:center;gap:32px}
+.identity{display:flex;align-items:center;gap:12px;flex-shrink:0}.logo{width:36px;height:36px;border-radius:11px}.brand{font-size:17px;letter-spacing:-.035em;white-space:nowrap}.brand span{font-weight:500}.tag{font-size:11px;line-height:1.2}
+.header-inner .tabs{margin-left:24px;padding:0;gap:6px;border:0;background:transparent}.tabs button{padding:10px 15px;border-radius:10px;font-size:13px}.tabs button.active{background:var(--button);box-shadow:none}.tabs button:hover{background:var(--button)}
+.header-inner .pill{margin-left:auto;max-width:42%;overflow-wrap:anywhere;border:1px solid var(--line);background:var(--bg);font-size:12px;line-height:1.3}
+main{max-width:1440px;padding:0 32px 72px}
+.workspace-heading{display:flex;align-items:end;justify-content:space-between;gap:20px;padding:46px 0 28px}
+.eyebrow{display:block;color:var(--accent);font-size:11px;font-weight:750;letter-spacing:.13em;text-transform:uppercase}
+.workspace-heading h1{margin:5px 0 3px;font-size:clamp(28px,3vw,38px);font-weight:700;letter-spacing:-.045em;line-height:1.15}
+.workspace-heading p{margin:0;color:var(--muted);font-size:14px}
+.workspace-note{max-width:240px;text-align:right;font-size:12px!important}
+.studio{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:20px}
+.panel{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:26px;box-shadow:none}
+.panel h2{font-size:19px;line-height:1.2;letter-spacing:-.025em}
+.stage{top:20px}.stage-heading{align-items:center}.stage-heading h2{margin:0}.stage-heading .hint{padding:5px 10px;border:1px solid var(--line);border-radius:999px;font-size:11px;white-space:nowrap}
+.stage-intro{margin:8px 0 20px}
+.device-frame{max-width:540px;margin:auto;padding:14px;border:1px solid #424a5a;border-radius:24px;background:#090c12;box-shadow:0 18px 38px #0003}
+.stage .preview{max-width:none}.preview small{line-height:1.3}.preview-controls{margin-top:16px;gap:8px}.preview-controls button{min-width:42px}
+.stage>p.hint:not(.stage-intro){max-width:430px;margin:12px auto 0;text-align:center}
+.layout-settings{margin-top:24px;padding-top:18px}.layout-settings summary{font-size:13px}
+#save{margin-top:20px;padding:13px}
+.tile-editor{min-height:300px}.tile-editor>h2{padding-bottom:18px;margin:0 0 20px;border-bottom:1px solid var(--line)}
+.tile-editor #macros>.empty-state{min-height:210px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;max-width:310px;margin:0 auto;color:var(--muted)}
+.empty-state::before{content:"";width:48px;height:48px;margin-bottom:18px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(90deg,transparent 47%,var(--line) 47% 53%,transparent 53%),linear-gradient(transparent 47%,var(--line) 47% 53%,transparent 53%),var(--button)}
+.tile-action{background:var(--bg)}.tile-section,.tile-action{border-color:var(--line)}.tile-section summary:hover{background:var(--button);border-radius:13px}
+button{font-weight:650}button.primary{box-shadow:none}button:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{background:var(--bg)}.field label{color:var(--muted)}
+#settingsView,#aboutView{padding-top:38px}.about{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.about #companionHelp,.about section:last-child{grid-column:1/-1}
+footer{max-width:1440px;padding:0 32px 32px;line-height:1.7}
+@media(max-width:940px){.studio{grid-template-columns:1fr}.stage{position:static}.device-frame{max-width:540px}.about{grid-template-columns:1fr}.about #companionHelp,.about section:last-child{grid-column:auto}}
+@media(max-width:720px){header{padding:0 18px}.header-inner{min-height:0;padding:16px 0;gap:12px;flex-wrap:wrap}.header-inner .tabs{order:3;width:100%;margin:2px 0 0;justify-content:stretch}.tabs button{flex:1;text-align:center}.header-inner .pill{max-width:55%}main{padding:0 16px 48px}.workspace-heading{padding:30px 0 22px}.workspace-note{display:none}.panel{padding:20px;border-radius:17px}#settingsView,#aboutView{padding-top:24px}footer{padding:0 16px 24px}}
+@media(max-width:420px){.tag{display:none}.header-inner .pill{flex:1 1 0;min-width:0;max-width:none;font-size:11px;text-align:center}.stage-heading{align-items:flex-start}.stage-heading .hint{white-space:normal;text-align:right}.device-frame{padding:9px;border-radius:18px}.section-hint{display:none}}
 </style>
 </head>
 <body>
 <header>
+<div class="header-inner">
+<div class="identity">
 <svg class="logo" viewBox="0 0 64 64" role="img" aria-label="GooPad grid logo"><rect width="64" height="64" fill="#182443"/><g fill="#A5B4FC"><rect x="12" y="12" width="17" height="17" rx="4"/><rect x="36" y="12" width="17" height="17" rx="4"/><rect x="12" y="36" width="17" height="17" rx="4"/><rect x="36" y="36" width="17" height="17" rx="4"/></g></svg>
 <div><div class="brand">GooPad <span>Studio</span></div><div class="tag">Make your space work for you.</div></div>
+</div>
+<nav class="tabs" aria-label="Editor sections"><button id="macrosTab" class="active" type="button">Tiles</button><button id="settingsTab" type="button">Settings</button><button id="aboutTab" type="button">About</button></nav>
+<span class="pill" id="device">Connecting to GooPad…</span>
+</div>
 </header>
 <main>
-<div class="toolbar"><span class="pill" id="device">Connecting to GooPad…</span><span class="spacer"></span><nav class="tabs" aria-label="Editor sections"><button id="macrosTab" class="active" type="button">Tiles</button><button id="settingsTab" type="button">Settings</button><button id="aboutTab" type="button">About</button></nav></div>
-<div id="editorView"><div class="studio">
+<div id="editorView"><div class="workspace-heading"><div><span class="eyebrow">Your workspace</span><h1>Make it yours.</h1><p>Design your layout and bring your shortcuts together.</p></div><p class="workspace-note">Changes are saved to your GooPad when you're ready.</p></div><div class="studio">
 <section class="panel stage"><div class="stage-heading"><h2>Your GooPad</h2><span class="hint" id="count"></span></div><p class="hint stage-intro">Select a tile to make it yours.</p><div class="device-frame"><div class="preview" id="preview" aria-label="Select a tile to edit; drag tiles to rearrange"></div><div class="preview-dots" id="previewDots" aria-label="Preview pages"></div></div><div class="preview-controls"><button id="prevPage" type="button" aria-label="Previous page" title="Previous page">&larr;</button><button id="addPage" type="button" aria-label="Add page after current" title="Add page after current">+</button><button id="removePage" type="button" aria-label="Remove current page" title="Remove current page">&minus;</button><button id="nextPage" type="button" aria-label="Next page" title="Next page">&rarr;</button></div><p class="hint">Drag tiles to rearrange them. Use the arrows to change pages, or + and − to add or remove a page.</p><details class="layout-settings"><summary>Layout Settings</summary><div class="fields">
 <div class="field"><label>Columns</label><select id="cols"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field"><label>Rows per Page</label><select id="rows"><option>2</option><option selected>3</option><option>4</option></select></div>
@@ -655,7 +696,7 @@ function render(){
   drawEmojiResults(card);
   card.querySelector("[data-delete]").onclick=()=>{if(pendingUploads||faBusy)return msg("Wait for the upload to finish.",true);cfg.macros[i]=emptyMacro();render()};
  });
- if(selectedTile<0){const hint=document.createElement("p");hint.className="hint";hint.textContent="Select a tile in the preview to configure its visual, widget, or action. You can start anywhere; other tiles stay in place.";root.append(hint)}
+ if(selectedTile<0){const hint=document.createElement("p");hint.className="hint empty-state";hint.textContent="Select a tile in the preview to configure its visual, widget, or action. You can start anywhere; other tiles stay in place.";root.append(hint)}
  $("#count").textContent=`(${cfg.macros.filter(macroConfigured).length}/32 configured)`;preview()
 }
 function updateModeFields(card,mode){
@@ -966,6 +1007,7 @@ function visualCover(m){return !!m&&(m.actionMode!=="widget"||m.widgetGraphic===
 function actionCard(m,cols,rows){const d=widgetDimensions(m,cols,rows);return m.widgetLayout!=="classic"&&m.widgetLayout!=="layered"&&m.actionMode!=="widget"&&!responseTile(m)&&!!m.name&&!["circle","pill","soft"].includes(m.shape)&&d.width>=110&&d.height>=100&&!visualCover(m)}
 function responseTile(m){return m?.actionMode==="advanced"&&m.action==="http"}
 function defaultIconColor(m){return m.iconSource==="fontawesome"?"FFFFFF":m.textColor||(cfg.theme==="light"?"172033":"FFFFFF")}
+function gridCellSize(cols,rows){return {width:Math.floor((deviceDisplay.width-20-(cols-1)*8)/cols),height:Math.floor((deviceDisplay.height-104-(rows-1)*8)/rows)}}
 function preview(){
  // Compact layouts display a filtered list but retain the original macro index.
  $("#count").textContent=`(${cfg.macros.filter(macroConfigured).length}/32 configured)`;
@@ -984,13 +1026,14 @@ function preview(){
    const spanCols=hide?1:m?.spanCols||1,spanRows=hide?1:m?.spanRows||1;
    for(let y=0;y<spanRows;y++)for(let x=0;x<spanCols;x++)if(x||y)covered.add(position+y*cols+x);
    const cell=document.createElement("div"),b=document.createElement("button");cell.className="preview-cell";
-   cell.style.gridColumn=`${slot%cols+1} / span ${spanCols}`;cell.style.gridRow=`${Math.floor(slot/cols)+1} / span ${spanRows}`;
-   if(cfg.screenLayout&&cfg.screenLayout!=="grid"){const orbit=cfg.screenLayout==="arches"?archesPosition(deviceDisplay.width,deviceDisplay.height-84,cols,rows,slot):orbitPosition(deviceDisplay.width,deviceDisplay.height-84,cap,slot,cfg.screenLayout==="arc");cell.style.left=orbit.x/deviceDisplay.width*100+"%";cell.style.top=orbit.y/(deviceDisplay.height-84)*100+"%";cell.style.width=orbit.side/deviceDisplay.width*100+"%";cell.style.height=orbit.side/(deviceDisplay.height-84)*100+"%"}
+   const pageHeight=deviceDisplay.height-84;
+   if(cfg.screenLayout&&cfg.screenLayout!=="grid"){const orbit=cfg.screenLayout==="arches"?archesPosition(deviceDisplay.width,pageHeight,cols,rows,slot):orbitPosition(deviceDisplay.width,pageHeight,cap,slot,cfg.screenLayout==="arc");cell.style.left=orbit.x/deviceDisplay.width*100+"%";cell.style.top=orbit.y/pageHeight*100+"%";cell.style.width=orbit.side/deviceDisplay.width*100+"%";cell.style.height=orbit.side/pageHeight*100+"%"}
+   else{const {width,height}=gridCellSize(cols,rows);cell.style.left=(10+slot%cols*(width+8))/deviceDisplay.width*100+"%";cell.style.top=(10+Math.floor(slot/cols)*(height+8))/pageHeight*100+"%";cell.style.width=(width*spanCols+8*(spanCols-1))/deviceDisplay.width*100+"%";cell.style.height=(height*spanRows+8*(spanRows-1))/pageHeight*100+"%"}
    b.dataset.shape=m?.shape||"rounded";b.style.border=m?.outline===false?"0":"2px solid #"+(m?.outlineColor||themeAccents[cfg.theme]||"A5B4FC");
    b.type="button";b.dataset.tile=index;b.setAttribute("aria-label",m?.name||m?.widget||"Edit tile");b.setAttribute("aria-pressed",String(index===selectedTile));b.disabled=index>=32;b.draggable=index<32;b.onclick=()=>selectTile(index);
    const cover=visualCover(m);b.classList.toggle("visual-cover",cover);
    b.classList.toggle("gif-cover",cover&&m?.iconFormat==="gif"&&m.actionMode!=="widget");
-   if(!macroConfigured(m)){b.style.background=$("#hideEmptyTiles").checked?"transparent":cfg.theme==="light"?"#e2e8f0":"#1b2432";b.style.border=$("#hideEmptyTiles").checked?"0":`1px solid ${cfg.theme==="light"?"#cbd5e1":"#354153"}`}
+   if(!macroConfigured(m)){b.style.background=$("#hideEmptyTiles").checked?"transparent":cfg.theme==="light"?"#e2e8f0b3":"#1b2432b3";b.style.border=$("#hideEmptyTiles").checked?"0":`1px solid ${cfg.theme==="light"?"#cbd5e1":"#354153"}`}
    else{
     b.style.background=m.actionMode!=="widget"&&m.tileGradient?`linear-gradient(#${m.color||"4F46E5"},#${m.tileGradient})`:m.widgetLayout==="layered"?`linear-gradient(color-mix(in srgb,#${m.color||"4F46E5"} 90%,white),color-mix(in srgb,#${m.color||"4F46E5"} 80%,black))`:`linear-gradient(#${m.color||"4F46E5"},color-mix(in srgb,#${m.color||"4F46E5"} 90%,black))`;b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.classList.toggle("image-only",!m.name);
     const preset=tilePalette(m),styleTheme=tileTheme(m);
@@ -1068,9 +1111,10 @@ function orbitPosition(width,height,count,slot,arc){
  return {x:Math.round(width/2+Math.cos(angle)*radius-side/2),y:Math.round(height/2+Math.sin(angle)*radius-side/2),side}
 }
 function widgetDimensions(m,cols,rows){
- if(cfg.screenLayout&&cfg.screenLayout!=="grid"){const {side}=cfg.screenLayout==="arches"?archesPosition(deviceDisplay.width,deviceDisplay.height-84,cols,rows,0):orbitPosition(deviceDisplay.width,deviceDisplay.height-84,cols*rows,0,cfg.screenLayout==="arc");return {width:side,height:side}}
  const spanCols=m.spanCols||1,spanRows=m.spanRows||1;
- let width=Math.floor((deviceDisplay.width-20-(cols-1)*8)/cols)*spanCols+8*(spanCols-1),height=Math.floor((deviceDisplay.height-104-(rows-1)*8)/rows)*spanRows+8*(spanRows-1);
+ const cell=gridCellSize(cols,rows);
+ let width=cell.width*spanCols+8*(spanCols-1),height=cell.height*spanRows+8*(spanRows-1);
+ if(cfg.screenLayout&&cfg.screenLayout!=="grid"){const {side}=cfg.screenLayout==="arches"?archesPosition(deviceDisplay.width,deviceDisplay.height-84,cols,rows,0):orbitPosition(deviceDisplay.width,deviceDisplay.height-84,cols*rows,0,cfg.screenLayout==="arc");width=height=side}
  if(m.shape==="circle")width=height=Math.min(width,height);
  if(m.shape==="pill")height=Math.floor(height*3/4);
  return {width,height}

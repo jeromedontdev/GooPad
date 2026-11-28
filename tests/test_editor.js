@@ -38,6 +38,15 @@ globalThis.runGooPadEditorTests = async function () {
   check(invalidDisplay,"Partial display capabilities are rejected rather than silently replaced");
   setDeviceDisplay({});
   check(![...document.querySelector('#rows').options].find(option=>option.value==="4").disabled,"Legacy firmware retains 480x480 grid support");
+  reset({cols:3,rows:2,pageCount:1,macros:[{...make(0),spanCols:2},emptyMacro(),make(2)]});
+  const pageBounds=document.querySelector(".preview-page").getBoundingClientRect();
+  check(pageBounds.width>0&&pageBounds.height>0,"Grid preview is laid out before checking geometry");
+  for(const [index,x,y,width,height] of [[0,10,10,304,184],[2,322,10,148,184],[3,10,202,148,184]]){
+   const cell=document.querySelector(`[data-tile="${index}"]`).parentElement.getBoundingClientRect();
+   for(const [actual,expected] of [[cell.left-pageBounds.left,x*pageBounds.width/480],[cell.top-pageBounds.top,y*pageBounds.height/396],[cell.width,width*pageBounds.width/480],[cell.height,height*pageBounds.height/396]])
+    check(Math.abs(actual-expected)<.1,"Grid preview uses the device's scaled padding, gap and integer tile geometry");
+  }
+  check(getComputedStyle(document.querySelector('[data-tile="3"]')).backgroundColor==="rgba(27, 36, 50, 0.7)","Empty tile background uses the device's 70% opacity");
   reset({cols:3,rows:3,pageCount:1,macros:[make(0)]});selectTile(0);
   check(!document.querySelector("#showBattery").checked&&document.querySelector("#previewBattery").classList.contains("hidden"),"Battery indicator defaults off");
   document.querySelector("#showBattery").checked=true;document.querySelector("#showBattery").dispatchEvent(new Event("change"));
@@ -48,6 +57,8 @@ globalThis.runGooPadEditorTests = async function () {
    if(layout!=="arches"){cfg.screenLayout=layout;render()}
    const control=document.querySelector("#screenLayout");control.value=layout;control.dispatchEvent(new Event("change"));
    check(cfg.screenLayout===layout&&document.querySelector(".preview-page.radial")&&document.querySelector('[data-k="spanCols"]').disabled,"Ring layout is previewed and disables enlargement: "+layout);
+   const round=widgetDimensions({shape:"rounded"},3,3),pill=widgetDimensions({shape:"pill"},3,3);
+   check(pill.width===round.width&&pill.height===Math.floor(round.height*3/4),"Radial pill content uses the device's reduced tile height: "+layout);
    const tiles=[...document.querySelectorAll(".preview-cell")].map(cell=>cell.getBoundingClientRect());
    for(let i=0;i<tiles.length;i++)for(let j=0;j<i;j++)check(tiles[i].right<=tiles[j].left+.1||tiles[j].right<=tiles[i].left+.1||tiles[i].bottom<=tiles[j].top+.1||tiles[j].bottom<=tiles[i].top+.1,"Ring tiles do not overlap");
   }

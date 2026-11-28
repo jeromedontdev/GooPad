@@ -264,7 +264,8 @@ depends on the board:
   `tests/test_editor.js` as a classic script and run
   `await runGooPadEditorTests()` in the browser console. The suite uses
   synthetic layouts and mocked saves and refuses a live device URL. It covers
-  UI/config behavior, not the ESP32 renderer or network stack. In an automated
+  UI/config behavior and scaled grid geometry, not the ESP32 renderer or
+  network stack. The browser preview is not pixel-identical to LVGL. In an automated
   runner, disable the `updateWidgetPreview` and `refreshMonitorPreview`
   background intervals before loading the page so periodic requests do not
   race the suite's fetch mocks. Leave gesture/debounce timeouts enabled.

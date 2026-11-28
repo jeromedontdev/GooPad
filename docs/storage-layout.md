@@ -143,6 +143,15 @@ device, with the exact preceding 0.7.9 app retained in `ota_0` as recovery.
 See the change log for verification and remaining release work. These are
 development artifacts, not a published binary release.
 
+## 0.7.11 editor workspace development build (2026-11-28)
+
+The production ESP-IDF 6.1 app is **2,425,328 bytes**, leaving **1,768,976
+bytes / 42.18% free** in a 4 MiB app slot. SHA-256:
+`d30cd7827caddc36bdaa63e995c78954e4f3e8469694b75ba13f3bccbc590366`.
+Its matching `web-d149ada81c45.gwp` editor archive is **336,765 bytes**,
+SHA-256 `d149ada81c45c4ab98af2bc8330e1c3072f503222b805df507c2faca9bb82fe9`.
+See the change log for deployment and publication status.
+
 ## Companion-only 0.7.4 release
 
 The [0.7.4 release](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.4)

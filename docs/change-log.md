@@ -1182,3 +1182,32 @@ not a complete historical changelog.
   build from a fresh configuration seeded by the defaults, matching package
   provenance and review of release assets/digests. Preserve user settings and
   pairing when completing the real Companion installation.
+
+## 2026-11-28 - Editor workspace and preview geometry
+
+- **Request/changes:** redesigned the browser editor as a cleaner responsive
+  workspace with persistent navigation, a clearer layout and an empty editing
+  state. The browser's website themes remain independent of the device theme.
+  Corrected preview grid padding, gaps and spanned-cell sizes to match firmware
+  integer geometry; corrected radial pill content dimensions and empty-tile
+  opacity. Browser fonts, live data, animations and hardware effects still
+  make the preview an approximation.
+- **Compatibility:** no saved configuration or API format changes. Firmware
+  0.7.11 requires its matching editor resource; downgrading restores the older
+  editor along with the prior firmware and resource pack.
+- **Validation:** local browser suite passed 7,339 checks across 2,520 layouts;
+  desktop and mobile layouts were inspected and all three views checked for
+  overflow at 320, 375, 768, 1024 and 1440 pixels in six website themes.
+  An intermediate web loader test failed because the editor was changed while
+  its manifest was being built; regeneration followed by all four web-resource
+  and real-loader tests passed. Final ESP-IDF 6.1 production reconfigure/build
+  and all four resource/loader tests passed again after geometry refactoring.
+  See the storage ledger for final sizes and hashes.
+- **Attribution:** GitHub linked existing commits to a different account because
+  the repository-local Git email belonged to that account. The local identity
+  was corrected to the authenticated product account's ID-based no-reply
+  address. Existing published history was not rewritten; changing those
+  attributions requires a coordinated history rewrite and force-push.
+- **Delivery/remaining:** device installation, read-only soak, source push and
+  any binary release are pending at this entry. No live configuration fixtures
+  or physical rendering comparisons were used.

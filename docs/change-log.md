@@ -1335,3 +1335,26 @@ not a complete historical changelog.
   any release. The hardware-test contributor API still showed the former
   account on this recheck; allow the documented cache refresh and follow up
   with GitHub Support if it persists.
+
+## 2026-11-28 - Soak repeat and narrow-screen control check
+
+- **Investigation:** repeated the 0.7.12 startup soak after verifying the
+  active and recovery images again. The read-only 300-second repeat recorded
+  22 samples, zero errors or reboots, and 32 low-memory/network-admission
+  warnings. None of the checked unavailable-state labels appeared in the
+  live-widget entries afterward; the saved configuration remained unchanged.
+  The earlier timeout did not recur, but
+  its provider and underlying cause remain unknown.
+- **Control follow-up:** at a 320-pixel browser width, enlarged action buttons
+  left a PC-step selector only 49 pixels wide. Wrapped the action buttons below
+  the selector on narrow screens; the selector measured 159 pixels afterward.
+  The editor browser suite passed 7,363 checks at desktop width and the isolated
+  release-packaging regression passed.
+- **Known limitation:** running the complete preview suite at 320 pixels
+  exposed clipped preview text for a 2-by-4 pill PC-monitor tile. The same
+  failure reproduces with the unmodified 0.7.12 editor and tests; it is not
+  evidence of a physical-device rendering failure and is outside this
+  control-focused change. The preview remains an approximation.
+- **Remaining:** rebuild the changed editor/manifest from committed source,
+  install only after checking its app image and matching resource, and repeat
+  preservation checks and the five-minute device soak. No binary was released.

@@ -22,6 +22,31 @@ const char *goopad_news_feed_url(const char *key)
     return NULL;
 }
 
+bool goopad_news_extras_valid(const cJSON *extras, const char *primary)
+{
+    if (!extras) return true;
+    if (!cJSON_IsArray(extras) || cJSON_GetArraySize(extras) > GOOPAD_NEWS_EXTRA_FEEDS) return false;
+    for (const cJSON *feed = extras->child; feed; feed = feed->next) {
+        if (!cJSON_IsString(feed) || !goopad_news_feed_url(feed->valuestring) ||
+            (primary && !strcmp(primary, feed->valuestring))) return false;
+        for (const cJSON *other = extras->child; other != feed; other = other->next)
+            if (!strcmp(other->valuestring, feed->valuestring)) return false;
+    }
+    return true;
+}
+
+const char *goopad_news_extra_url(const cJSON *extras, unsigned index)
+{
+    const cJSON *feed = cJSON_GetArrayItem(extras, (int)index);
+    return cJSON_IsString(feed) ? goopad_news_feed_url(feed->valuestring) : NULL;
+}
+
+unsigned goopad_news_next_source(const cJSON *extras, unsigned current)
+{
+    unsigned count = 1 + (cJSON_IsArray(extras) ? cJSON_GetArraySize(extras) : 0);
+    return (current + 1) % count;
+}
+
 typedef struct {
     XML_Parser parser;
     char *out;

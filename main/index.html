@@ -64,6 +64,7 @@ footer{padding:20px 26px 32px}a{color:var(--accent)}body.light a{color:#175fb8}
 @media(prefers-reduced-motion:reduce){button{transition:none}}
 .device-frame .preview-dots{margin:10px 0 0}.preview-dots span[aria-current=true]{width:18px;border-radius:8px;transform:none}
 .choices{border:0;padding:0;margin:0;min-width:0}.choices legend{padding:0;margin:0 0 8px;color:var(--muted);font-size:12px;font-weight:600}.choice-grid{display:flex;flex-wrap:wrap;gap:7px}.field .choice{position:relative;display:flex;align-items:center;gap:9px;min-width:0;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel);color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;transition:border-color .15s,background .15s}.choice:hover{border-color:var(--muted)}.choice:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,var(--panel));box-shadow:inset 0 0 0 1px var(--accent)}.choice:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}.choice:has(input:disabled){opacity:.5;cursor:default}.choice input{position:absolute;width:1px;height:1px;opacity:0;margin:0}.choice-copy{display:grid;gap:2px}.choice-copy small{color:var(--muted);font-size:11px;font-weight:400;line-height:1.35}.choices.cards .choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.field .choices.cards .choice{min-height:64px;align-items:flex-start;padding:12px}.choices.cards .choice::before{content:"";flex:0 0 9px;width:9px;height:9px;margin-top:4px;border:2px solid var(--muted);border-radius:50%}.choices.cards .choice:has(input:checked)::before{border-color:var(--accent);background:var(--accent)}@media(max-width:380px){.choices.cards .choice-grid{grid-template-columns:1fr}}
+.source-options{display:flex;flex-wrap:wrap;gap:7px}.field .source-options label{display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);cursor:pointer}.source-options label:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,var(--panel))}.source-options label:has(input:disabled){opacity:.5;cursor:default}.source-options input{width:auto;margin:0;accent-color:var(--accent)}.size-slider{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px}.size-slider input{padding:0;accent-color:var(--accent)}.size-slider output{min-width:3em;text-align:right;color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums}
 .preview button.caption-rail::before{content:"";position:absolute;inset:auto 0 0;height:var(--rail-height);background:var(--rail-color);pointer-events:none}
 .preview button.action-medallion::after{content:"";position:absolute;left:50%;top:var(--visual-center);transform:translate(-50%,-50%);width:var(--medallion-size);height:var(--medallion-size);border-radius:50%;background:var(--medallion-color);pointer-events:none}.preview button.action-medallion>.ico,.preview button.action-medallion>img,.preview button.action-medallion>.icon-mask,.preview button.action-medallion>small{position:relative;z-index:1}
 .preview button.widget-surface::after{content:"";position:absolute;left:var(--surface-inset);right:var(--surface-inset);top:var(--surface-top);height:var(--surface-height);border-radius:var(--surface-radius);background:var(--surface-color);pointer-events:none}.preview button.widget-surface>.widget,.preview button.widget-surface>.widget-graphic,.preview button.widget-surface>small{position:relative;z-index:1}
@@ -542,6 +543,15 @@ function enhanceChoices(card){
  }
  syncChoices(card)
 }
+function enhanceSizeSlider(card,key){
+ const select=card.querySelector(`[data-k="${key}"]`),label=select.previousElementSibling;
+ const wrapper=document.createElement("div"),input=document.createElement("input"),output=document.createElement("output");
+ wrapper.className="size-slider";input.type="range";input.min="0";input.max=String(select.options.length-1);input.step="1";
+ input.setAttribute("aria-label",label.textContent);wrapper.append(input,output);select.hidden=true;select.after(wrapper);
+ const sync=()=>{input.value=String(select.selectedIndex);output.textContent=select.selectedOptions[0].textContent;input.setAttribute("aria-valuetext",output.textContent)};
+ input.addEventListener("input",()=>{select.selectedIndex=Number(input.value);select.dispatchEvent(new Event("change",{bubbles:true}));sync()});
+ select.addEventListener("change",sync);sync()
+}
 function organizeTileEditor(card,openSections,mode){
  const fields=card.querySelector(".macro-fields"),head=card.querySelector(".macro-head");
  const field=key=>card.querySelector(`[data-k="${key}"]`).closest(".field");
@@ -614,7 +624,7 @@ function render(){
   <div class="field wide" data-widget-option="clock"><label>Time Format</label><input data-k="clockFormat" maxlength="96" placeholder="%H:%M"><span class="hint">Examples: %H:%M, %-I:%M %p, %H:%M:%S. Percent formats use English names and the device UTC offset.</span></div>
   <div class="field wide" data-widget-option="date"><label>Date Format</label><input data-k="dateFormat" maxlength="96" placeholder="%Y-%m-%d"><span class="hint">Examples: %Y-%m-%d, %d/%m/%Y, %A, %B %-d. Use %-d for a day without a leading zero.</span></div>
   <div class="field wide" data-widget-option="datetime"><label>Date &amp; Time Format</label><input data-k="datetimeFormat" maxlength="96" placeholder="%Y-%m-%d%n%H:%M"><span class="hint">Example: %a, %b %-d%n%-I:%M %p. %n adds a new line; %% shows a percent sign. Also supports %F, %T, %R, %D, %r, %e, %j, %u, %w, %y, %P and %t. Unsupported directives are rejected.</span></div>
-  <div class="field wide" data-widget-option="news"><label>RSS / Atom Feed</label><select data-k="newsFeed"><option value="" disabled>Choose an RSS Feed to Replace the Saved Legacy Source</option>${Object.entries(newsFeeds).map(([key,feed])=>`<option value="${key}">${feed.label}</option>`).join("")}<option value="custom">Custom RSS / Atom URL</option></select><span class="hint hidden" data-news-legacy>Your saved legacy source remains active until you choose an RSS feed.</span><div data-news-url><label>Custom Feed HTTPS URL</label><input data-k="newsUrl" type="url" maxlength="179" value="${esc(m.newsUrl||"")}" placeholder="https://example.com/feed.xml"></div><label>Number of Headlines</label><select data-k="newsCount">${[1,2,3,4,5].map(count=>`<option value="${count}">${count}${count===3?" (default)":""}</option>`).join("")}</select><span class="hint">One to five separated headlines, refreshed every ten minutes. RSS 2.0, RSS 1.0 and Atom are supported. TLS is verified; redirects, DTDs and malformed XML are rejected. XML limit: 256 KiB. Providers can change or rate-limit their feeds.</span></div>
+  <div class="field wide" data-widget-option="news"><label>Primary RSS / Atom Feed</label><select data-k="newsFeed"><option value="" disabled>Choose an RSS Feed to Replace the Saved Legacy Source</option>${Object.entries(newsFeeds).map(([key,feed])=>`<option value="${key}">${feed.label}</option>`).join("")}<option value="custom">Custom RSS / Atom URL</option></select><span class="hint hidden" data-news-legacy>Your saved legacy source remains active until you choose an RSS feed.</span><div data-news-url><label>Custom Feed HTTPS URL</label><input data-k="newsUrl" type="url" maxlength="179" value="${esc(m.newsUrl||"")}" placeholder="https://example.com/feed.xml"></div><div data-news-extra-section><label>Additional Sources (up to three)</label><div class="source-options">${Object.entries(newsFeeds).map(([key,feed])=>`<label><input type="checkbox" data-news-extra="${key}">${feed.label}</label>`).join("")}</div></div><label>Number of Headlines</label><select data-k="newsCount">${[1,2,3,4,5].map(count=>`<option value="${count}">${count}${count===3?" (default)":""}</option>`).join("")}</select><span class="hint">One to five separated headlines. Multiple sources alternate each minute; a single feed refreshes every ten minutes. RSS 2.0, RSS 1.0 and Atom are supported. TLS is verified; redirects, DTDs and malformed XML are rejected. XML limit: 256 KiB. Providers can change or rate-limit their feeds.</span></div>
   <div class="field wide" data-widget-option="pc_monitor"><label>PC Statistic</label><select data-k="pcStat">${Object.entries(pcStatLabels).map(([key,label])=>`<option value="${key}">${label}</option>`).join("")}</select><span class="hint">Network speed totals non-loopback interfaces. Fan speed is the fastest reported fan and requires LibreHardwareMonitor or OpenHardwareMonitor. GPU readings require supported drivers. Missing readings say Unavailable, never zero.</span></div>
   <div class="field wide" data-widget-option="now_playing"><span class="hint">Pair the Windows Companion in Settings and enable now-playing sharing in the Companion. Tap to play/pause; hold to skip to the next track. Media keys target the PC's active player. Media title and artist are shared with paired devices on your local network.</span></div>
   <div class="field" data-widget-option="pc_temperature"><label>Temperature Unit</label><select data-k="temperatureUnit"><option value="C">Celsius</option><option value="F">Fahrenheit</option></select></div>
@@ -636,7 +646,7 @@ function render(){
   <div class="field"><label>Tile Height</label><select data-k="spanRows"><option value="1">1 Row</option><option value="2">2 Rows</option><option value="3">3 Rows</option><option value="4">4 Rows</option></select></div>
   <div class="field" data-widget-style data-widget-graphic><label>Icon / Graphic</label><select data-k="widgetGraphic"><option value="text">Text Only</option><option value="custom_icon">Selected Icon and Text</option><option value="icon">Icon Badge</option><option value="analog">Live Analog Clock</option><option value="calendar">Calendar Card</option><option value="bar">Usage Bar</option><option value="ring">Usage Ring</option></select><span class="hint">Choose Selected icon and text to reveal the icon controls below. Use an emoji, Font Awesome icon, image, or GIF with any widget.</span></div>
   <div class="field" data-widget-style><label>Maximum Widget Text Size (device pixels)</label><select data-k="widgetTextSize"><option value="0">Auto</option><option value="12">12</option><option value="14">14</option><option value="16">16</option><option value="20">20</option><option value="28">28</option><option value="40">40</option></select></div>
-  <div class="field" data-widget-style><label>Card Accent</label><input data-k="widgetAccent" type="color" value="#${esc(m.widgetAccent||"A5B4FC")}"></div>
+  <div class="field"><label>Card Accent</label><input data-k="widgetAccent" type="color" value="#${esc(m.widgetAccent||"A5B4FC")}"><span class="hint">Used by modern cards and widget graphics; presets choose their own accent.</span></div>
   <div class="field wide" data-widget-style><span class="hint">Presets set tile, text, outline and graphic colors. Custom restores your own colors and gradient. Modern cards add a heading and accent on larger rounded or square tiles; smaller tiles and other shapes use the classic layout to keep readings legible. Text fits down automatically. Usage gauges support CPU, RAM and GPU percentages; the combined PC summary gauge shows CPU usage.</span></div>
   <div class="field wide mode-field" data-mode-field="pc_macro"><label>Start with a Common Action</label><select data-pc-preset><option value="">Choose a Starter…</option><option value="open">Open a Website</option><option value="copy">Copy</option><option value="paste">Paste</option><option value="screenshot">Screenshot</option><option value="play">Media Play / Pause</option><option value="mute">Mute</option><option value="text">Type a Text Snippet</option><option value="powershell">PowerShell Command</option></select><p class="hint">Uses the PC pairing in Settings. Steps run in order on that PC. Keyboard input goes to its focused app.</p><div data-pc-steps></div><button data-pc-add type="button">Add Step</button><p class="hint" data-pc-summary></p></div>
   <div class="field wide mode-field" data-mode-field="sound"><span class="hint">Choose a sound in the Sound section below; a sound is required to save this type. No website or PC is required.</span></div>
@@ -682,6 +692,10 @@ function render(){
   card.querySelector('[data-k="newsFeed"]').value=m.newsFeed||"bbc_world";
   card.querySelector('[data-k="newsCount"]').value=String(m.newsCount??3);
   syncNewsControls(card,m);
+  card.querySelectorAll("[data-news-extra]").forEach(input=>input.addEventListener("change",()=>{
+   const extras=new Set(m.newsExtras||[]);if(input.checked)extras.add(input.dataset.newsExtra);else extras.delete(input.dataset.newsExtra);
+   if(extras.size)m.newsExtras=[...extras];else delete m.newsExtras;syncNewsControls(card,m)
+  }));
   card.querySelector('[data-k="widgetTheme"]').closest(".field").querySelector("label").textContent="Tile Theme";
   card.querySelector('[data-k="widgetLayout"]').value=m.widgetLayout||"panel";
   card.querySelector('[data-k="spanCols"]').value=String(m.spanCols||1);
@@ -717,6 +731,7 @@ function render(){
    }
    if(el.dataset.k==="newsFeed")for(const event of ["input","change"])el.addEventListener(event,()=>{
     if(m.newsSource!=="rss")delete m.newsUrl;
+    if(m.newsExtras){m.newsExtras=m.newsExtras.filter(key=>key!==el.value);if(!m.newsExtras.length)delete m.newsExtras}
     m.newsSource="rss";syncNewsControls(card,{...m,newsFeed:el.value})
    });
    if(el.dataset.k==="actionMode")el.addEventListener("change",event=>{
@@ -765,6 +780,7 @@ function render(){
   card.querySelector("[data-emoji-search]").oninput=()=>drawEmojiResults(card);
   drawEmojiResults(card);
   enhanceChoices(card);
+  enhanceSizeSlider(card,"textSize");enhanceSizeSlider(card,"widgetTextSize");
   card.querySelector("[data-delete]").onclick=()=>{if(pendingUploads||faBusy)return msg("Wait for the upload to finish.",true);cfg.macros[i]=emptyMacro();render()};
  });
  if(selectedTile<0){const hint=document.createElement("p");hint.className="hint empty-state";hint.textContent="Select a tile in the preview to configure its visual, widget, or action. You can start anywhere; other tiles stay in place.";root.append(hint)}
@@ -907,6 +923,9 @@ function syncNewsControls(card,m){
  card.querySelector('[data-k="newsFeed"]').value=rss?m.newsFeed||"bbc_world":"";
  card.querySelector("[data-news-legacy]").classList.toggle("hidden",rss);
  card.querySelector("[data-news-url]").classList.toggle("hidden",!rss||(m.newsFeed||"bbc_world")!=="custom")
+ card.querySelector("[data-news-extra-section]").classList.toggle("hidden",!rss);
+ const extras=m.newsExtras||[];
+ card.querySelectorAll("[data-news-extra]").forEach(input=>{input.checked=extras.includes(input.dataset.newsExtra);input.disabled=input.dataset.newsExtra===(m.newsFeed||"bbc_world")||!input.checked&&extras.length>=3})
 }
 function gradientStops(m){
  if(m.gradientStops)return structuredClone(m.gradientStops);
@@ -926,7 +945,7 @@ function gradientCss(m,rail=false){
 function renderGradient(card,m){
  const root=card.querySelector("[data-gradient-editor]"),palette=tilePalette(m),disabled=!!palette,stops=palette?[{color:palette[0],position:0},{color:palette[1],position:100}]:gradientStops(m);
  let selected=Math.min(Number(root.dataset.stop)||0,stops.length-1);
- root.innerHTML=`<label>Custom Gradient</label><div class="gradient-rail"></div><div class="gradient-tools"><input type="color" data-gradient-color aria-label="Selected gradient stop color"><input type="range" data-gradient-position aria-label="Gradient stop position"><output></output></div><div class="gradient-tools"><button type="button" data-gradient-add>Add Stop</button><button type="button" data-gradient-remove>Remove Stop</button><select data-gradient-direction aria-label="Gradient direction"><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option><option value="circle">Circle (center outward)</option></select></div><span class="hint">Select a color marker, then adjust its color or position. Two to six stops; match their colors for a solid tile. Choose Custom tile theme to edit.</span>`;
+ root.innerHTML=`<label>Custom Gradient</label><div class="gradient-rail"></div><div class="gradient-tools"><input type="color" data-gradient-color aria-label="Selected gradient stop color"><input type="range" data-gradient-position aria-label="Gradient stop position"><output></output></div><div class="gradient-tools"><button type="button" data-gradient-add>Add Stop</button><button type="button" data-gradient-remove>Remove Stop</button></div><label>Gradient Direction</label><select data-gradient-direction aria-label="Gradient direction"><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option><option value="circle">Circle (center outward)</option></select><span class="hint">Select a color marker, then adjust its color or position. Two to six stops; match their colors for a solid tile. Choose Custom tile theme to edit.</span>`;
  const rail=root.querySelector(".gradient-rail"),color=root.querySelector("[data-gradient-color]"),position=root.querySelector("[data-gradient-position]"),direction=root.querySelector("[data-gradient-direction]");
  rail.style.background=gradientCss({...m,gradientStops:stops},true);
  stops.forEach((stop,i)=>{const button=document.createElement("button");button.type="button";button.style.left=stop.position+"%";button.style.background="#"+stop.color;button.disabled=disabled;button.setAttribute("aria-label",`Gradient stop ${i+1} at ${stop.position}%`);button.setAttribute("aria-pressed",String(i===selected));button.onclick=()=>{root.dataset.stop=i;renderGradient(card,m)};rail.append(button)});
@@ -942,7 +961,8 @@ function renderGradient(card,m){
  const add=root.querySelector("[data-gradient-add]"),remove=root.querySelector("[data-gradient-remove]");
  add.disabled=disabled||stops.length>=6;remove.disabled=disabled||selected===0||selected===stops.length-1;
  add.onclick=()=>{let gap=0;for(let i=1;i<stops.length-1;i++)if(stops[i+1].position-stops[i].position>stops[gap+1].position-stops[gap].position)gap=i;stops.splice(gap+1,0,{color:stops[gap].color,position:Math.round((stops[gap].position+stops[gap+1].position)/2)});root.dataset.stop=gap+1;changed()};
- remove.onclick=()=>{stops.splice(selected,1);root.dataset.stop=selected-1;changed()}
+ remove.onclick=()=>{stops.splice(selected,1);root.dataset.stop=selected-1;changed()};
+ enhanceChoice(direction,"gradientDirection",false,card);syncChoices(card)
 }
 function previewIconColor(m){return m.iconColor||tilePalette(m)?.[2]}
 const previewFonts={lobster:"Goo Script Preview",pacifico:"Goo Pacific Preview",sharetechmono:"Goo Terminal Preview",righteous:"Goo Rounded Preview",acme:"Acme Preview",bangers:"Bangers Preview",patrickhand:"Patrick Hand Preview",pressstart2p:"Press Start Preview",spacemono:"Space Mono Preview"};
@@ -1403,9 +1423,10 @@ function prepareMacroAction(m,index){
    m.newsSource=m.newsSource||"hackernews";
    if(!["rss","hackernews","jsonfeed"].includes(m.newsSource))throw Error(`Button ${index+1}: choose a headline source.`);
    if(m.newsSource==="rss"){if(m.newsFeed===undefined)m.newsFeed="bbc_world";if(typeof m.newsFeed!=="string"||m.newsFeed!=="custom"&&!Object.hasOwn(newsFeeds,m.newsFeed))throw Error(`Button ${index+1}: choose a news feed.`)}else delete m.newsFeed;
+   if(m.newsExtras!==undefined&&(!Array.isArray(m.newsExtras)||m.newsSource!=="rss"||m.newsExtras.length>3||new Set(m.newsExtras).size!==m.newsExtras.length||m.newsExtras.some(feed=>typeof feed!=="string"||!Object.hasOwn(newsFeeds,feed)||feed===m.newsFeed)))throw Error(`Button ${index+1}: choose up to three distinct additional RSS sources.`);
    if(m.newsSource==="jsonfeed"||m.newsSource==="rss"&&m.newsFeed==="custom"){m.newsUrl=parseWebUrl(m.newsUrl,`Button ${index+1} news feed`);if(!m.newsUrl.startsWith("https://")||m.newsUrl.length>=180)throw Error(`Button ${index+1}: use a feed HTTPS URL under 180 characters.`)}
    else delete m.newsUrl;
-  }else{delete m.newsSource;delete m.newsFeed;delete m.newsUrl;delete m.newsCount}
+  }else{delete m.newsSource;delete m.newsFeed;delete m.newsUrl;delete m.newsExtras;delete m.newsCount}
   if(m.widget==="alarm"){
    if(m.alarmTime===undefined)m.alarmTime="07:00";
    if(!/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(m.alarmTime))throw Error(`Button ${index+1}: choose a valid alarm time.`);

@@ -10,6 +10,25 @@
 int main(int argc, char **argv)
 {
     char text[384];
+    cJSON *extras = cJSON_Parse("[\"npr\",\"guardian\",\"verge\"]");
+    assert(goopad_news_extras_valid(extras, "bbc_world"));
+    assert(!strcmp(goopad_news_extra_url(extras, 0), goopad_news_feed_url("npr")));
+    assert(!strcmp(goopad_news_extra_url(extras, 2), goopad_news_feed_url("verge")));
+    assert(!goopad_news_extra_url(extras, 3));
+    unsigned source = 0;
+    for (unsigned i = 0; i < 8; i++) {
+        source = goopad_news_next_source(extras, source);
+        assert(source == (i + 1) % 4);
+    }
+    cJSON_Delete(extras);
+    assert(goopad_news_next_source(NULL, 0) == 0);
+    const char *invalid_extras[] = {"[\"npr\",\"npr\"]", "[\"bbc_world\"]",
+                                   "[\"custom\"]", "[null]", "[\"npr\",\"guardian\",\"verge\",\"ars\"]", "{}"};
+    for (unsigned i = 0; i < sizeof(invalid_extras) / sizeof(invalid_extras[0]); i++) {
+        extras = cJSON_Parse(invalid_extras[i]);
+        assert(extras && !goopad_news_extras_valid(extras, "bbc_world"));
+        cJSON_Delete(extras);
+    }
     if (argc == 2 && !strcmp(argv[1], "--feed")) {
         char *xml = malloc(GOOPAD_NEWS_XML_BYTES + 1);
         assert(xml);

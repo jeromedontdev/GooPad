@@ -4,7 +4,7 @@ GooPad turns the Guition / CYD **ESP32-S3-4848S040** (4-inch, 480×480)
 touch display into a Wi-Fi macro pad. It is built with ESP-IDF 6.1 and LVGL
 9; the existing display, GT911 touch, SD-card, and board drivers are retained.
 
-![GooPad logo](web/logo.svg)
+<img src="web/logo.svg" alt="GooPad logo" width="128">
 
 For maintainers: [architecture and code map](docs/architecture.md),
 [development and recovery](docs/development.md), and
@@ -13,14 +13,10 @@ For maintainers: [architecture and code map](docs/architecture.md),
 
 ## Current release
 
-[GooPad 0.7.5](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.5)
+[GooPad 0.7.13](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.13)
 includes the application-only firmware, matching Windows Companion installer
-and portable ZIP, SD resources, notices, checksums and Companion-soak report.
-It replaces Companion's self-extracting executable with a standard app folder
-to address the Defender detection of the 0.7.4 distribution, retaining the
-update/restart repair and one-click sharing and controls.
-Firmware differs from 0.7.3 only in its release version; existing 0.7.3/0.7.4
-devices can use the Companion repair without reflashing.
+and portable ZIP, SD resources, notices and checksums. It includes the editor
+redesign and expanded tile, appearance, layout and widget options.
 For configured devices, use the OTA image only; preserve configuration,
 HomeKit pairing and existing SD files. Install the matching SD resources
 before upgrading. See the release notes for validation and remaining latency
@@ -74,7 +70,8 @@ New empty tiles show a **Choose an action** prompt until a type is selected.
 Action cards and compact choices replace common dropdowns; use Tab and arrow
 keys to navigate them. Layout, website theme, tile size and other short
 settings also use choice groups. Longer lists, such as fonts, feeds and tile
-themes, remain native dropdowns. Action settings appear first; expand **Icon & Graphic**, **Appearance**, **Text**,
+themes, remain native dropdowns. Gradient direction uses choices and label
+and widget text sizes use discrete sliders. Action settings appear first; expand **Icon & Graphic**, **Appearance**, **Text**,
 or **Sound** for the remaining controls. Only that tile's controls are shown. You can configure
 positions in any order. **Button Label** is optional on-screen text; tiles have
 no separate editor name.
@@ -133,6 +130,9 @@ validate HTTPS certificates.
 - Every tile's **Appearance** section offers preset themes and **Custom**.
   Layered centers its inset surface/visual; Modern has an accent and, where
   space allows, a heading/card layout. Full-cover visuals retain priority.
+  Card Accent is available for every tile in Custom; preset themes select
+  their own accent. Classic, Layered, full-cover visuals, Material and Glass
+  do not use the Modern accent strip.
   **Liquid Glass** uses frosted backdrops, translucent surfaces and luminous edges;
   the browser uses real backdrop blur, while the device shares a small blurred
   background rather than simulating optical refraction. A soft colored scene
@@ -160,8 +160,10 @@ validate HTTPS certificates.
   format presets remain supported. See [supported directives](docs/api.md).
 - **Widgets → News → Headlines** reads RSS/Atom and offers BBC World/Technology,
   NPR, The Guardian, NYTimes, Ars Technica, The Verge and Hacker News presets,
-  plus a custom HTTPS feed URL. Choose **one to five headlines** (default three),
-  separated by divider lines, refreshed every ten minutes. Use fewer headlines
+  plus a custom HTTPS feed URL. Choose up to three additional preset feeds
+  to alternate sources each minute; a single feed refreshes every ten minutes.
+  Choose **one to five headlines** (default three), separated by divider lines.
+  Only the primary feed can use a custom URL. Use fewer headlines
   or enlarge the tile when long titles cannot fit.
   XML feeds are limited to 256 KiB; DTDs, redirects and malformed feeds are
   rejected. JSON sources are no longer offered. Untouched legacy configurations

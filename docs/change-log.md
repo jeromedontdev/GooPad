@@ -1411,3 +1411,43 @@ not a complete historical changelog.
   against the validated local files; the GitHub asset digests also matched.
   The installation, soak findings and remaining limitations are recorded above.
   Companion packages are unsigned.
+
+## 2026-11-28 - News sources, editor controls and attribution
+
+- **Changes:** News can alternate a primary RSS/Atom source and up to three
+  additional preset feeds. Multiple feeds are fetched in turn at one-minute
+  intervals; single-feed polling remains ten minutes. Card Accent is now
+  accessible on action tiles as well as widgets; preset colors still take
+  precedence and not every layout uses an accent strip. Label/widget text
+  size uses discrete sliders and gradient direction uses native choice
+  controls. The README logo is smaller with rounded background corners.
+- **Compatibility:** existing single-source configurations are unchanged.
+  The optional `newsExtras` array is ignored by older firmware, which uses
+  only the primary feed. Only the primary feed supports a custom URL.
+  Multiple sources increase network traffic; provider failures remain visible.
+  Version 0.7.14 requires its matching editor resource and keeps the previous
+  firmware/resource for recovery.
+- **Validation:** the local editor passed 7,370 checks across 2,520 layouts;
+  24 combinations of screen width and website theme had no control/document
+  overflow. Keyboard selection, slider operation and focus restoration passed.
+  Native RSS tests passed source validation and rotation, and all four web
+  resource loader/HTTP tests passed. A loopback GET fed the actual firmware
+  response-capture/result and LVGL widget-update code with a mocked display;
+  the browser status-to-preview path passed separately. This does not prove a
+  physical device GET. Companion's 47 tests and syntax check passed. A worktree
+  production ESP-IDF 6.1 reconfigure/build passed with the same resolved SDK
+  configuration as 0.7.13; sizes and digests are in the storage ledger.
+- **Attribution:** Spidarium's 127 commits and 32 tags were rewritten with
+  lease-protected atomic publication. Trees, parent topology, dates, commit and
+  tag messages, and release assets were preserved. One historical commit
+  signature could not survive the rewrite. The untouched original mirror and
+  commit map are retained in the session archive; older clones must reconcile
+  rewritten refs. GitHub's commit API now resolves the 126 corrected authors to
+  the intended account; one existing GitHub web-flow committer was preserved.
+  The contributor display still lists the old account pending refresh.
+  The GooPad and hardware-test contributor APIs now show the intended account.
+- **Delivery/remaining:** not installed or released at this point. A physical
+  GET display test and live multi-source rotation require a safe test tile;
+  do not replace the live configuration with a fixture without explicit
+  permission. Verify device preservation and soak before any release, and
+  recheck Spidarium's contributor list after GitHub's cache refresh.

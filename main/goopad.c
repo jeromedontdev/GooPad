@@ -1443,6 +1443,7 @@ static bool validate_config(const char *json)
         cJSON *news_source = cJSON_GetObjectItemCaseSensitive(item, "newsSource");
         cJSON *news_url = cJSON_GetObjectItemCaseSensitive(item, "newsUrl");
         cJSON *news_feed = cJSON_GetObjectItemCaseSensitive(item, "newsFeed");
+        cJSON *news_extras = cJSON_GetObjectItemCaseSensitive(item, "newsExtras");
         cJSON *news_count = cJSON_GetObjectItemCaseSensitive(item, "newsCount");
         cJSON *pc_stat = cJSON_GetObjectItemCaseSensitive(item, "pcStat");
         cJSON *temperature_unit = cJSON_GetObjectItemCaseSensitive(item, "temperatureUnit");
@@ -1505,6 +1506,8 @@ static bool validate_config(const char *json)
                      !strcmp(news_source->valuestring, "rss")))) &&
                 (!news_feed || (cJSON_IsString(news_feed) &&
                     (goopad_news_feed_url(news_feed->valuestring) || !strcmp(news_feed->valuestring, "custom")))) &&
+                (!news_extras || (cJSON_IsString(news_source) && !strcmp(news_source->valuestring, "rss") &&
+                    goopad_news_extras_valid(news_extras, cJSON_IsString(news_feed) ? news_feed->valuestring : "bbc_world"))) &&
                 (!news_url || (cJSON_IsString(news_url) && valid_url(news_url->valuestring) &&
                                !strncmp(news_url->valuestring, "https://", 8))) &&
                 (!pc_stat || (cJSON_IsString(pc_stat) && goopad_pc_stat_index(pc_stat->valuestring) >= 0)) &&
@@ -3195,6 +3198,7 @@ static void live_widget_task(void *arg)
     int64_t alert_updated[32] = {0};
     int64_t home_updated[32] = {0};
     int64_t news_updated[32] = {0};
+    unsigned news_source_index[32] = {0};
     int64_t next_nws_request = 0;
     while (true) {
         goopad_get_config(config_json, CONFIG_MAX_BYTES + 1);
@@ -3224,6 +3228,7 @@ static void live_widget_task(void *arg)
             bool home_state = !strcmp(kind, "home_state");
             bool news = !strcmp(kind, "news");
             bool rss = false;
+            cJSON *news_extras = news ? cJSON_GetObjectItemCaseSensitive(item, "newsExtras") : NULL;
             if (!strcmp(kind, "weather")) {
                 cJSON *lat = cJSON_GetObjectItemCaseSensitive(item, "weatherLatitude");
                 cJSON *lon = cJSON_GetObjectItemCaseSensitive(item, "weatherLongitude");
@@ -3279,6 +3284,14 @@ static void live_widget_task(void *arg)
                 cJSON *preset = cJSON_GetObjectItemCaseSensitive(item, "newsFeed");
                 rss = cJSON_IsString(source) && !strcmp(source->valuestring, "rss");
                 const char *feed_key = cJSON_IsString(preset) ? preset->valuestring : "bbc_world";
+                if (news_extras && (!rss || !goopad_news_extras_valid(news_extras, feed_key))) {
+                    if (strcmp(previous[i], "!invalid-news-sources")) {
+                        strlcpy(previous[i], "!invalid-news-sources", sizeof(previous[i]));
+                        ESP_LOGW(TAG, "News widget %u has invalid additional sources", i + 1);
+                        set_live_text(i, "News source error");
+                    }
+                    continue;
+                }
                 if (rss && strcmp(feed_key, "custom")) {
                     const char *feed_url = goopad_news_feed_url(feed_key);
                     if (feed_url) strlcpy(url, feed_url, sizeof(url));
@@ -3286,7 +3299,7 @@ static void live_widget_task(void *arg)
                     if (cJSON_IsString(feed) && valid_url(feed->valuestring) && !strncmp(feed->valuestring, "https://", 8))
                         strlcpy(url, feed->valuestring, sizeof(url));
                 } else strcpy(url, "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=5");
-                interval = 600;
+                interval = rss && cJSON_IsArray(news_extras) && cJSON_GetArraySize(news_extras) ? 60 : 600;
             } else if (!strcmp(kind, "github")) {
                 cJSON *user = cJSON_GetObjectItemCaseSensitive(item, "githubUser");
                 if (valid_github_user(user))
@@ -3301,6 +3314,10 @@ static void live_widget_task(void *arg)
             if (news) {
                 size_t used = strlen(identity);
                 snprintf(identity + used, sizeof(identity) - used, "|headlines:%u", headline_count);
+                for (cJSON *extra = cJSON_IsArray(news_extras) ? news_extras->child : NULL; extra; extra = extra->next) {
+                    used = strlen(identity);
+                    snprintf(identity + used, sizeof(identity) - used, "|%s", extra->valuestring);
+                }
             }
             if (home_state && valid_home_token(home_token)) {
                 unsigned char digest[32];
@@ -3322,8 +3339,13 @@ static void live_widget_task(void *arg)
                 alert_updated[i] = 0;
                 home_updated[i] = 0;
                 news_updated[i] = 0;
+                news_source_index[i] = 0;
                 waiting_for_ready[i] = false;
                 set_live_waiting(i, url[0] ? "Updating..." : "Waiting for data");
+            }
+            if (news && rss && news_source_index[i] > 0) {
+                const char *alternate = goopad_news_extra_url(news_extras, news_source_index[i] - 1);
+                if (alternate) strlcpy(url, alternate, sizeof(url));
             }
             int64_t now = esp_timer_get_time() / 1000000;
             if (!strcmp(kind, "weather_alerts") && alert_updated[i] && now - alert_updated[i] > 180)
@@ -3410,6 +3432,7 @@ static void live_widget_task(void *arg)
                     ESP_LOGW(TAG, "News widget %u unavailable (HTTP %d)", i + 1, status);
                     news_updated[i] = 0;
                 }
+                news_source_index[i] = goopad_news_next_source(news_extras, news_source_index[i]);
             } else if (home_state) {
                 strlcpy(text, "Home unavailable", sizeof(text));
                 cJSON *state = payload ? cJSON_GetObjectItemCaseSensitive(payload, "state") : NULL;

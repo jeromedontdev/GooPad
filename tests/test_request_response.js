@@ -1,22 +1,33 @@
 const assert = require("node:assert/strict");
 const {execFileSync} = require("node:child_process");
 const fs = require("node:fs");
+const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 
 const firmware = fs.readFileSync(path.join(__dirname, "..", "main", "goopad.c"), "utf8").replace(/\r\n/g, "\n");
 const capture = firmware.slice(firmware.indexOf("static esp_err_t macro_response_event("), firmware.indexOf("\ntypedef struct {\n    esp_http_client_handle_t client;"));
 const result = firmware.slice(firmware.indexOf("static void action_result("), firmware.indexOf("\nstatic void action_finished("));
-assert(capture.startsWith("static esp_err_t macro_response_event(") && result.startsWith("static void action_result("));
+const requestText = firmware.slice(firmware.indexOf("void goopad_request_text("), firmware.indexOf("\nstatic esp_err_t macro_response_event("));
+const ui = fs.readFileSync(path.join(__dirname, "..", "main", "goopad_ui.c"), "utf8").replace(/\r\n/g, "\n");
+const updateWidgets = ui.slice(ui.indexOf("static void update_widgets(void)"), ui.indexOf("\nstatic lv_color_t color(", ui.indexOf("static void update_widgets(void)")));
+assert(capture.startsWith("static esp_err_t macro_response_event(") && result.startsWith("static void action_result(") && requestText.startsWith("void goopad_request_text(") && updateWidgets.startsWith("static void update_widgets(void)"));
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "goopad-request-test-"));
 const source = path.join(dir, "test.c"), executable = path.join(dir, process.platform === "win32" ? "test.exe" : "test");
+async function main() {
+ let server;
 try {
  fs.writeFileSync(source, `#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include "goopad_utf8.h"
+#ifdef _WIN32
+static struct tm *gmtime_r(const time_t *value, struct tm *out) { *out=*gmtime(value);return out; }
+#endif
+#define MAX_MACROS 32
 typedef int esp_err_t;
 enum { ESP_OK, HTTP_EVENT_HEADERS_SENT, HTTP_EVENT_ON_DATA };
 typedef struct { int event_id; void *user_data; char *data; int data_len; } esp_http_client_event_t;
@@ -43,6 +54,31 @@ static size_t strlcpy(char *out, const char *in, size_t size) {
 #define goopad_diag_record(event,result,detail) ((void)(detail))
 ${capture}
 ${result}
+${requestText}
+typedef struct { char text[768]; } lv_obj_t;
+static lv_obj_t *s_pages, *s_info_overlay, *s_battery_label, *s_gif_objects[32], *s_widget_labels[32];
+static int s_gif_pages[32], s_page_width, s_time_offset, s_widget_types[32], s_widget_stats[32];
+static bool s_gif_paused[32], s_page_scrolling, s_menu_animating, s_stopwatch_running[32], s_pomodoro_break[32], s_alarm_enabled[32], s_widget_fahrenheit[32];
+static int64_t s_countdown_targets[32], s_stopwatch_elapsed[32], s_stopwatch_started[32];
+static int s_break_minutes[32], s_focus_minutes[32];
+static const char *s_alarm_times[32], *s_widget_formats[32];
+static struct { struct { bool present; int level_pct; } power; } g_app;
+static int lv_obj_get_scroll_x(lv_obj_t *o) { (void)o; return 0; }
+static void lv_gif_pause(lv_obj_t *o) { (void)o; }
+static void lv_gif_resume(lv_obj_t *o) { (void)o; }
+static const char *lv_label_get_text(lv_obj_t *o) { return o->text; }
+static void lv_label_set_text(lv_obj_t *o, const char *text) { strlcpy(o->text,text,sizeof(o->text)); }
+static void invalidate_macro_page(unsigned i) { (void)i; }
+static void fit_widget_text(unsigned i,const char *text) { (void)i;(void)text; }
+static void update_widget_graphic(unsigned i,const struct tm *now,bool synced) { (void)i;(void)now;(void)synced; }
+static void update_weather_icon(unsigned i) { (void)i; }
+static esp_err_t hw_audio_play_sound(const char *sound,void *arg) { (void)sound;(void)arg;return ESP_OK; }
+static bool goopad_alarm_ready(void) { return true; }
+static bool goopad_time_text(char *out,size_t size,const char *format,const struct tm *now) { (void)out;(void)size;(void)format;(void)now;return false; }
+static void goopad_live_widget_text(unsigned i,char *out,size_t size) { (void)i;strlcpy(out,"Live",size); }
+static void goopad_pc_stat_text(int stat,bool f,char *out,size_t size) { (void)stat;(void)f;strlcpy(out,"PC",size); }
+#define ESP_LOGW(...) ((void)0)
+${updateWidgets}
 static void data(macro_action_t *action, char *bytes, int size) {
  esp_http_client_event_t e={HTTP_EVENT_ON_DATA,action,bytes,size};
  assert(macro_response_event(&e)==ESP_OK);
@@ -53,9 +89,13 @@ static void connected(macro_action_t *action) {
 }
 int main(void) {
  macro_action_t action={.display_response=true,.config_revision=1,.index=7,.serial=1};
- connected(&action); data(&action,"temperature: ",13); data(&action,"42",2);
+ char get_response[128]={0}; size_t received=fread(get_response,1,sizeof(get_response)-1,stdin);
+ assert(received==15 && !strcmp(get_response,"temperature: 42"));
+ connected(&action); data(&action,get_response,13); data(&action,get_response+13,(int)received-13);
  action_result(&action,200,ESP_OK,0);
  assert(!strcmp(s_request_text[7],"temperature: 42") && !s_request_text[0][0]);
+ lv_obj_t tile={0}; s_widget_labels[7]=&tile; s_widget_types[7]=18;
+ update_widgets(); assert(!strcmp(tile.text,"temperature: 42"));
  connected(&action); data(&action,"{\\"value\\":42}",12); action_result(&action,200,ESP_OK,0);
  assert(!strcmp(s_request_text[7],"{\\"value\\":42}"));
  action_result(&action,500,ESP_OK,0); assert(!strcmp(s_request_text[7],"HTTP 500\\nRequest rejected"));
@@ -83,9 +123,19 @@ int main(void) {
  return 0;
 }`);
  execFileSync("zig", ["cc", "-Wall", "-Wextra", "-Werror", "-I", path.join(__dirname, "..", "main"), source, "-o", executable], {stdio:"inherit"});
- execFileSync(executable, [], {stdio:"inherit"});
- console.log("Actual HTTP response capture/result: chunks, errors, redirects, bounds, UTF-8 and stale-layout tests passed");
+ server = http.createServer((request, response) => {
+  if (request.method !== "GET" || request.url !== "/reading") { response.writeHead(404).end(); return }
+  response.writeHead(200, {"Content-Type":"text/plain"}).end("temperature: 42");
+ });
+ await new Promise((resolve,reject)=>{server.once("error",reject);server.listen(0,"127.0.0.1",resolve)});
+ const response=await fetch(`http://127.0.0.1:${server.address().port}/reading`);
+ assert.equal(response.status,200);
+ execFileSync(executable, [], {input:await response.text(), stdio:["pipe","inherit","inherit"]});
+ console.log("Loopback GET fed actual firmware response capture and LVGL widget update; errors, bounds, UTF-8 and stale-layout tests passed");
 } finally {
+ if (server) await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
  for (const file of [source, executable, path.join(dir, "test.pdb")]) if (fs.existsSync(file)) fs.unlinkSync(file);
  fs.rmdirSync(dir);
 }
+}
+main().catch(error=>{console.error(error);process.exitCode=1});

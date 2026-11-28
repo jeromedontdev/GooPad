@@ -99,6 +99,9 @@ build directory matches the current source, SDK or configuration.
    callback would retain a freed action. Send-only webhook behavior is retained.
 
 Time format strings belong to the UI snapshot, not the temporary parsed JSON.
+Multi-source news cycles through one primary and up to three preset feeds,
+fetching one per minute; each request retains the existing shared-network
+admission and bounded response path. Single-source polling is unchanged.
 Headlines run in the existing background-priority serialized network worker;
 their PSRAM response buffer is capped at 256 KiB for XML or 64 KiB for legacy
 JSON and freed after aggregation. Expat's parser and working state use a PSRAM

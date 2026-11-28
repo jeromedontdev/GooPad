@@ -113,6 +113,12 @@ formats are rejected.
 New editor news tiles use `widget:"news", newsSource:"rss"` and
 `newsFeed:"bbc_world"` (default). Preset IDs are `bbc_world`, `bbc_tech`,
 `npr`, `guardian`, `nytimes`, `ars`, `verge` and `hackernews`.
+Optional `newsExtras` is an array of up to three distinct preset IDs excluding
+the primary `newsFeed`. The primary can instead be custom; additional sources
+cannot. A multi-source tile fetches and displays the sources in order, advancing
+after each completed attempt every 60 seconds; a single source retains the
+ten-minute interval. Failures are shown explicitly before the next source.
+Older firmware ignores `newsExtras` and continues to use the primary feed.
 `newsFeed:"custom"` requires an HTTPS `newsUrl` shorter than 180 characters
 without URL credentials. RSS 2.0, RSS 1.0/RDF and Atom are supported through
 Expat, with a 256 KiB response limit and nesting limit of 32. Channel/feed

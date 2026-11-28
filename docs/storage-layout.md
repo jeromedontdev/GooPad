@@ -33,6 +33,16 @@ The matching editor pack is `web-9cee602ba7fc.gwp` (346,373 bytes, SHA-256
 App-slot headroom is not a measurement of runtime memory. See the
 [change log](change-log.md) for deployment and validation status.
 
+## 0.7.14 development build (2026-11-28)
+
+The ESP-IDF 6.1 production worktree build is **2,426,480 bytes**, leaving
+**1,767,824 bytes** in the 4 MiB app slot. Its SHA-256 is
+`4cf4119cc8fb59f00da34b3b2459ce7e379f6c376101f009867aba0b9fb69140`.
+The matching editor pack is `web-d0ea1b93c60a.gwp` (350,510 bytes, SHA-256
+`d0ea1b93c60ab29cc8ea1bfaa124e3bb5718a7ae64d679557013563c692f6e92`).
+App-slot headroom is not runtime memory. See the [change log](change-log.md)
+for deployment and validation status.
+
 ## What the 31 KiB warning means
 
 The tested Guition has **16 MiB flash**, but each firmware image must fit in

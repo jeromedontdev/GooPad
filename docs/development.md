@@ -24,7 +24,8 @@ the pre-rewrite history. Keep local work before reconciling an older clone;
 a fresh product clone is the simplest way to get the new refs. The pre-rewrite
 mirror and old-to-new commit map are retained in the attribution session
 archive; preserve that archive separately if long-term recovery is needed.
-This rewrite did not change the separate hardware-test remote.
+The separate hardware-test history and tag were subsequently rewritten too.
+Existing clones need to reconcile their corresponding rewritten histories.
 
 ## Build
 

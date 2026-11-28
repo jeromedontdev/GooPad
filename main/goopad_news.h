@@ -8,7 +8,11 @@ bool goopad_news_xml_text(const char *feed, size_t size, char *out, size_t capac
 const char *goopad_news_feed_url(const char *key);
 #define GOOPAD_NEWS_XML_BYTES (256U * 1024U)
 #define GOOPAD_NEWS_HEADLINES 5
+#define GOOPAD_NEWS_EXTRA_FEEDS 3
 #define GOOPAD_NEWS_TEXT_BYTES 640
 #define GOOPAD_NEWS_SEPARATOR "\n---\n"
+bool goopad_news_extras_valid(const cJSON *extras, const char *primary);
+const char *goopad_news_extra_url(const cJSON *extras, unsigned index);
+unsigned goopad_news_next_source(const cJSON *extras, unsigned current);
 bool goopad_news_xml_text_limit(const char *feed, size_t size, char *out, size_t capacity, unsigned limit);
 bool goopad_news_text_limit(const cJSON *feed, char *out, size_t capacity, unsigned limit);

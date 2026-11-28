@@ -50,6 +50,16 @@ globalThis.runGooPadEditorTests = async function () {
   check(cfg.macros[0].widget==="news"&&cfg.macros[0].newsFeed==="bbc_world"&&choice("widget","news").checked,"Widget category choices update the dependent widget and its defaults");
   choice("newsCount","5").click();
   check(cfg.macros[0].newsCount===5&&choice("newsCount","5").checked,"Headline count choice is saved as a number");
+  document.querySelector('[data-news-extra="npr"]').click();
+  document.querySelector('[data-news-extra="guardian"]').click();
+  document.querySelector('[data-news-extra="verge"]').click();
+  check(cfg.macros[0].newsExtras.join(",")==="npr,guardian,verge"&&document.querySelector('[data-news-extra="ars"]').disabled,"Additional news sources are bounded and saved");
+  render();check(document.querySelector('[data-news-extra="npr"]').checked&&document.querySelector('[data-news-extra="bbc_world"]').disabled,"News source choices survive rerendering and exclude the primary");
+  change("newsFeed","npr");
+  check(cfg.macros[0].newsExtras.join(",")==="guardian,verge"&&document.querySelector('[data-news-extra="npr"]').disabled,"Changing the primary removes its duplicate from additional sources");
+  prepareMacroAction(cfg.macros[0],0);
+  let badSources=false;try{prepareMacroAction({...cfg.macros[0],newsExtras:["guardian","guardian"]},0)}catch{badSources=true}
+  check(badSources,"Duplicate news sources are rejected");
   choice("widgetCategory","market").click();choice("widget","stock").click();choice("stockProvider","alphavantage").click();
   check(cfg.macros[0].stockProvider==="alphavantage"&&!document.querySelector('[data-stock-provider="alphavantage"]').classList.contains("hidden"),"Stock provider choice reveals its matching settings");
   choice("widgetCategory","clock").click();choice("widget","datetime").click();
@@ -57,11 +67,14 @@ globalThis.runGooPadEditorTests = async function () {
   document.querySelector('[data-section="icon"]').open=true;choice("widgetGraphic","custom_icon").click();choice("iconSource","gif").click();
   check(cfg.macros[0].widgetGraphic==="custom_icon"&&cfg.macros[0].iconSource==="gif"&&!document.querySelector('[data-visual="gif"]').classList.contains("hidden"),"Visual cards update conditional upload controls");
   document.querySelector('[data-section="appearance"]').open=true;choice("shape","circle").click();choice("widgetLayout","layered").click();
+  const sizeSlider=document.querySelector('[data-k="textSize"] + .size-slider input');sizeSlider.value="3";sizeSlider.dispatchEvent(new Event("input"));
+  check(cfg.macros[0].textSize===20&&sizeSlider.getAttribute("aria-valuetext")==="20","Accessible label-size slider retains the existing numeric configuration");
   render();check(choice("shape","circle").checked&&choice("widgetLayout","layered").checked&&choice("iconSource","gif").checked&&cfg.macros[0].shape==="circle","Appearance and visual choices survive rerendering");
   cfg.macros[0]={...make(0),widget:"github"};render();
   check(choice("widgetCategory","legacy").checked&&choice("widgetCategory","legacy").disabled&&choice("widget","github").checked,"Existing legacy widget remains visible without introducing a new legacy choice");
   reset({pageCount:1,macros:[{...emptyMacro(),actionMode:"page_navigation"}]});selectTile(0);
   check(choice("actionMode","page_navigation").checked,"Existing navigation actions remain selectable and visible");
+  check(!document.querySelector('[data-k="widgetAccent"]').closest(".field").classList.contains("hidden"),"Action tiles expose the card accent control");
   setDeviceDisplay({screenWidth:240,screenHeight:240,maxCols:3,maxRows:2});
   check([...document.querySelector('#rows').options].find(option=>option.value==="4").disabled,"Small screens disable excessively dense grids");
   check(choice("rows","4").disabled&&choice("cols","4").disabled,"Unsupported grid choices are visible but disabled");
@@ -114,7 +127,7 @@ globalThis.runGooPadEditorTests = async function () {
   check(slider===gradientRoot().querySelector("[data-gradient-position]")&&cfg.macros[0].gradientStops[1].position===35&&gradientRoot().querySelector("output").textContent==="35%","Gradient slider updates without replacing itself during a drag");
   const stopColor=gradientRoot().querySelector("[data-gradient-color]");stopColor.value="#00ff00";stopColor.dispatchEvent(new Event("input"));
   for(const direction of ["horizontal","vertical","circle"]){
-   const control=gradientRoot().querySelector("[data-gradient-direction]");control.value=direction;control.dispatchEvent(new Event("change"));prepareMacroAction(cfg.macros[0],0);
+   choice("gradientDirection",direction).click();prepareMacroAction(cfg.macros[0],0);
    const background=document.querySelector('[data-tile="0"]').style.backgroundImage;
    check(background.includes(direction==="circle"?"radial-gradient":"linear-gradient")&&cfg.macros[0].gradientDirection===direction,"Directional multi-stop gradient is rendered and persisted: "+direction)
   }
@@ -214,6 +227,11 @@ globalThis.runGooPadEditorTests = async function () {
   check(cfg.macros[0].action==="http"&&document.querySelector('[data-tile="0"] [data-widget="response"]'),"New web request defaults to displaying its response");
   requestPreview=["<b>42</b>"];updateWidgetPreview();
   check(document.querySelector('[data-tile="0"] .widget').textContent==="<b>42</b>"&&!document.querySelector('[data-tile="0"] .widget b'),"HTTP response renders text, not HTML");
+  const statusFetch=globalThis.fetch;
+  globalThis.fetch=async url=>url==="/api/status"?new Response(JSON.stringify({pcMonitor:"PC unavailable",pcStats:Object.fromEntries(Object.keys(pcStatLabels).map(key=>[key,"Unavailable"])),pcStatsF:{cpu_temp:"Unavailable",gpu_temp:"Unavailable"},requestResults:["temperature: 42"]})):statusFetch(url);
+  await refreshMonitorPreview();
+  check(document.querySelector('[data-tile="0"] .widget').textContent==="temperature: 42","A GET result from device status reaches its matching preview tile even when PC monitoring is unavailable");
+  globalThis.fetch=statusFetch;
   change("action","webhook");check(!document.querySelector('[data-tile="0"] .widget'),"Send-only webhook does not display response data");
   const fileKey="i0000000000000001",backgroundKey="i0000000000000002",unusedKey="i0000000000000003";
   reset({pageCount:1,backgroundImage:backgroundKey,macros:[{...make(0),iconImage:fileKey}]});

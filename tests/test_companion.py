@@ -267,7 +267,7 @@ class CompanionTests(unittest.TestCase):
                 widgets = list(descendants(root))
                 buttons = [widget for widget in widgets if isinstance(widget, ttk.Button)]
                 self.assertEqual([button.cget("text") for button in buttons
-                                  if button.cget("text").startswith("Copy")], ["Copy secure pairing"])
+                                  if button.cget("text").startswith("Copy")], ["Copy Secure Pairing"])
                 for button in buttons:
                     self.assertLessEqual(button.winfo_rooty() + button.winfo_height(),
                                          root.winfo_rooty() + root.winfo_height())
@@ -300,7 +300,7 @@ class CompanionTests(unittest.TestCase):
                         yield child
                         yield from descendants(child)
                 button = next(widget for widget in descendants(root)
-                              if isinstance(widget, ttk.Button) and widget.cget("text") == "Check for updates")
+                              if isinstance(widget, ttk.Button) and widget.cget("text") == "Check for Updates")
                 button.invoke()
                 deadline = time.monotonic() + 5
                 while not launch.called and time.monotonic() < deadline:
@@ -348,7 +348,7 @@ class CompanionTests(unittest.TestCase):
                         checks = [widget for widget in widgets if isinstance(widget, ttk.Checkbutton)]
                         permissions = [widget for widget in checks if any(
                             text in widget.cget("text") for text in
-                            ("PowerShell", "PC power", "Share now playing", "sharing and PC controls"))]
+                            ("PowerShell", "PC power", "Share now playing", "Sharing and PC Controls"))]
                         self.assertEqual(len(permissions), 1)
                         toggle = permissions[0]
                         self.assertEqual(toggle.instate(["alternate"]), legacy)

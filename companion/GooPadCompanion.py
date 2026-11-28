@@ -984,7 +984,7 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
     ttk.Label(frame, text=f"Version {companion_update.VERSION}").pack(anchor="w")
     ttk.Label(frame, text="Keep this app running in your logged-in Windows session.").pack(anchor="w", pady=8)
     cert_path = APP_DIR / "tls-cert.pem"
-    ttk.Button(frame, text="Copy secure pairing",
+    ttk.Button(frame, text="Copy Secure Pairing",
                command=lambda: copy_text(pairing_bundle(address, port, config["token"], cert_path))).pack(fill="x", pady=4)
     def copy_text(value):
         root.clipboard_clear()
@@ -1023,7 +1023,7 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
         finally:
             restore_sharing_state()
 
-    sharing_check = ttk.Checkbutton(frame, text="Enable sharing and PC controls (off by default)",
+    sharing_check = ttk.Checkbutton(frame, text="Enable Sharing and PC Controls (off by default)",
                                     variable=sharing, command=change_sharing)
     sharing_check.pack(anchor="w", pady=(10, 4))
     ttk.Label(frame, textvariable=sharing_hint, wraplength=490).pack(anchor="w", pady=(0, 6))
@@ -1040,7 +1040,7 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
 
     ttk.Checkbutton(frame, text="Start with Windows (at sign-in)",
                     variable=startup, command=change_startup).pack(anchor="w", pady=4)
-    behavior_labels = {"tray": "Hide in tray", "quit": "Quit Companion", "taskbar": "Minimize to taskbar"}
+    behavior_labels = {"tray": "Hide in Tray", "quit": "Quit Companion", "taskbar": "Minimize to Taskbar"}
     behavior_values = {label: value for value, label in behavior_labels.items()}
     close_mode = tk.StringVar(value=behavior_labels[config.get("close_behavior", "quit")])
     minimize_mode = tk.StringVar(value=behavior_labels[config.get("minimize_behavior", "taskbar")])
@@ -1062,10 +1062,10 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
             hide_startup.set(config.get("hide_on_startup", False))
             messagebox.showerror("Could not save tray preferences", str(error))
 
-    ttk.Checkbutton(frame, text="Hide in the tray on Windows startup",
+    ttk.Checkbutton(frame, text="Hide in the Tray on Windows Startup",
                     variable=hide_startup, command=save_behavior).pack(anchor="w", pady=4)
-    for title, variable, values in (("Close button", close_mode, ("tray", "quit")),
-                                    ("Minimize button", minimize_mode, ("taskbar", "tray"))):
+    for title, variable, values in (("Close Button", close_mode, ("tray", "quit")),
+                                    ("Minimize Button", minimize_mode, ("taskbar", "tray"))):
         row = ttk.Frame(frame)
         row.pack(fill="x", pady=3)
         ttk.Label(row, text=title).pack(side="left")
@@ -1076,11 +1076,11 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
         choice.bind("<<ComboboxSelected>>", save_behavior)
     state = tk.StringVar(value=LAST_RESULT)
     ttk.Label(frame, textvariable=state, wraplength=490).pack(anchor="w", pady=6)
-    ttk.Label(frame, text="In GooPad: Settings > Windows companion > paste secure pairing code.\n"
+    ttk.Label(frame, text="In GooPad: Settings > Windows Companion > paste the secure pairing code.\n"
               "Tray mode keeps commands running. Use Quit to stop Companion.",
               wraplength=490).pack(anchor="w")
     update_events = queue.SimpleQueue()
-    update_button = ttk.Button(frame, text="Check for updates")
+    update_button = ttk.Button(frame, text="Check for Updates")
     update_button.pack(anchor="w", pady=4)
 
     def update_worker(operation, release=None):
@@ -1131,7 +1131,7 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
         while not update_events.empty():
             operation, result = update_events.get()
             if operation == "error":
-                update_button.config(state="normal", text="Check for updates")
+                update_button.config(state="normal", text="Check for Updates")
                 messagebox.showerror("Companion update failed", result)
             elif operation == "check":
                 if result and messagebox.askyesno(
@@ -1140,7 +1140,7 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
                     update_button.config(text="Downloading update...")
                     threading.Thread(target=update_worker, args=("download", result), daemon=True).start()
                 else:
-                    update_button.config(state="normal", text="Check for updates")
+                    update_button.config(state="normal", text="Check for Updates")
                     if not result:
                         messagebox.showinfo("Companion update", "Companion is up to date.")
             else:
@@ -1152,7 +1152,7 @@ def desktop_panel(server, config, address, port, minimized=False, hidden=False):
                                      shell=False, close_fds=True, env=environment)
                 except OSError as error:
                     result.unlink(missing_ok=True)
-                    update_button.config(state="normal", text="Check for updates")
+                    update_button.config(state="normal", text="Check for Updates")
                     logging.error("Could not start Companion installer: %s", error)
                     messagebox.showerror("Companion update failed", str(error))
                 else:

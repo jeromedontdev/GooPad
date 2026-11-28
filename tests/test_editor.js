@@ -187,7 +187,9 @@ globalThis.runGooPadEditorTests = async function () {
   globalThis.fetch=fetchOriginal;
   reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);
   const actionOptions=[...document.querySelector('[data-k="actionMode"]').options].map(option=>option.textContent);
-  check(actionOptions.includes("Widgets")&&actionOptions.includes("Macro")&&actionOptions.includes("Smart home")&&actionOptions.includes("Image only"),"Action options use the requested names");
+  check(actionOptions.includes("Widgets")&&actionOptions.includes("Macro")&&actionOptions.includes("Smart Home")&&actionOptions.includes("Image Only"),"Action options use title case without changing their values");
+  check(document.querySelector(".layout-settings summary").textContent==="Layout Settings"&&document.querySelector('[data-k="widgetTheme"]').closest(".field").querySelector("label").textContent==="Tile Theme"&&document.querySelector("#save").textContent==="Save to Device","Layout and tile labels use consistent capitalization");
+  cfg.macros[0].name="my Custom tile";render();check(document.querySelector('[data-k="name"]').value==="my Custom tile"&&cfg.macros[0].name==="my Custom tile","User-entered tile names retain their original capitalization");
   check(!document.querySelector('[data-k="actionMode"] option[value="wake_on_lan"]'),"Wake-on-LAN is not a top-level action");
   check(document.querySelector("#macrosTab").textContent==="Tiles"&&document.querySelector("#aboutTab").textContent==="About","Navigation uses Tiles and About");
   check([...document.querySelectorAll("#aboutView details")].every(details=>!details.open),"Help FAQs start collapsed");
@@ -871,7 +873,7 @@ globalThis.runGooPadEditorTests = async function () {
   const fontWidth=name=>{widgetMeasure.font=`36px "${previewFonts[name]}"`;return widgetMeasure.measureText("GooPad Quick").width};
   check(fontWidth("lobster")!==fontWidth("pacifico"),"Script previews render with distinct font metrics");
   change("widgetGraphic","text");change("widget","weather");
-  check(document.querySelector("[data-icon-color]").classList.contains("hidden") && !document.querySelector("[data-widget-graphic]").classList.contains("hidden") && document.querySelector('[data-k="widgetGraphic"] option[value="text"]').textContent==="Automatic weather icon","Default weather uses its multicolor icon without an icon color picker");
+  check(document.querySelector("[data-icon-color]").classList.contains("hidden") && !document.querySelector("[data-widget-graphic]").classList.contains("hidden") && document.querySelector('[data-k="widgetGraphic"] option[value="text"]').textContent==="Automatic Weather Icon","Default weather uses its multicolor icon without an icon color picker");
   check(!widgetGraphicSvg({widget:"weather"},new Date(),"Data unavailable"),"Unavailable weather does not show a stale graphic");
   check(widgetGraphicSvg({widget:"weather"},new Date(),"72 F\nClear").includes("<svg"),"Weather with data shows a graphic");
   check(widgetGraphicSvg({widget:"weather"},new Date(),"72 F\nPartly cloudy").includes("#FBBF24") && widgetGraphicSvg({widget:"weather"},new Date(),"72 F\nPartly cloudy").includes("#CBD5E1"),"Partly cloudy weather uses distinct sun and cloud colors");

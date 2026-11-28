@@ -1022,7 +1022,7 @@ static void install_sd_ota_cb(lv_event_t *event)
     if (s_ota_running) return;
     if (!s_ota_armed) {
         s_ota_armed = true;
-        lv_label_set_text(lv_obj_get_child(button_obj, 0), "Confirm install & reboot");
+        lv_label_set_text(lv_obj_get_child(button_obj, 0), "Confirm Install & Reboot");
         if (s_settings_status && lv_obj_is_valid(s_settings_status)) {
             lv_label_set_text(s_settings_status,
                               "Tap again to install /goopad.bin from SD.");
@@ -1052,11 +1052,11 @@ static void power_slider_cb(lv_event_t *event)
     char text[40];
     if (slider == s_brightness_slider) {
         board_backlight_set(value);
-        snprintf(text, sizeof(text), "Display brightness: %d%%", value);
+        snprintf(text, sizeof(text), "Display Brightness: %d%%", value);
         lv_label_set_text(s_brightness_label, text);
     } else {
         hw_audio_set_volume(value);
-        snprintf(text, sizeof(text), "Sound volume: %d%%", value);
+        snprintf(text, sizeof(text), "Sound Volume: %d%%", value);
         lv_label_set_text(s_volume_label, text);
     }
 }
@@ -1079,7 +1079,7 @@ static void build_info_panel(bool settings)
     lv_obj_set_style_pad_all(panel, 18, 0);
     lv_obj_set_scrollable(panel, false);
 
-    lv_obj_t *title = label(panel, settings ? "Device settings" : "Device information",
+    lv_obj_t *title = label(panel, settings ? "Device Settings" : "Device Information",
                             20, color(0xF5F5F7));
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, 0);
     if (!settings) {
@@ -1087,8 +1087,8 @@ static void build_info_panel(bool settings)
         char address[16];
         goopad_get_address(address, sizeof(address));
         const char *initial = goopad_initial_password();
-        snprintf(details, sizeof(details), "Web editor: https://%s\n%s%s",
-                 address, initial ? "Initial password: " : "Original password unavailable on this upgrade.",
+        snprintf(details, sizeof(details), "Web Editor: https://%s\n%s%s",
+                 address, initial ? "Initial Password: " : "Original password unavailable on this upgrade.",
                  initial ? initial : "");
         lv_obj_t *info = label(panel, details, 14, lv_color_white());
         lv_obj_set_width(info, 380);
@@ -1100,7 +1100,7 @@ static void build_info_panel(bool settings)
         lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
         lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 0, 120);
         char version[64];
-        snprintf(version, sizeof(version), "Firmware version: %s", esp_app_get_description()->version);
+        snprintf(version, sizeof(version), "Firmware Version: %s", esp_app_get_description()->version);
         lv_obj_t *version_label = label(panel, version, 14, color(0xCBD5E1));
         lv_obj_set_width(version_label, 380);
         lv_label_set_long_mode(version_label, LV_LABEL_LONG_DOT);
@@ -1113,11 +1113,11 @@ static void build_info_panel(bool settings)
     lv_obj_t *appearance_hint = label(panel, "Change appearance from the web editor.",
                                       14, color(0xCBD5E1));
     lv_obj_align(appearance_hint, LV_ALIGN_TOP_LEFT, 0, 42);
-    button(panel, "Save settings", 224, 68, 150, 42,
+    button(panel, "Save Settings", 224, 68, 150, 42,
            save_device_controls_cb, NULL, 0x2969DB);
 
     char text[40];
-    snprintf(text, sizeof(text), "Display brightness: %d%%", board_backlight_get());
+    snprintf(text, sizeof(text), "Display Brightness: %d%%", board_backlight_get());
     s_brightness_label = label(panel, text, 14, lv_color_white());
     lv_obj_set_pos(s_brightness_label, 0, 122);
     s_brightness_slider = lv_slider_create(panel);
@@ -1126,7 +1126,7 @@ static void build_info_panel(bool settings)
     lv_slider_set_range(s_brightness_slider, 0, 100);
     lv_slider_set_value(s_brightness_slider, board_backlight_get(), LV_ANIM_OFF);
     lv_obj_add_event_cb(s_brightness_slider, power_slider_cb, LV_EVENT_VALUE_CHANGED, NULL);
-    snprintf(text, sizeof(text), "Sound volume: %d%%", hw_audio_get_volume());
+    snprintf(text, sizeof(text), "Sound Volume: %d%%", hw_audio_get_volume());
     s_volume_label = label(panel, text, 14, lv_color_white());
     lv_obj_set_pos(s_volume_label, 0, 181);
     s_volume_slider = lv_slider_create(panel);

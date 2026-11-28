@@ -130,6 +130,17 @@ After 30 seconds, PSRAM ranged 3,380,052-3,425,204 bytes, without a sustained
 decline; the final sample was 3,380,052 bytes. These are bounds on the preserved
 configuration, not a measured budget for every new gradient/emphasis layout.
 
+## 0.7.10 wording development build (2026-11-28)
+
+The editor and touchscreen wording build is **2,425,328 bytes**, leaving
+**1,768,976 bytes / 42.18% free** in a 4 MiB app slot. SHA-256:
+`5a1a190fcf348362d713e63e8f08a7b1c14c33564507a177d53b17216b24467d`.
+The matching editor `web-638980b80cea.gwp` is **329,963 bytes**, SHA-256
+`638980b80cea68c99af7eb3c768f9bf1d5e88f210794305883f9bb4cbd6e758b`.
+The production ESP-IDF 6.1 build used the preceding HomeKit, PSRAM, TLS
+and gradient configuration; see the change log for deployment and release
+status. These are development artifacts, not a published binary release.
+
 ## Companion-only 0.7.4 release
 
 The [0.7.4 release](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.4)

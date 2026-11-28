@@ -258,7 +258,7 @@ depends on the board:
   original install out of reach, and soaks the copied executable. It then
   closes the test app and removes fixtures.
   A shorter `--seconds 15` run is useful while iterating, not a device soak.
-  GUI regressions also exercise the single **Enable sharing and PC controls**
+  GUI regressions also exercise the single **Enable Sharing and PC Controls**
   toggle, disable-all, cancellation/save errors and legacy mixed permissions.
 * **Editor:** open local `main/index.html` as a `file:` URL, load
   `tests/test_editor.js` as a classic script and run

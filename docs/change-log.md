@@ -1125,3 +1125,31 @@ not a complete historical changelog.
   composition/geometry/glyph and browser regressions supply the current
   evidence. Native Glass remains a frosting approximation. This subsequent
   documentation-only record needs no additional build, flash or soak.
+
+## 2026-11-28 - Consistent interface capitalization
+
+- **Request/changes:** review grammar and capitalization throughout the
+  editor, tile controls, touchscreen, recovery page and Companion. Headings,
+  choices and controls use title case; descriptions and messages retain
+  sentence case. Updated help and README references to changed labels.
+- **Compatibility:** presentation only. Saved action values, existing tile
+  names, user text, configuration, pairing and SD resources are not
+  rewritten. Firmware 0.7.10 requires its matching editor resource; Companion
+  is versioned 0.7.7. Downgrading restores earlier interface wording.
+- **Validation:** browser regression passed 7,322 checks across 2,520 layouts,
+  including unchanged mixed-case user names and saved action values. Four
+  web-resource/loader tests and isolated firmware packaging regressions passed.
+  The isolated Companion suite passed 47 tests, including GUI controls; Python
+  `py_compile` passed. Pylance syntax checks could not locate workspace files;
+  the isolated Python tests and compiler supplied validation instead.
+  Production ESP-IDF 6.1 reconfigure/build passed with 2,425,328 bytes used
+  and 1,768,976 bytes free. The companion package/installer built successfully;
+  the actual frozen older-updater/installer/restart chain passed 61 samples in
+  300 seconds, preserving test configuration and identity. Defender custom
+  scans of the package, ZIP and installer completed with no recent detections
+  (signatures 1.463.504.0, engine 1.1.26100.4).
+- **Delivery/remaining:** firmware, matching editor and Companion are built
+  but deployment and source publication are pending at this entry. No
+  versioned binary release is published. Physical screen fit and the installed
+  Companion update remain to be verified; do not overwrite existing user
+  settings or pairing. See the storage ledger for build hashes.

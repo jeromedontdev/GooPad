@@ -61,23 +61,23 @@ before deliberately reinitializing storage.
 ## Tiles and customization
 
 Each tile supports an optional label, color, visual, and a plain-language action.
-Open **Icon & graphic** and choose **Icon / emoji**, **Font Awesome**, **Image**, or **Animated GIF** from its visual-type
+Open **Icon & Graphic** and choose **Icon / Emoji**, **Font Awesome**, **Image**, or **Animated GIF** from its visual-type
 dropdown. Blank labels stay blank; the visual is enlarged and centered.
 The live preview is the editor's centerpiece: select any tile, including an
 empty slot, to edit it. Choose the button type at the top of its settings.
 New empty tiles show a **Choose an action** prompt until a type is selected.
-Action settings appear first; expand **Icon & graphic**, **Appearance**, **Text**,
+Action settings appear first; expand **Icon & Graphic**, **Appearance**, **Text**,
 or **Sound** for the remaining controls. Only that tile's controls are shown. You can configure
-positions in any order. **Button label** is optional on-screen text; tiles have
+positions in any order. **Button Label** is optional on-screen text; tiles have
 no separate editor name.
 Under **Appearance**, choose a tile width and height in grid positions. For
 example, select the top-left tile of a 3×3 page and set both to 2 to make a
 2×2 tile. Move or clear neighboring tiles first; resizing never removes them.
-Tiles cannot extend past the page or the 32-position limit. Turn off **Compact
-configured tiles** to use enlarged tiles; **Hide empty tiles** still works.
+Tiles cannot extend past the page or the 32-position limit. Turn off
+**Compact Configured Tiles** to use enlarged tiles; **Hide Empty Tiles** still works.
 Shrinking a tile reveals its covered positions again. Moving a large tile or
 changing the grid is rejected if the result would overlap or cross a boundary.
-**Clear tile** leaves other positions untouched. Drag a preview tile onto an
+**Clear Tile** leaves other positions untouched. Drag a preview tile onto an
 empty position to move it, or onto another tile to swap them. Hold a dragged
 tile over a navigation arrow, or near the preview's left/right edge, to change pages. Mouse swiping starts
 in the space between tiles; touch scrolling remains available.
@@ -85,18 +85,18 @@ The preview-only arrows navigate without dragging. **+** inserts a page after
 the current page and leaves all tiles unselected; **−** removes the current page, confirming if it contains
 tiles. Other pages shift with their contents. At least one page remains, with
 up to 32 positions total; insertion is rejected if it would discard configured
-tiles beyond that limit. Turn off **Compact configured tiles** to edit pages.
+tiles beyond that limit. Turn off **Compact Configured Tiles** to edit pages.
 Page changes apply when you save. GooPad stays on the nearest current page when
 the layout reloads, or moves to the last page if that page was removed. A device
 restart returns to the first page.
-Open **Layout settings** below the preview to change the grid and enable
-**Hide empty tiles (keep positions)** to remove empty
+Open **Layout Settings** below the preview to change the grid and enable
+**Hide Empty Tiles (keep positions)** to remove empty
 boxes without shifting configured tiles or removing pages. The preview's empty
 spaces remain selectable for editing and accept dragged tiles. Alternatively,
-**Compact configured tiles** packs configured tiles together and hides unused
+**Compact Configured Tiles** packs configured tiles together and hides unused
 pages. Existing compact layouts retain their behavior. Save to apply either option.
-**Save to device** is below the live preview.
-Save progress, confirmation, and errors appear only there. **Save settings**
+**Save to Device** is below the live preview.
+Save progress, confirmation, and errors appear only there. **Save Settings**
 returns to the preview so its result is visible. **About** includes
 downloads, setup instructions, examples, troubleshooting, and source links.
 The **Text** section offers 16 font families, including handwriting,
@@ -119,33 +119,33 @@ validate HTTPS certificates.
 
 ### Development display options
 
-- **About → Saved images** shows thumbnails of uploaded icons, GIFs and screen backgrounds
+- **About → Saved Images** shows thumbnails of uploaded icons, GIFs and screen backgrounds
   and deletes unused files. Images referenced by the saved layout or current
   editor draft are protected. This is not a general SD-card file browser.
 - Every tile's **Appearance** section offers preset themes and **Custom**.
   Layered centers its inset surface/visual; Modern has an accent and, where
   space allows, a heading/card layout. Full-cover visuals retain priority.
-  **Liquid glass** uses frosted backdrops, translucent surfaces and luminous edges;
+  **Liquid Glass** uses frosted backdrops, translucent surfaces and luminous edges;
   the browser uses real backdrop blur, while the device shares a small blurred
   background rather than simulating optical refraction. A soft colored scene
   accompanies the device theme; glass tiles also frost custom image backgrounds.
   **Material** uses flat Material 3 tonal containers, restrained elevation,
   subtle outlines and a primary-colored pressed state, without Modern's decorative
-  accent strip. **Device default** inherits these
+  accent strip. **Device Default** inherits these
   new device palettes without changing historical palettes on older themes.
-  Choosing Material or Liquid Glass in Layout settings applies it to all tiles,
-  replacing existing tile-theme overrides in the draft. **Apply to every tile**
+  Choosing Material or Liquid Glass in Layout Settings applies it to all tiles,
+  replacing existing tile-theme overrides in the draft. **Apply to Every Tile**
   reapplies the current palette; individual tile themes can be changed afterward.
   Filled GIFs and images stay above the frosted surface, preserving their animation
   and colors. Opaque cover images naturally hide the surface beneath them.
-- **Appearance → Custom gradient** offers two to six color stops. Select a
+- **Appearance → Custom Gradient** offers two to six color stops. Select a
   marker, pick its color, and slide its position; endpoints stay at 0% and 100%.
   Choose horizontal, vertical or circle (center-outward) direction. Matching stop
   colors makes a solid tile. Select Custom tile theme to edit gradients.
-- **Text → Font style** offers independent Bold and Italic for labels and
+- **Text → Font Style** offers independent Bold and Italic for labels and
   widget readings. The device synthesizes weight/slant on the existing fonts;
   no additional SD font pack is required. Text still shrinks to fit.
-- **Widgets → Clock → Date & time** combines both readings. Clock, Date and
+- **Widgets → Clock → Date & Time** combines both readings. Clock, Date and
   Date & time accept percent formats: `%H:%M`, `%-I:%M %p`, or
   `%a %b %-d%n%H:%M`. `%n` starts a new line; `%%` shows a percent sign.
   English names and the configured fixed UTC offset apply. Existing saved
@@ -159,14 +159,14 @@ validate HTTPS certificates.
   rejected. JSON sources are no longer offered. Untouched legacy configurations
   remain supported; choosing an RSS feed explicitly replaces the legacy source.
   Provider/network errors are shown explicitly; feed availability can change.
-- **Layout settings → Screen layout** offers Grid, **Circles** (icons around
+- **Layout Settings → Screen Layout** offers Grid, **Circles** (icons around
   a ring) and **Arches**: distinct
   stacked upward-curved rows inside a circular viewport, not a single ring.
   Existing ring configurations remain Circles; older arched-ring configurations
   retain an existing-layout option until explicitly changed. Indices/pages are preserved;
   use fewer rows/columns for larger targets.
   Enlarged tiles require Grid. Physical circular-screen operation is unverified.
-- **Show battery indicator** is off by default. It displays a percentage only
+- **Show Battery Indicator** is off by default. It displays a percentage only
   when the board supplies valid telemetry. This Guition board has no readable
   battery gauge and shows **Battery unavailable**; hardware/backend support
   is required for an actual reading.
@@ -213,17 +213,17 @@ you save; closing the page discards unsaved selections. On Save, GooPad
 automatically reuses matching SD assets before uploading any new ones, then
 saves their configuration and reports lookup or upload
 errors without saving broken references. In an Image or Animated GIF picker,
-use **Browse saved images and GIFs** to reuse SD assets without re-uploading.
+use **Browse Saved Images and GIFs** to reuse SD assets without re-uploading.
 Font Awesome selections and uploaded images are converted to
 160×160 RGB565 with an 8-bit alpha plane and saved under
-`/goopad` on the SD card; a card is required to use them. **Tiles → Layout settings**
+`/goopad` on the SD card; a card is required to use them. **Tiles → Layout Settings**
 contains device themes and Custom background controls. The **Settings** page contains website appearance, backups, firmware
 updates, and admin-password changes. Swipe downward from the top edge of the
 device to slide open its information menu; the old information icon is removed.
 Start within the top 32 pixels and pull down at least 64 pixels.
 The menu's Settings has display-brightness, sound-volume, and SD firmware-update
 controls. Appearance and themes are configured only from the website. Brightness
-and volume changes take effect immediately; **Save settings** persists them.
+and volume changes take effect immediately; **Save Settings** persists them.
 Website themes are independent of device themes and are saved in the current browser.
 The display has Midnight, Ocean, Forest, Light, Slate, Violet, Ember, Berry,
 Teal, and Black palettes, custom background colors, and per-macro font colors and
@@ -246,9 +246,9 @@ requires saving. Images are stored separately on SD, so a config-only backup
 does not include the assets.
 
 Choose **Widgets**, then **Clock**, **Weather**, **Market**, or **PC** and a
-widget type. **Smart home** groups Apple Home, Home Assistant actions and Home
-Assistant state. **Image only** makes a non-actionable image or GIF tile; select
-its visual under **Icon & graphic**.
+widget type. **Smart Home** groups Apple Home, Home Assistant actions and Home
+Assistant state. **Image Only** makes a non-actionable image or GIF tile; select
+its visual under **Icon & Graphic**.
 Select widgets in the editor to configure them; stopwatch, Pomodoro and
 now-playing widgets also respond to touch. Time format offers 12/24-hour displays, with optional seconds and optional
 AM/PM for 12-hour clocks. Twelve-hour displays omit a leading zero; the default
@@ -317,7 +317,7 @@ Older firmware rejects configurations containing alarm widgets: remove them or
 restore a compatible configuration before downgrading.
 
 All widgets can combine their reading with a selected icon, emoji,
-image, or GIF using **Icon & graphic → Icon / graphic → Selected icon and text**. Weather defaults
+image, or GIF using **Icon & Graphic → Icon / Graphic → Selected Icon and Text**. Weather defaults
 to its automatic multicolor condition icon; a selected icon replaces it.
 Choose **Visual placement → Fill tile behind text** to enlarge the selected
 visual behind the reading and label. Fill trims transparent outer margins when
@@ -498,9 +498,9 @@ the application but keeps configuration and pairing in `%LOCALAPPDATA%\GooPad`.
 For the portable ZIP, extract the entire folder and keep `_internal` beside
 `GooPadCompanion.exe`; copying only the executable no longer works.
 No Python installation is needed for either packaged app. Closing quits and minimizing uses the
-taskbar by default. You can independently change either button to **Hide in tray**;
-the receiver keeps running while hidden. Choose **Copy secure pairing**, paste
-the code under website **Settings > Windows companion**, and select **Apply secure pairing**.
+taskbar by default. You can independently change either button to **Hide in Tray**;
+the receiver keeps running while hidden. Choose **Copy Secure Pairing**, paste
+the code under website **Settings > Windows Companion**, and select **Apply Secure Pairing**.
 This imports the HTTPS address, private token and public certificate. Check
 the HTTPS connection, then save. The last-result check also shows errors and whether
 PowerShell is enabled. Allow TCP port 8787 only on a trusted Private network.
@@ -522,7 +522,7 @@ Sequences do not overlap: repeated taps while a PC sequence runs are rejected.
 Keyboard/text steps target the foreground application, not a chosen window.
 Windows blocks input into elevated apps, locked screens, and some games.
 
-The single **Enable sharing and PC controls** checkbox replaces the three
+The single **Enable Sharing and PC Controls** checkbox replaces the three
 separate permissions: it enables now playing, PowerShell and PC power/monitor
 controls together after one security confirmation. Switching it off disables
 all three. These optional features remain off on a new installation.
@@ -553,7 +553,7 @@ token can invoke enabled system controls, so only enable them on trusted network
 **Desktop startup is recommended** for everyday macro-pad use. Hotkeys, media
 keys and typed text require your awake, logged-in, unlocked desktop. Minimize
 the app to keep it running, or select tray behavior for Close/Minimize.
-**Hide in the tray on Windows startup** starts without a taskbar window.
+**Hide in the Tray on Windows Startup** starts without a taskbar window.
 Use the tray's **Open GooPad Companion** item to restore it and **Quit** to
 stop the listener, regardless of the Close preference. Windows startup uses
 only this user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry.
@@ -567,7 +567,7 @@ source, keep the source directory and interpreter at their registered paths.
 
 #### Updating Companion
 
-Select **Check for updates** in Companion. If a newer stable release contains
+Select **Check for Updates** in Companion. If a newer stable release contains
 the installer, confirm the update; Companion downloads it, checks the GitHub
 release's SHA-256 and size over verified HTTPS, exits, installs and restarts.
 The current port, configuration and pairing are preserved. Source checkouts are
@@ -616,7 +616,7 @@ check the connection and save Settings, then save your PC macros to regenerate
 their HTTPS URLs. Legacy HTTP macros remain stored but are blocked from sending
 tokens until migrated. Advanced `/hook/` actions targeting the paired Companion
 also use its trusted certificate. Public HTTPS webhooks use the public CA bundle.
-**Test saved action** actually runs the saved macro after confirmation.
+**Test Saved Action** actually runs the saved macro after confirmation.
 Live preview reports running, HTTP success/rejection, or transport/TLS failure;
 HTTP 204 is a successful webhook response.
 Firmware enables certificate validity-date checks and cross-signed CA-bundle

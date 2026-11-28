@@ -1611,3 +1611,26 @@ not a complete historical changelog.
   support portal confirmed the request and lists it as open. The sidebar
   correction remains pending GitHub's response; the earlier sign-in blocker
   is no longer current. No firmware or binary release was changed.
+
+## 2026-11-28 - Contributor sidebar refresh
+
+- **Request and changes:** correct the three GitHub repository contributor
+  sidebars after rewriting the incorrectly attributed history. Following the
+  hardware-test attempt above, temporarily renamed and restored the default
+  branches of GooPad and Spidarium to request a refresh of GitHub's data.
+- **Validation:** after the delayed refresh, fresh rendered sidebars on all
+  three repositories listed `jeromedontdev` and Copilot, without `jerome` or
+  `jerom`. GooPad and Spidarium showed a count of two; the hardware-test
+  sidebar still displayed a count of three despite listing only two accounts.
+  All three default branches were restored to `main` at their original commit
+  IDs, verified using the repository API and `git ls-remote`. Spidarium Pages
+  remained workflow-based with source `main` and path `/`. GooPad's latest
+  release remained `v0.7.15`, with its tag pointing to `ed48be2`.
+- **Support:** GitHub closed request 5072209 because the account was not
+  eligible for that support channel; no support-side repair occurred. This
+  supersedes the earlier open-request status.
+- **Compatibility and delivery:** historical rewrite and clone-reconciliation
+  limitations remain as recorded above. No device, firmware, Companion,
+  configuration or release changes were made for this refresh.
+- **Remaining:** the hardware-test contributor count remains inconsistent
+  with its two displayed accounts; GitHub controls that cached count.

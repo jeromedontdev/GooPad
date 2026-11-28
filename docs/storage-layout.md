@@ -79,6 +79,23 @@ retains its 64 KiB cap. These are runtime allocations, not app-slot costs.
 Installation/soak status is recorded in the change log; this development build
 is not a published binary release.
 
+Subsequent COM9 pinned application-only deployment verified this image active
+in `ota_1`, with the exact 0.7.7 image retained in `ota_0`. Source commit
+`2f456463da925b95375cb87699e607482747f674` is pushed to the product remote;
+the matching editor is installed. Saved configuration, primary NVS, TLS
+identity and HomeKit pairing were preserved.
+
+The 300.183-second read-only soak collected 21 samples with zero errors or
+reboots and 25 assessed startup/background-deferral warnings. Internal free
+memory rose from 19,535 bytes at startup to 38,071 bytes at completion.
+Largest internal block was at least 8,192 bytes (lower than the previous
+15,360-byte soak minimum, but above the 4,096-byte network-admission floor).
+After the initial PSRAM drop from 4,506,376 to 3,411,528 bytes, samples stayed
+between 3,375,844 and 3,436,772 bytes, ending at 3,408,388 bytes without a
+sustained decline. These measurements cover the preserved configuration,
+not every new RSS/Glass layout. See the [change log](change-log.md) for warning
+counts and remaining physical-validation/release-packaging limits.
+
 ## Companion-only 0.7.4 release
 
 The [0.7.4 release](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.4)

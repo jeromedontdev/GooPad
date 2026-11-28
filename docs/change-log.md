@@ -999,3 +999,44 @@ not a complete historical changelog.
   Device installation/soak are pending at this entry. No versioned binary
   release is claimed; separate clean-source packaging/physical validation
   remains required. Companion code, packaging and installation are unaffected.
+
+## 2026-11-27 - 0.7.8 COM9 installation and assessed soak
+
+- **Delivery:** source commit `2f456463da925b95375cb87699e607482747f674`
+  is published on product `goopad/main`. Certificate-pinned HTTPS installed
+  only the 0.7.8 application and matching SD editor. The verified active image
+  is in `ota_1`; the exact preceding 0.7.7 image remains in `ota_0` for
+  recovery. Image/editor digests and app-slot headroom match the
+  [storage ledger](storage-layout.md).
+- **Preservation and device checks:** live partition layout, active/recovery
+  images, pinned HTTPS, unchanged saved configuration, primary NVS and TLS
+  identity, and preserved HomeKit pairing were verified. HomeKit firmware
+  revision changed from 0.7.7 to 0.7.8 with exactly one configuration-counter
+  increment. Served editor bytes matched source; three real saved-image/GIF
+  responses and the embedded Expat notice were read successfully. No erase,
+  live configuration replacement, saved-action trigger or image deletion was
+  used.
+- **Read-only soak:** **300.183 seconds**, **21 samples**, **zero errors and
+  zero reboots**, with valid cached PC snapshots in all 21 samples. Reported
+  poll latency was **95-703 ms**. All **25 warnings** were classified: one
+  startup internal-memory threshold warning, eight network-admission
+  `ESP_ERR_NO_MEM` deferrals (two widget, six PC), and sixteen PC network-lock
+  `ESP_ERR_TIMEOUT` deferrals. The latter two are the existing background
+  admission/backpressure diagnostic types, not failed foreground requests;
+  the soak did not trigger saved actions.
+- **Memory assessment:** internal free memory rose from the startup minimum
+  **19,535 bytes** to **38,071 bytes** by the second sample and finished at
+  **38,071 bytes**. Largest internal block stayed at least **8,192 bytes**:
+  lower than the previous soak's 15,360-byte minimum, but above the firmware's
+  4,096-byte admission floor. PSRAM fell from **4,506,376** to **3,411,528 bytes**
+  during startup; subsequent samples ranged **3,375,844-3,436,772 bytes**,
+  ending at **3,408,388 bytes**, without a sustained downward trend.
+  This is an observed five-minute bound, not proof of long-term leak freedom
+  or sufficient memory for every unexercised configuration.
+- **Publication and limits:** installed development firmware and source push
+  are verified; no versioned 0.7.8 binary release is published. Clean-source
+  release packaging and physical validation of new widgets/designs and
+  circular hardware remain outstanding. Native Glass is a frosting
+  approximation, not optical refraction. The previous entry's pending status
+  records its state before this installation. This documentation-only
+  follow-up requires no additional firmware build, flash or soak.

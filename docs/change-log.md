@@ -1368,3 +1368,37 @@ not a complete historical changelog.
 - **Remaining:** build and test the matching Companion package and installer,
   exercise the frozen older-updater/restart chain, and validate the clean
   firmware build and device soak before publishing any release.
+
+## 2026-11-28 - 0.7.13 installation and release validation
+
+- **Changes/compatibility:** delivered the refined editor controls and aligned
+  Companion version described above. Existing configurations and pairing
+  remain compatible; the matching SD web pack is required for this firmware.
+  Keep the previous firmware and resource for recovery.
+- **Validation:** the committed-source ESP-IDF 6.1 production reconfigure/build
+  passed from `316d6a0`; slot headroom and image/resource digests are recorded
+  in the [storage ledger](storage-layout.md). The editor passed 7,363 browser
+  checks across 2,520 layouts, keyboard/focus checks and 90 responsive cases;
+  all four web-resource tests, the packaging regression and 47 Companion tests
+  passed. The pre-existing narrow preview limitation remains as noted above.
+  The isolated frozen older-updater/installer/restart chain passed 61 samples
+  over 300 seconds, with zero errors and preserved test identity and settings.
+  The packaged Companion files passed Defender scans. Release ZIP CRCs,
+  checksums and the matching SD web-pack digest were verified.
+- **Device:** installed app-only on the verified COM9 board. Pinned HTTPS served
+  0.7.13 and the matching editor; configuration, primary NVS and protected
+  HomeKit records were verified. The active image and 0.7.12 recovery image
+  matched their verified binaries. A 300.301-second read-only soak had 20
+  samples, zero errors and reboots, and 27 warnings: one startup memory warning,
+  eight memory-admission deferrals and 18 PC shared-network-lock deferrals.
+  Companion was available in 20/20 samples; one sample reported a deferred
+  widget. Internal free memory reached a minimum of 22,379 bytes and PSRAM
+  3,366,044 bytes; PSRAM declined during startup and then stabilized around
+  3.4 MB. Configuration remained unchanged after the soak.
+- **Delivery/remaining:** source commits through `316d6a0` were pushed to the
+  product remote; release publication is pending verification. The earlier
+  0.7.12 widget timeout did not recur, but its provider and cause are unknown.
+  The hardware-test commit API identifies all six authors and committers as
+  the correct account, while the contributor API still lists the other account.
+  Recheck after GitHub's documented cache refresh; contact GitHub Support if
+  it remains incorrect.

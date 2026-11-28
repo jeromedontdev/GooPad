@@ -23,6 +23,16 @@ SHA-256 `b762a640bc27dd8887747ce6b22d7569b8a30a4dda9bfaa65347425a50bdf50a`).
 This build is not installed or released; app-slot headroom is not a measurement
 of runtime memory.
 
+## 0.7.13 committed-source build (2026-11-28)
+
+The ESP-IDF 6.1 production build from `316d6a0` is **2,425,328 bytes**, leaving
+**1,768,976 bytes** in the 4 MiB app slot. Its SHA-256 is
+`77594e02446f6f394a16c406da07abe2c3e37b2d1b71382c181e61a883b5fe6e`.
+The matching editor pack is `web-9cee602ba7fc.gwp` (346,373 bytes, SHA-256
+`9cee602ba7fc2dab857007891d7933e8437c6cdc87853d9fc2d7c76f6c35b014`).
+App-slot headroom is not a measurement of runtime memory. See the
+[change log](change-log.md) for deployment and validation status.
+
 ## What the 31 KiB warning means
 
 The tested Guition has **16 MiB flash**, but each firmware image must fit in

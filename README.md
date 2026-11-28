@@ -61,8 +61,8 @@ before deliberately reinitializing storage.
 ## Tiles and customization
 
 Each tile supports an optional label, color, visual, and a plain-language action.
-Open **Icon & Graphic** and choose **Icon / Emoji**, **Font Awesome**, **Image**, or **Animated GIF** from its visual-type
-dropdown. Blank labels stay blank; the visual is enlarged and centered.
+Open **Icon & Graphic** and choose **Icon / Emoji**, **Font Awesome**, **Image**, or **Animated GIF** from the visual-type
+cards. Blank labels stay blank; the visual is enlarged and centered.
 The live preview is the editor's centerpiece: select any tile, including an
 empty slot, to edit it. Choose the button type at the top of its settings.
 The workspace navigation keeps Tiles, Settings and About available on desktop
@@ -71,7 +71,9 @@ Grid positions, spacing and enlarged tile dimensions follow the device layout,
 but the browser preview is an approximation: fonts, live data, animations,
 glass effects and hardware rendering can differ from the physical screen.
 New empty tiles show a **Choose an action** prompt until a type is selected.
-Action settings appear first; expand **Icon & Graphic**, **Appearance**, **Text**,
+Action cards and compact choices replace common dropdowns; use Tab and arrow
+keys to navigate them. Longer lists, such as fonts and tile themes, remain
+dropdowns. Action settings appear first; expand **Icon & Graphic**, **Appearance**, **Text**,
 or **Sound** for the remaining controls. Only that tile's controls are shown. You can configure
 positions in any order. **Button Label** is optional on-screen text; tiles have
 no separate editor name.

@@ -17,6 +17,15 @@ Use your own paths and detected serial port.
    synthetic configuration first; a real user's paired device and SD card
    contain data that cannot be reconstructed from a config backup alone.
 
+The product repository's history and release tags were rewritten on 2026-11-28
+to correct commit attribution. Trees and release assets were preserved, but
+commit and tag object IDs changed; old IDs in historical log entries refer to
+the pre-rewrite history. Keep local work before reconciling an older clone;
+a fresh product clone is the simplest way to get the new refs. The pre-rewrite
+mirror and old-to-new commit map are retained in the attribution session
+archive; preserve that archive separately if long-term recovery is needed.
+This rewrite did not change the separate hardware-test remote.
+
 ## Build
 
 Install ESP-IDF **6.1** and its tools. In PowerShell, activate its environment
@@ -269,6 +278,9 @@ depends on the board:
   runner, disable the `updateWidgetPreview` and `refreshMonitorPreview`
   background intervals before loading the page so periodic requests do not
   race the suite's fetch mocks. Leave gesture/debounce timeouts enabled.
+  Common tile selectors use native radio groups backed by the existing select
+  values. Exercise keyboard focus, conditional choices and legacy tiles in
+  addition to the suite when changing those controls.
   Run `node tests/test_gif_normalization.js` with Zig installed to compare
   the editor's GIF normalization against the compiled firmware routine.
   Run `zig cc -Wall -Wextra -Werror -I main -I managed_components\espressif__cjson\cJSON main\goopad_companion.c managed_components\espressif__cjson\cJSON\cJSON.c tests\test_companion_config.c -o build\test_companion_config.exe`
@@ -374,6 +386,8 @@ Production configuration generates the web archive and its compiled asset
 manifest from the editor and browser fonts. Gzip and identity HTTP clients
 receive their respective stored representation; neither loads the whole page
 into PSRAM. An embedded recovery page remains available without SD.
+The editor uses LF checkout endings so its archive hash is consistent across
+Windows and other platforms.
 
 ```powershell
 python tools\make_web_resources.py main C:\goopad-resources main\goopad_web_manifest.h

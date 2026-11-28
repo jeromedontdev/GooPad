@@ -1,5 +1,16 @@
 # Storage layout and application-space ledger
 
+## 0.7.12 editor development build (2026-11-28)
+
+The control redesign build is **2,425,328 bytes**, leaving **1,768,976 bytes**
+in its 4 MiB app slot. The production ESP-IDF 6.1 build used the existing
+dedicated SDK configuration; its binary SHA-256 is
+`6e453986133d9a19bc6ff3cb7abdeed927aabae9bfdc7632dd50f5c64ea729cb`.
+Its matching editor pack is `web-6197e40dc00c.gwp` (343,415 bytes,
+SHA-256 `6197e40dc00c875c4e8bb2752382feb1205c908b99c9c7a37412d1f5111b443e`).
+This is a worktree build, not a released or installed image. No runtime PSRAM
+or physical-device behavior was measured for this build.
+
 ## What the 31 KiB warning means
 
 The tested Guition has **16 MiB flash**, but each firmware image must fit in

@@ -1237,3 +1237,35 @@ not a complete historical changelog.
   to the other account. Changing them requires a coordinated rewrite of shared
   history, including consideration of branches, tags and downstream clones; no
   history was rewritten or force-pushed. No 0.7.11 binary release was published.
+
+## 2026-11-28 - Control redesign and historical attribution
+
+- **Request/changes:** replace the dropdown-heavy tile editor with modern
+  controls and correct older GitHub attribution. Actions and visual types use
+  descriptive choice cards; common widget, shape, style and request choices
+  use compact native radio groups. Longer lists remain dropdowns. The editor
+  checkout is pinned to LF to keep the generated resource hash portable.
+- **Compatibility:** the controls retain the existing configuration values,
+  conditional behavior and legacy actions/widgets; no migration is introduced.
+  Version 0.7.12 requires its matching editor resource. Downgrading restores
+  the older editor with its own pack and retains the existing downgrade limits.
+- **Attribution:** corrected repository-local identity and rewrote the
+  product's 90 commits and 23 branch/tag refs. Verified trees, topology,
+  messages and dates before the atomic lease-protected push; GitHub links all
+  90 main-branch authors and committers to the product account. The 22 release
+  records and asset identities, sizes and digests remained unchanged. Existing
+  clones must reconcile rewritten history and tags; historical hashes in this
+  log still name old objects. The original mirror and commit map remain in the
+  session archive; retain a separate backup for long-term recovery.
+- **Validation:** local browser suite passed 7,349 checks across 2,520 layouts;
+  keyboard Space/arrow navigation and focus after a Smart Home rebuild passed.
+  Thirty responsive checks across five widths and six website themes found no
+  document or choice-control overflow. Four web-resource/real-loader tests
+  passed. ESP-IDF 6.1 production `reconfigure build` passed; image version,
+  app-slot headroom and matching web manifest are recorded in the storage ledger.
+- **Delivery/remaining:** rewritten history and tags are on the product remote;
+  the source change is for commit and push. The 0.7.12 image is not installed
+  or released. Device writes, HomeKit verification and a five-minute device soak
+  remain blocked by the unexplained 0.7.11 primary-NVS difference recorded
+  above; the missing pre-update snapshot prevents identifying that change.
+  Investigate preservation before another deployment or binary publication.

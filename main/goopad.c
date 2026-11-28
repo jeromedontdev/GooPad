@@ -3180,6 +3180,11 @@ static void alarm_task(void *arg)
     }
 }
 
+static esp_err_t news_xml_chunk(void *context, const char *data, size_t size)
+{
+    return goopad_news_parser_feed(context, data, size) ? ESP_OK : ESP_FAIL;
+}
+
 static void live_widget_task(void *arg)
 {
     (void)arg;
@@ -3402,26 +3407,34 @@ static void live_widget_task(void *arg)
             bool preempted = false;
             int status = 0;
             bool alerts = !strcmp(kind, "weather_alerts");
-            bool large_response = alerts || news;
-            size_t response_limit = rss ? GOOPAD_NEWS_XML_BYTES : large_response ? 65536 : 4096;
+            bool large_response = alerts || (news && !rss);
+            size_t response_limit = large_response ? 65536 : 4096;
             char *alert_data = large_response ? heap_caps_malloc(response_limit + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
             if (large_response && !alert_data && setup == ESP_OK) setup = ESP_ERR_NO_MEM;
             char *response = large_response ? alert_data : data;
+            char text[GOOPAD_NEWS_TEXT_BYTES] = "Data unavailable";
+            goopad_news_parser_t *parser = rss && setup == ESP_OK
+                ? goopad_news_parser_create(text, sizeof(text), headline_count) : NULL;
+            if (rss && !parser && setup == ESP_OK) setup = ESP_ERR_NO_MEM;
             /* Media wins admission, not cancellation of an admitted request:
              * a 500 ms poll must not repeatedly restart a slower TLS handshake. */
-            esp_err_t result = setup == ESP_OK ? goopad_network_background_get(client, response, response_limit, 10000, !finnhub && !home_state && !news,
-                network_priority_pending, &status, &preempted) : setup;
+            esp_err_t result = setup != ESP_OK ? setup : rss
+                ? goopad_network_background_stream(client, data, 4096, GOOPAD_NEWS_XML_BYTES,
+                    news_xml_chunk, parser, 10000, false, network_priority_pending, &status, &preempted)
+                : goopad_network_background_get(client, response, response_limit, 10000, !finnhub && !home_state && !news,
+                    network_priority_pending, &status, &preempted);
             if (client) esp_http_client_cleanup(client);
             network_end();
             if (preempted) {
+                goopad_news_parser_free(parser);
                 free(alert_data);
                 next[i] = now + 1;
                 retry_soon = true;
                 continue;
             }
-            char text[GOOPAD_NEWS_TEXT_BYTES] = "Data unavailable";
             bool rss_valid = rss && result == ESP_OK && status == 200 &&
-                             goopad_news_xml_text_limit(response, strlen(response), text, sizeof(text), headline_count);
+                             goopad_news_parser_finish(parser);
+            goopad_news_parser_free(parser);
             cJSON *payload = !rss && result == ESP_OK && status == 200 ? cJSON_Parse(response) : NULL;
             free(alert_data);
             bool weather_valid = false;

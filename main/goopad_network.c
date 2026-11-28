@@ -23,9 +23,11 @@ static esp_err_t background_ready(int64_t deadline, bool (*priority_pending)(voi
 
 /* Streaming reads permit priority checks between short socket waits without
  * treating a slow response as a complete body. The caller owns the client. */
-esp_err_t goopad_network_background_get(esp_http_client_handle_t client, char *data,
-                                        size_t capacity, int timeout_ms, bool redirects,
-                                        bool (*priority_pending)(void), int *status, bool *preempted)
+static esp_err_t background_transfer(esp_http_client_handle_t client, char *data,
+                                     size_t capacity, size_t max_size,
+                                     goopad_network_chunk_fn consume, void *context,
+                                     int timeout_ms, bool redirects,
+                                     bool (*priority_pending)(void), int *status, bool *preempted)
 {
     int64_t deadline = esp_timer_get_time() + (int64_t)timeout_ms * 1000;
     *preempted = false;
@@ -65,8 +67,10 @@ esp_err_t goopad_network_background_get(esp_http_client_handle_t client, char *d
             result = background_ready(deadline, priority_pending, preempted);
             if (result != ESP_OK) return result;
             char extra;
-            int count = esp_http_client_read(client, length < capacity ? data + length : &extra,
-                                             length < capacity ? capacity - length : 1);
+            size_t remaining = max_size - length;
+            size_t chunk = remaining < capacity ? remaining : capacity;
+            char *destination = !remaining ? &extra : consume ? data : data + length;
+            int count = esp_http_client_read(client, destination, remaining ? chunk : 1);
             if (count == -ESP_ERR_HTTP_EAGAIN) {
                 vTaskDelay(pdMS_TO_TICKS(10));
                 continue;
@@ -74,11 +78,34 @@ esp_err_t goopad_network_background_get(esp_http_client_handle_t client, char *d
             if (count < 0) return ESP_ERR_HTTP_INCOMPLETE_DATA;
             if (!count) {
                 if (!esp_http_client_is_complete_data_received(client)) return ESP_ERR_HTTP_INCOMPLETE_DATA;
-                data[length] = '\0';
+                if (!consume) data[length] = '\0';
                 return ESP_OK;
             }
-            if (length == capacity) return ESP_ERR_INVALID_SIZE;
+            if (!remaining) return ESP_ERR_INVALID_SIZE;
+            if (consume) {
+                result = consume(context, data, count);
+                if (result != ESP_OK) return result;
+            }
             length += count;
         }
     }
+}
+
+esp_err_t goopad_network_background_get(esp_http_client_handle_t client, char *data,
+                                        size_t capacity, int timeout_ms, bool redirects,
+                                        bool (*priority_pending)(void), int *status, bool *preempted)
+{
+    return background_transfer(client, data, capacity, capacity, NULL, NULL,
+                               timeout_ms, redirects, priority_pending, status, preempted);
+}
+
+esp_err_t goopad_network_background_stream(esp_http_client_handle_t client, char *buffer,
+                                           size_t buffer_size, size_t max_size,
+                                           goopad_network_chunk_fn consume, void *context,
+                                           int timeout_ms, bool redirects,
+                                           bool (*priority_pending)(void), int *status, bool *preempted)
+{
+    if (!buffer || !buffer_size || !consume) return ESP_ERR_INVALID_STATE;
+    return background_transfer(client, buffer, buffer_size, max_size, consume, context,
+                               timeout_ms, redirects, priority_pending, status, preempted);
 }

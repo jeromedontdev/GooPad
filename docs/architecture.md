@@ -102,10 +102,11 @@ Time format strings belong to the UI snapshot, not the temporary parsed JSON.
 Multi-source news cycles through one primary and up to three preset feeds,
 fetching one per minute; each request retains the existing shared-network
 admission and bounded response path. Single-source polling is unchanged.
-Headlines run in the existing background-priority serialized network worker;
-their PSRAM response buffer is capped at 256 KiB for XML or 64 KiB for legacy
-JSON and freed after aggregation. Expat's parser and working state use a PSRAM
-allocation suite; DTD/external entities and nesting over 32 are rejected.
+Headlines run in the existing background-priority serialized network worker.
+XML responses are parsed incrementally from the shared 4 KiB scratch buffer
+and capped at 1 MiB; legacy JSON uses a 64 KiB PSRAM response buffer freed after
+aggregation. Expat's parser and working state use a PSRAM allocation suite;
+DTD/external entities and nesting over 32 are rejected.
 Glass uses one 120x120 RGB565 backdrop (28,800 bytes), shared by every tile;
 custom backgrounds temporarily require another 28,800 bytes for a separable
 seven-tap blur after 4x4 downsampling. Buffers/cache entries are freed only after

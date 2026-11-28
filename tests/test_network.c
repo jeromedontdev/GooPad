@@ -10,6 +10,9 @@ static enum scenario scenario;
 static int64_t now;
 static int opens, headers, reads, redirects, closes, clears, position;
 static bool priority;
+static char streamed[8];
+static size_t streamed_size;
+static bool reject_chunk;
 
 int64_t esp_timer_get_time(void) { return now; }
 void vTaskDelay(int ticks) { now += ticks * 1000; }
@@ -79,6 +82,31 @@ static esp_err_t run(enum scenario which, size_t capacity, int timeout, bool fol
                                          priority_pending, status, preempted);
 }
 
+static esp_err_t consume(void *context, const char *data, size_t size)
+{
+    (void)context;
+    if (reject_chunk) return ESP_ERR_INVALID_STATE;
+    assert(streamed_size + size < sizeof(streamed));
+    memcpy(streamed + streamed_size, data, size);
+    streamed_size += size;
+    streamed[streamed_size] = '\0';
+    return ESP_OK;
+}
+
+static esp_err_t run_stream(enum scenario which, size_t max_size, bool *preempted)
+{
+    char buffer[2];
+    int status;
+    scenario = which;
+    now = opens = headers = reads = redirects = closes = clears = position = 0;
+    priority = false;
+    streamed_size = 0;
+    streamed[0] = '\0';
+    return goopad_network_background_stream(NULL, buffer, sizeof(buffer), max_size,
+                                            consume, NULL, 4000, false,
+                                            priority_pending, &status, preempted);
+}
+
 int main(void)
 {
     bool waiting = true;
@@ -111,6 +139,12 @@ int main(void)
     assert(!preempted && closes == 0);
     assert(run(OVERFLOW, 4, 4000, true, data, &status, &preempted) == ESP_ERR_INVALID_SIZE);
     assert(run(INCOMPLETE, 5, 4000, true, data, &status, &preempted) == ESP_ERR_HTTP_INCOMPLETE_DATA);
+    assert(run_stream(STREAM, 5, &preempted) == ESP_OK && !strcmp(streamed, "hello"));
+    assert(run_stream(STREAM, 4, &preempted) == ESP_ERR_INVALID_SIZE && !strcmp(streamed, "hell"));
+    assert(run_stream(PREEMPT, 5, &preempted) == ESP_ERR_INVALID_STATE && preempted);
+    assert(run_stream(INCOMPLETE, 5, &preempted) == ESP_ERR_HTTP_INCOMPLETE_DATA);
+    reject_chunk = true;
+    assert(run_stream(STREAM, 5, &preempted) == ESP_ERR_INVALID_STATE && !streamed_size);
     puts("PASS: streamed reads, priority preemption, timeout, redirects and response bounds");
     return 0;
 }

@@ -47,14 +47,15 @@ unsigned goopad_news_next_source(const cJSON *extras, unsigned current)
     return (current + 1) % count;
 }
 
-typedef struct {
+struct goopad_news_parser {
     XML_Parser parser;
     char *out;
-    size_t capacity, used, title_size;
+    size_t capacity, used, title_size, input_size;
     unsigned depth, entry_depth, title_depth, channel_depth, count, entries, kind, limit;
     bool failed, channel, overflow;
     char title[129], headlines[GOOPAD_NEWS_HEADLINES][124];
-} news_xml_t;
+};
+typedef struct goopad_news_parser news_xml_t;
 
 static void *news_alloc(size_t size)
 {
@@ -190,29 +191,63 @@ bool goopad_news_xml_text_limit(const char *feed, size_t size, char *out, size_t
     if (!out || !capacity) return false;
     out[0] = '\0';
     if (!feed || !size || size > GOOPAD_NEWS_XML_BYTES || limit < 1 || limit > GOOPAD_NEWS_HEADLINES) return false;
+    goopad_news_parser_t *parser = goopad_news_parser_create(out, capacity, limit);
+    if (!parser) return false;
+    bool valid = goopad_news_parser_feed(parser, feed, size) && goopad_news_parser_finish(parser);
+    goopad_news_parser_free(parser);
+    if (!valid) out[0] = '\0';
+    return valid;
+}
+
+goopad_news_parser_t *goopad_news_parser_create(char *out, size_t capacity, unsigned limit)
+{
+    if (!out || !capacity || limit < 1 || limit > GOOPAD_NEWS_HEADLINES) return NULL;
+    out[0] = '\0';
     news_xml_t *state = news_alloc(sizeof(*state));
-    if (!state) return false;
+    if (!state) return NULL;
     memset(state, 0, sizeof(*state));
     XML_Memory_Handling_Suite memory = {news_alloc, news_realloc, free};
     state->parser = XML_ParserCreate_MM(NULL, &memory, "|");
-    bool valid = false;
-    if (state->parser) {
-        state->out = out; state->capacity = capacity; state->limit = limit;
-        XML_SetUserData(state->parser, state);
-        XML_SetElementHandler(state->parser, news_xml_start, news_xml_end);
-        XML_SetCharacterDataHandler(state->parser, news_xml_characters);
-        XML_SetStartDoctypeDeclHandler(state->parser, news_xml_doctype);
-        XML_SetExternalEntityRefHandler(state->parser, news_xml_external);
-        XML_SetParamEntityParsing(state->parser, XML_PARAM_ENTITY_PARSING_NEVER);
-        valid = XML_Parse(state->parser, feed, (int)size, XML_TRUE) == XML_STATUS_OK &&
-                !state->failed && state->kind && (state->kind == 2 || state->channel);
-        if (valid && !state->entries && capacity >= sizeof("No headlines")) strcpy(out, "No headlines");
-        else if (!state->count) valid = false;
-        XML_ParserFree(state->parser);
+    if (!state->parser) { free(state); return NULL; }
+    state->out = out; state->capacity = capacity; state->limit = limit;
+    XML_SetUserData(state->parser, state);
+    XML_SetElementHandler(state->parser, news_xml_start, news_xml_end);
+    XML_SetCharacterDataHandler(state->parser, news_xml_characters);
+    XML_SetStartDoctypeDeclHandler(state->parser, news_xml_doctype);
+    XML_SetExternalEntityRefHandler(state->parser, news_xml_external);
+    XML_SetParamEntityParsing(state->parser, XML_PARAM_ENTITY_PARSING_NEVER);
+    return state;
+}
+
+bool goopad_news_parser_feed(goopad_news_parser_t *state, const char *data, size_t size)
+{
+    if (!state || !data || state->failed) return false;
+    if (size > GOOPAD_NEWS_XML_BYTES - state->input_size) { state->failed = true; return false; }
+    state->input_size += size;
+    if (XML_Parse(state->parser, data, (int)size, XML_FALSE) != XML_STATUS_OK || state->failed) {
+        state->failed = true;
+        return false;
     }
-    free(state);
-    if (!valid) out[0] = '\0';
+    return true;
+}
+
+bool goopad_news_parser_finish(goopad_news_parser_t *state)
+{
+    if (!state) return false;
+    bool valid = state->input_size && !state->failed &&
+                 XML_Parse(state->parser, "", 0, XML_TRUE) == XML_STATUS_OK &&
+                 !state->failed && state->kind && (state->kind == 2 || state->channel);
+    if (valid && !state->entries && state->capacity >= sizeof("No headlines")) strcpy(state->out, "No headlines");
+    else if (!state->count) valid = false;
+    if (!valid) state->out[0] = '\0';
     return valid;
+}
+
+void goopad_news_parser_free(goopad_news_parser_t *state)
+{
+    if (!state) return;
+    XML_ParserFree(state->parser);
+    free(state);
 }
 
 bool goopad_news_text(const cJSON *feed, char *out, size_t capacity)

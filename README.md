@@ -165,7 +165,7 @@ validate HTTPS certificates.
   Choose **one to five headlines** (default three), separated by divider lines.
   Only the primary feed can use a custom URL. Use fewer headlines
   or enlarge the tile when long titles cannot fit.
-  XML feeds are limited to 256 KiB; DTDs, redirects and malformed feeds are
+  XML feeds are limited to 1 MiB; DTDs, redirects and malformed feeds are
   rejected. JSON sources are no longer offered. Untouched legacy configurations
   remain supported; choosing an RSS feed explicitly replaces the legacy source.
   Provider/network errors are shown explicitly; feed availability can change.

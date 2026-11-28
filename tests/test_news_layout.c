@@ -33,7 +33,15 @@ int main(int argc, char **argv)
         char *xml = malloc(GOOPAD_NEWS_XML_BYTES + 1);
         assert(xml);
         size_t bytes = fread(xml, 1, GOOPAD_NEWS_XML_BYTES + 1, stdin);
-        bool valid = goopad_news_xml_text(xml, bytes, text, sizeof(text));
+        goopad_news_parser_t *parser = goopad_news_parser_create(text, sizeof(text), 3);
+        assert(parser);
+        bool valid = true;
+        for (size_t i = 0; valid && i < bytes; i += 4096) {
+            size_t chunk = bytes - i < 4096 ? bytes - i : 4096;
+            valid = goopad_news_parser_feed(parser, xml + i, chunk);
+        }
+        valid = valid && goopad_news_parser_finish(parser);
+        goopad_news_parser_free(parser);
         unsigned headlines = valid ? 1 : 0;
         for (const char *p = text; (p = strstr(p, GOOPAD_NEWS_SEPARATOR)); p += sizeof(GOOPAD_NEWS_SEPARATOR) - 1) headlines++;
         printf("Feed bytes=%zu valid=%d headlines=%u\n", bytes, valid, headlines);
@@ -50,6 +58,17 @@ int main(int argc, char **argv)
         "<item><title>Third</title></item><item><title>Fourth</title></item></channel></rss>";
     assert(goopad_news_xml_text(rss, strlen(rss), text, sizeof(text)));
     assert(!strcmp(text, "First & plain\n---\nSecond & \xe2\x82\xac\n---\nThird"));
+    goopad_news_parser_t *stream = goopad_news_parser_create(text, sizeof(text), 3);
+    assert(stream);
+    for (size_t i = 0; i < strlen(rss); i++)
+        assert(goopad_news_parser_feed(stream, rss + i, 1));
+    assert(goopad_news_parser_finish(stream));
+    assert(!strcmp(text, "First & plain\n---\nSecond & \xe2\x82\xac\n---\nThird"));
+    goopad_news_parser_free(stream);
+    stream = goopad_news_parser_create(text, sizeof(text), 3);
+    assert(stream && goopad_news_parser_feed(stream, rss, strlen(rss)));
+    assert(!goopad_news_parser_feed(stream, "<broken>", 8) || !goopad_news_parser_finish(stream));
+    goopad_news_parser_free(stream);
     assert(goopad_news_xml_text_limit(rss, strlen(rss), text, sizeof(text), 1) && !strcmp(text, "First & plain"));
     assert(goopad_news_xml_text_limit(rss, strlen(rss), text, sizeof(text), 4) && strstr(text, "\n---\nFourth"));
     assert(!goopad_news_xml_text_limit(rss, strlen(rss), text, sizeof(text), 0) && !text[0]);
@@ -130,6 +149,17 @@ int main(int argc, char **argv)
     memcpy(bounded, "<rss><channel/></rss>", strlen("<rss><channel/></rss>"));
     assert(goopad_news_xml_text(bounded, GOOPAD_NEWS_XML_BYTES, text, sizeof(text)) && !strcmp(text, "No headlines"));
     assert(!goopad_news_xml_text(bounded, GOOPAD_NEWS_XML_BYTES + 1, text, sizeof(text)) && !text[0]);
+    stream = goopad_news_parser_create(text, sizeof(text), 3);
+    assert(stream);
+    for (size_t i = 0; i < GOOPAD_NEWS_XML_BYTES; i += 4096)
+        assert(goopad_news_parser_feed(stream, bounded + i, 4096));
+    assert(goopad_news_parser_finish(stream) && !strcmp(text, "No headlines"));
+    goopad_news_parser_free(stream);
+    stream = goopad_news_parser_create(text, sizeof(text), 3);
+    assert(stream && goopad_news_parser_feed(stream, bounded, GOOPAD_NEWS_XML_BYTES));
+    assert(!goopad_news_parser_feed(stream, bounded, 1));
+    assert(!goopad_news_parser_finish(stream) && !text[0]);
+    goopad_news_parser_free(stream);
     free(bounded);
     char nested[2048] = "<rss><channel>";
     for (unsigned i = 0; i < 33; i++) strcat(nested, "<nested>");

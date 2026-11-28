@@ -121,7 +121,7 @@ ten-minute interval. Failures are shown explicitly before the next source.
 Older firmware ignores `newsExtras` and continues to use the primary feed.
 `newsFeed:"custom"` requires an HTTPS `newsUrl` shorter than 180 characters
 without URL credentials. RSS 2.0, RSS 1.0/RDF and Atom are supported through
-Expat, with a 256 KiB response limit and nesting limit of 32. Channel/feed
+Expat, with a 1 MiB response limit and nesting limit of 32. Channel/feed
 titles are ignored; CDATA, XML entities and nested Atom title text are decoded.
 DTD/external-entity processing is rejected and the complete XML document must
 be valid, even after the requested titles have been collected. `newsCount` is an

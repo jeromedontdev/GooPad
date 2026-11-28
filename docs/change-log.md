@@ -1491,3 +1491,37 @@ not a complete historical changelog.
   contributor listing still shows `jerom`; allow cache refresh and contact
   GitHub Support if it persists. Existing clones must reconcile rewritten
   history, including the historical signature loss noted above.
+
+## 2026-11-28 - Streaming larger news feeds
+
+- **Request/diagnosis:** continue device testing and fix the reported news
+  failure. A selected preset returned 421,703 bytes on the host, exceeding
+  0.7.14's 256 KiB limit; the device had reported an oversized HTTP 200
+  response and later showed `News unavailable`. The diagnostic does not record
+  a widget index, so it cannot independently link that event to the feed.
+- **Changes/compatibility:** firmware 0.7.15 incrementally parses RSS/Atom
+  using the existing 4 KiB scratch buffer and caps the complete response at
+  1 MiB. Expat working allocations remain in PSRAM; complete-document
+  validation, network preemption, no redirects and DTD rejection remain.
+  Existing configurations require no migration. Older firmware still has the
+  256 KiB limit and may fail for larger feeds; retain its matching web pack
+  for recovery. Companion version is aligned to the shared release.
+- **Validation:** native network and RSS tests passed, including chunk
+  boundaries, malformed trailing XML, preemption, incomplete responses and
+  exact size limits. A live 421,703-byte preset passed the actual chunked
+  parser on the host. The local editor passed 7,370 checks across 2,520
+  layouts; all four web-resource tests and the response-to-tile mock passed.
+  Companion's 47 tests passed with standard verified TLS; this host's global
+  `pip_system_certs` injection otherwise caused unrelated server-side test
+  handshake failures. ESP-IDF 6.1 worktree reconfigure/build passed with the
+  same SDK configuration as 0.7.14; device installation and soak are pending.
+- **Preservation investigation:** two read-only flash snapshots around a normal
+  0.7.14 reboot showed no differences in primary NVS or protected logical
+  records. The lost pre-0.7.14 snapshot cannot be reconstructed, so this does
+  not explain or negate the previously reported protected-record difference.
+- **Remaining:** build from committed source, verify the images and pinned
+  editor, preserve and compare device records, test the GET and feed rotation
+  with an explicitly approved temporary fixture, restore the user's exact
+  configuration, and complete the device soak and release checks. Spidarium
+  still has stale contributor listings despite all 127 default-branch commit
+  authors resolving to the correct account.

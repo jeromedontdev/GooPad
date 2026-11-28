@@ -1591,3 +1591,15 @@ not a complete historical changelog.
   No firmware or Companion change, flash, build or binary release was made.
 - **SSH:** no ESP32 SSH client was implemented. The documented alternative is
   an explicitly configured, fixed OpenSSH action on the Windows Companion.
+
+## 2026-11-28 - Sidebar refresh attempt
+
+- **Attempt:** tested the community-reported temporary default-branch rename
+  on the hardware-test repository after checking branch protection, open pull
+  requests and Pages. GitHub's branch state briefly lagged the rename response;
+  the branch was restored to `main` and its original commit was verified via
+  both the API and `git ls-remote`. The published release remains present.
+- **Result:** the wrong contributor still appeared in a freshly loaded sidebar
+  immediately afterward. No rename was attempted on the other repositories.
+  A GitHub Support request remains outstanding; no sidebar fix is claimed.
+  No firmware, configuration, build, flash or binary release was changed.

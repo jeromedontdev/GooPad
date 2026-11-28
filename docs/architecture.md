@@ -39,6 +39,8 @@ service running on the ESP32.
 | Firmware service | [`main/goopad.c`](../main/goopad.c) | Configuration validation/persistence, Wi-Fi events, HTTPS handlers, action dispatch, OTA, status and widget workers. |
 | Daily alarms | [`main/goopad_alarm.c`](../main/goopad_alarm.c), [`main/goopad.c`](../main/goopad.c) | Validate saved schedules and check them in a worker independent of UI refresh and connectivity; deduplication is in RAM. |
 | Background network reads | [`main/goopad_network.c`](../main/goopad_network.c) | Bounded streaming HTTPS requests that yield to manual actions. |
+| Time and headlines | [`main/goopad_time.c`](../main/goopad_time.c), [`main/goopad_news.c`](../main/goopad_news.c) | Bounded percent formatting with legacy presets; UTF-8-validated JSON headline aggregation. |
+| Layout geometry | [`main/goopad_layout.h`](../main/goopad_layout.h) | Grid/span validation and shared ring/arch positions; editor geometry mirrors this helper. |
 | Touch UI | [`main/goopad_ui.c`](../main/goopad_ui.c) | Setup, keyboard, tile layout, swipe and info menu, LVGL widget rendering, action callbacks. |
 | Shared interface | [`main/app.h`](../main/app.h) | Driver interfaces, application state, UI/service functions and widget interfaces. It still includes scaffolding-era declarations; inclusion is not proof a module is built. |
 | Hardware | [`main/board.h`](../main/board.h), `board.c`, `hw_display.c`, `hw_touch.c`, `hw_wifi.c`, `hw_sdcard.c`, `hw_audio.c`, `hw_gpio.c` in [`main/`](../main/) | Pin map, power caps, panel and touch, networking, SD and audio. The authoritative build list is [`main/CMakeLists.txt`](../main/CMakeLists.txt). |
@@ -87,6 +89,16 @@ build directory matches the current source, SDK or configuration.
 7. An actionable tile calls `goopad_trigger()`. Sound and HomeKit have local
    paths; HTTP and Wake-on-LAN actions copy their input into a worker-owned structure and run
    asynchronously. `/api/status` exposes the last action result.
+   Displaying HTTP actions additionally capture bounded, revision-tagged text
+   into a per-macro PSRAM cache. They do not reuse session-cached clients whose
+   callback would retain a freed action. Send-only webhook behavior is retained.
+
+Time format strings belong to the UI snapshot, not the temporary parsed JSON.
+Headlines run in the existing background-priority serialized network worker;
+their response buffer is capped at 64 KiB and freed after aggregation.
+Live strings and request-result caches are PSRAM-backed and allocated before
+workers/server startup. The optional battery label consumes existing board
+telemetry only; it does not introduce gauge detection or speculative wiring.
 
 The editor restores an SD backup by reading `/api/backup` and posting it
 through the normal validated `/api/config` save path. The update check and

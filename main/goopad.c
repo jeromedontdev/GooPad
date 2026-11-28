@@ -17,6 +17,8 @@
 #include "goopad_resource_manifest.h"
 #include "goopad_layout.h"
 #include "goopad_market.h"
+#include "goopad_news.h"
+#include "goopad_utf8.h"
 #include "goopad_network.h"
 #include "goopad_alerts.h"
 #include "goopad_alarm.h"
@@ -120,13 +122,15 @@ static int s_last_action_tls_error;
 static bool s_last_action_running;
 static bool s_last_action_success;
 static char s_last_action_message[160];
+static char (*s_request_text)[192];
+static unsigned s_config_revision;
 static portMUX_TYPE s_monitor_lock = portMUX_INITIALIZER_UNLOCKED;
 static char s_monitor_text[64] = "Set PC pairing";
 static double s_monitor_values[GOOPAD_PC_STAT_COUNT];
 static bool s_monitor_valid[GOOPAD_PC_STAT_COUNT];
 static bool s_monitor_sampling;
 static portMUX_TYPE s_live_lock = portMUX_INITIALIZER_UNLOCKED;
-static char s_live_text[32][64];
+static char (*s_live_text)[384];
 static char *s_media_text;
 static uint32_t s_media_mask;
 static uint32_t s_media_revision, s_media_poll_ms, s_media_age_ms;
@@ -221,26 +225,12 @@ const char *goopad_pc_stat_key(unsigned index)
     return index < GOOPAD_PC_STAT_COUNT ? s_pc_stat_keys[index] : NULL;
 }
 
-const char *goopad_widget_time_format(bool date, const char *key)
-{
-    static const char *keys[2][6] = {
-        {"24h", "12h", "24h_seconds", "12h_seconds", "12h_plain", "12h_plain_seconds"}, {"iso", "mdy", "dmy", "month_short"}
-    };
-    static const char *formats[2][6] = {
-        {"%H:%M", "%I:%M %p", "%H:%M:%S", "%I:%M:%S %p", "%I:%M", "%I:%M:%S"},
-        {"%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%b %d"}
-    };
-    for (unsigned i = 0; key && i < 6; i++)
-        if (keys[date][i] && !strcmp(key, keys[date][i])) return formats[date][i];
-    return NULL;
-}
-
 const goopad_widget_style_t *goopad_widget_style(const char *key)
 {
     static const char *keys[] = {"minimal", "neon", "terminal", "paper", "ocean", "sunset", "retro",
                                  "midnight_glass", "cloud", "lavender", "mint", "coral", "graphite",
                                  "aurora", "ember", "sand", "rose", "indigo", "arctic",
-                                 "lime", "plum", "copper", "mono", "berry", "sky"};
+                                 "lime", "plum", "copper", "mono", "berry", "sky", "liquid_glass", "material"};
     static const goopad_widget_style_t styles[] = {
         {0x0F172A, 0x0F172A, 0xF8FAFC, 0x94A3B8},
         {0x06121C, 0x102A43, 0xCFFAFE, 0x22D3EE},
@@ -267,6 +257,8 @@ const goopad_widget_style_t *goopad_widget_style(const char *key)
         {0x424242, 0x151515, 0xFAFAFA, 0xD4D4D4},
         {0x621E45, 0x30192F, 0xFFF1F5, 0xFB8BB4},
         {0xDDEEFF, 0xB5D2F2, 0x1A3657, 0x3569AB},
+        {0x43546E, 0x27354F, 0xF8FAFF, 0xB8D8FF},
+        {0xE8DEF8, 0xE8DEF8, 0x1D192B, 0x6750A4},
     };
     for (unsigned i = 0; key && i < sizeof(keys) / sizeof(keys[0]); i++)
         if (!strcmp(key, keys[i])) return &styles[i];
@@ -278,10 +270,10 @@ bool goopad_widget_graphic_valid(const char *graphic, const char *widget, const 
     if (!graphic || !strcmp(graphic, "text")) return true;
     if (!strcmp(graphic, "custom_icon")) return true;
     if (!strcmp(graphic, "icon")) return !widget || !strcmp(widget, "clock") ||
-        !strcmp(widget, "date") || !strcmp(widget, "pc_monitor");
+        !strcmp(widget, "date") || !strcmp(widget, "datetime") || !strcmp(widget, "pc_monitor");
     if (!widget) return false;
-    if (!strcmp(graphic, "analog")) return !strcmp(widget, "clock");
-    if (!strcmp(graphic, "calendar")) return !strcmp(widget, "date");
+    if (!strcmp(graphic, "analog")) return !strcmp(widget, "clock") || !strcmp(widget, "datetime");
+    if (!strcmp(graphic, "calendar")) return !strcmp(widget, "date") || !strcmp(widget, "datetime");
     if (strcmp(graphic, "bar") && strcmp(graphic, "ring")) return false;
     return !strcmp(widget, "pc_monitor") && (!stat || !strcmp(stat, "summary") ||
         !strcmp(stat, "cpu") || !strcmp(stat, "ram") || !strcmp(stat, "gpu"));
@@ -572,8 +564,9 @@ static esp_err_t saved_icons_handler(httpd_req_t *req)
     esp_err_t auth = auth_required(req);
     if (auth != ESP_OK) return auth;
     if (!g_app.sd.mounted) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Insert and mount an SD card");
-    char query[32], value[16], *end;
+    char query[64], value[16], *end;
     unsigned long offset = 0;
+    bool backgrounds = false;
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
         if (httpd_query_key_value(query, "offset", value, sizeof(value)) != ESP_OK ||
             value[0] < '0' || value[0] > '9') {
@@ -581,6 +574,8 @@ static esp_err_t saved_icons_handler(httpd_req_t *req)
         }
         offset = strtoul(value, &end, 10);
         if (*end || offset > 100000) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid offset");
+        backgrounds = httpd_query_key_value(query, "backgrounds", value, sizeof(value)) == ESP_OK &&
+                      !strcmp(value, "1");
     }
     DIR *dir = opendir(BSP_SD_MOUNT_POINT "/goopad");
     if (!dir && errno != ENOENT) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not read SD assets");
@@ -605,6 +600,7 @@ static esp_err_t saved_icons_handler(httpd_req_t *req)
             else if (!strcmp(suffix, ".160.rgb565a8")) { format = "rgb565a8"; size = 160; }
             else if (!strcmp(suffix, ".rgb565a8")) { format = "rgb565a8"; size = 32; }
             else if (!strcmp(suffix, ".rgb565")) { format = "rgb565"; size = 32; }
+            else if (backgrounds && !strcmp(suffix, ".480.rgb565")) { format = "rgb565"; size = 480; }
             else continue;
             if (seen++ < offset) continue;
             if (count == 24) { more = true; break; }
@@ -1366,12 +1362,19 @@ static bool validate_config(const char *json)
     cJSON *companion_cert = cJSON_GetObjectItemCaseSensitive(root, "companionCertificate");
     cJSON *offset = cJSON_GetObjectItemCaseSensitive(root, "timeOffsetMinutes");
     cJSON *pages = cJSON_GetObjectItemCaseSensitive(root, "pageCount");
+    cJSON *screen_layout = cJSON_GetObjectItemCaseSensitive(root, "screenLayout");
+    cJSON *battery = cJSON_GetObjectItemCaseSensitive(root, "showBattery");
+    bool radial = cJSON_IsString(screen_layout) && strcmp(screen_layout->valuestring, "grid");
     unsigned gif_count = 0;
     bool valid = cJSON_IsNumber(cols) && cols->valueint >= 2 &&
                  cols->valueint <= goopad_grid_limit(BSP_LCD_H_RES, 0, BSP_TILE_MIN_PX) &&
                  cJSON_IsNumber(rows) && rows->valueint >= 2 &&
                  rows->valueint <= goopad_grid_limit(BSP_LCD_V_RES, 84, BSP_TILE_MIN_PX) &&
                  cJSON_IsArray(macros) && cJSON_GetArraySize(macros) <= MAX_MACROS &&
+                 (!battery || cJSON_IsBool(battery)) &&
+                 (!screen_layout || (cJSON_IsString(screen_layout) &&
+                     (!strcmp(screen_layout->valuestring, "grid") || !strcmp(screen_layout->valuestring, "ring") ||
+                      !strcmp(screen_layout->valuestring, "arc")))) &&
                  (!pages || (cJSON_IsNumber(pages) && pages->valuedouble == pages->valueint &&
                              pages->valueint >= 1 &&
                              pages->valueint <= (MAX_MACROS + cols->valueint * rows->valueint - 1) / (cols->valueint * rows->valueint) &&
@@ -1387,6 +1390,8 @@ static bool validate_config(const char *json)
                               !strcmp(theme->valuestring, "berry") ||
                               !strcmp(theme->valuestring, "teal") ||
                               !strcmp(theme->valuestring, "black") ||
+                              !strcmp(theme->valuestring, "liquid_glass") ||
+                              !strcmp(theme->valuestring, "material") ||
                               !strcmp(theme->valuestring, "custom")))) &&
                  (!background || valid_hex_color(background)) &&
                  (!background_image || (cJSON_IsString(background_image) &&
@@ -1433,6 +1438,9 @@ static bool validate_config(const char *json)
         cJSON *widget = cJSON_GetObjectItemCaseSensitive(item, "widget");
         cJSON *clock_format = cJSON_GetObjectItemCaseSensitive(item, "clockFormat");
         cJSON *date_format = cJSON_GetObjectItemCaseSensitive(item, "dateFormat");
+        cJSON *datetime_format = cJSON_GetObjectItemCaseSensitive(item, "datetimeFormat");
+        cJSON *news_source = cJSON_GetObjectItemCaseSensitive(item, "newsSource");
+        cJSON *news_url = cJSON_GetObjectItemCaseSensitive(item, "newsUrl");
         cJSON *pc_stat = cJSON_GetObjectItemCaseSensitive(item, "pcStat");
         cJSON *temperature_unit = cJSON_GetObjectItemCaseSensitive(item, "temperatureUnit");
         cJSON *widget_theme = cJSON_GetObjectItemCaseSensitive(item, "widgetTheme");
@@ -1480,12 +1488,18 @@ static bool validate_config(const char *json)
                                    goopad_widget_time_format(false, clock_format->valuestring))) &&
                 (!date_format || (cJSON_IsString(date_format) &&
                                   goopad_widget_time_format(true, date_format->valuestring))) &&
+                (!datetime_format || (cJSON_IsString(datetime_format) &&
+                                      goopad_time_format_valid(datetime_format->valuestring))) &&
+                (!news_source || (cJSON_IsString(news_source) &&
+                    (!strcmp(news_source->valuestring, "hackernews") || !strcmp(news_source->valuestring, "jsonfeed")))) &&
+                (!news_url || (cJSON_IsString(news_url) && valid_url(news_url->valuestring) &&
+                               !strncmp(news_url->valuestring, "https://", 8))) &&
                 (!pc_stat || (cJSON_IsString(pc_stat) && goopad_pc_stat_index(pc_stat->valuestring) >= 0)) &&
                 (!temperature_unit || (cJSON_IsString(temperature_unit) &&
                                        (!strcmp(temperature_unit->valuestring, "C") ||
                                         !strcmp(temperature_unit->valuestring, "F")))) &&
                 (!widget_theme || (cJSON_IsString(widget_theme) &&
-                                  (!strcmp(widget_theme->valuestring, "custom") || goopad_widget_style(widget_theme->valuestring)))) &&
+                                  (!strcmp(widget_theme->valuestring, "custom") || !strcmp(widget_theme->valuestring, "device") || goopad_widget_style(widget_theme->valuestring)))) &&
                 (!widget_accent || valid_hex_color(widget_accent)) &&
                 (!widget_gradient || valid_hex_color(widget_gradient)) &&
                 (!widget_layout || (cJSON_IsString(widget_layout) &&
@@ -1594,7 +1608,7 @@ static bool validate_config(const char *json)
                 (!image_format || (cJSON_IsString(image_format) &&
                                    (!strcmp(image_format->valuestring, "rgb565a8") || gif))) &&
                 (!widget || (cJSON_IsString(widget) &&
-                             (!strcmp(widget->valuestring, "clock") || !strcmp(widget->valuestring, "date") ||
+                             (!strcmp(widget->valuestring, "clock") || !strcmp(widget->valuestring, "date") || !strcmp(widget->valuestring, "datetime") || !strcmp(widget->valuestring, "news") ||
                               !strcmp(widget->valuestring, "pc_monitor") || !strcmp(widget->valuestring, "countdown") ||
                               !strcmp(widget->valuestring, "stopwatch") || !strcmp(widget->valuestring, "pomodoro") || !strcmp(widget->valuestring, "alarm") || !strcmp(widget->valuestring, "weather") ||
                               !strcmp(widget->valuestring, "stock") || !strcmp(widget->valuestring, "crypto") ||
@@ -1602,6 +1616,8 @@ static bool validate_config(const char *json)
                               !strcmp(widget->valuestring, "exchange_rate") || !strcmp(widget->valuestring, "weather_alerts") ||
                               !strcmp(widget->valuestring, "home_state") || !strcmp(widget->valuestring, "now_playing")))) &&
                 (!(cJSON_IsString(widget) && !strcmp(widget->valuestring, "countdown")) || countdown_at) &&
+                (!(cJSON_IsString(widget) && !strcmp(widget->valuestring, "news") &&
+                   cJSON_IsString(news_source) && !strcmp(news_source->valuestring, "jsonfeed")) || news_url) &&
                 (!(cJSON_IsString(widget) && !strcmp(widget->valuestring, "weather")) || (latitude && longitude)) &&
                 (!(cJSON_IsString(widget) && !strcmp(widget->valuestring, "air_quality")) || (latitude && longitude)) &&
                 (!(cJSON_IsString(widget) && !strcmp(widget->valuestring, "weather_alerts")) || (latitude && longitude)) &&
@@ -1681,7 +1697,7 @@ static bool validate_config(const char *json)
             heights[count] = height ? height->valueint : 1;
             if (layout_occupied(item)) occupied |= UINT32_C(1) << count;
         }
-        if (valid) valid = goopad_layout_valid(cols->valueint, rows->valueint, cJSON_IsTrue(hide),
+        if (valid) valid = goopad_layout_valid(cols->valueint, rows->valueint, cJSON_IsTrue(hide) || radial,
                                                 count, widths, heights, occupied);
     }
 #ifdef CONFIG_GOOPAD_HOMEKIT
@@ -2026,6 +2042,10 @@ static esp_err_t config_post_handler(httpd_req_t *req)
     }
     xSemaphoreTake(s_config_lock, portMAX_DELAY);
     strlcpy(s_config, body, CONFIG_MAX_BYTES + 1);
+    portENTER_CRITICAL(&s_action_lock);
+    s_config_revision++;
+    memset(s_request_text, 0, 32 * sizeof(*s_request_text));
+    portEXIT_CRITICAL(&s_action_lock);
     xSemaphoreGive(s_config_lock);
     free(body);
     httpd_resp_set_type(req, "application/json");
@@ -2097,11 +2117,43 @@ typedef struct {
     char certificate[COMPANION_CERT_BYTES];
     bool wake_on_lan;
     bool diagnostic;
+    bool display_response;
+    unsigned config_revision;
+    char response[192];
+    size_t response_size;
+    bool response_truncated;
     uint8_t wake_mac[6];
     unsigned serial;
     unsigned index;
     int64_t queued_at;
 } macro_action_t;
+
+void goopad_request_text(unsigned index, char *out, size_t capacity)
+{
+    if (index >= MAX_MACROS || !out || !capacity) return;
+    portENTER_CRITICAL(&s_action_lock);
+    strlcpy(out, s_request_text[index][0] ? s_request_text[index] : "Tap to fetch", capacity);
+    portEXIT_CRITICAL(&s_action_lock);
+}
+
+static esp_err_t macro_response_event(esp_http_client_event_t *event)
+{
+    macro_action_t *action = event->user_data;
+    if (!action || !action->display_response) return ESP_OK;
+    if (event->event_id == HTTP_EVENT_HEADERS_SENT) {
+        action->response_size = 0;
+        action->response[0] = '\0';
+        action->response_truncated = false;
+    } else if (event->event_id == HTTP_EVENT_ON_DATA && event->data_len > 0) {
+        size_t remaining = sizeof(action->response) - 1 - action->response_size;
+        size_t size = (size_t)event->data_len < remaining ? (size_t)event->data_len : remaining;
+        memcpy(action->response + action->response_size, event->data, size);
+        action->response_size += size;
+        action->response[action->response_size] = '\0';
+        if (size < (size_t)event->data_len) action->response_truncated = true;
+    }
+    return ESP_OK;
+}
 
 typedef struct {
     esp_http_client_handle_t client;
@@ -2135,6 +2187,27 @@ static void action_result(const macro_action_t *action, int status, esp_err_t er
     goopad_diag_record(DIAG_MACRO_RESULT, error, status);
     goopad_diag_record(DIAG_MACRO_LATENCY, error, elapsed);
     portENTER_CRITICAL(&s_action_lock);
+    if (action->display_response && action->config_revision == s_config_revision) {
+        char *text = s_request_text[action->index];
+        if (error != ESP_OK) snprintf(text, sizeof(s_request_text[0]), "Request failed\n%s", esp_err_to_name(error));
+        else if (status < 200 || status >= 300) snprintf(text, sizeof(s_request_text[0]), "HTTP %d\nRequest rejected", status);
+        else if (!action->response_size) snprintf(text, sizeof(s_request_text[0]), "HTTP %d\nNo response body", status);
+        else {
+            size_t size = action->response_size;
+            if (action->response_truncated) {
+                size = sizeof(action->response) - 5;
+                while (size && ((unsigned char)action->response[size] & 0xc0) == 0x80) size--;
+            }
+            if (!goopad_utf8_valid(action->response, size)) strlcpy(text, "Response is not UTF-8 text", sizeof(s_request_text[0]));
+            else {
+                memcpy(text, action->response, size);
+                for (size_t i = 0; i < size; i++)
+                    if (((unsigned char)text[i] < 32 && text[i] != '\n' && text[i] != '\t') || text[i] == 127) text[i] = ' ';
+                text[size] = '\0';
+                if (action->response_truncated) strcat(text, "...");
+            }
+        }
+    }
     if (action->serial == s_action_serial) {
         s_last_action_status = status;
         s_last_action_tls_error = tls_error;
@@ -2219,10 +2292,12 @@ static void run_macro_action(macro_action_t *macro, macro_client_cache_t *cache)
     esp_http_client_config_t cfg = {
         .url = macro->url,
         .timeout_ms = 10000,
+        .event_handler = macro->display_response ? macro_response_event : NULL,
+        .user_data = macro->display_response ? macro : NULL,
     };
     bool cacheable = false;
 #if CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS
-    cacheable = cache && macro->certificate[0];
+    cacheable = cache && macro->certificate[0] && !macro->display_response;
 #endif
     if (cacheable && cache->client &&
         (strcmp(cache->url, macro->url) || strcmp(cache->certificate, macro->certificate)))
@@ -2510,8 +2585,13 @@ static esp_err_t trigger_action(unsigned index, bool navigation, bool skip)
     if (home) snprintf(action->bearer, sizeof(action->bearer), "Bearer %s", home_token->valuestring);
     if (companion) strlcpy(action->certificate, certificate->valuestring, sizeof(action->certificate));
     action->index = index;
+    cJSON *request_type = cJSON_GetObjectItemCaseSensitive(item, "action");
+    action->display_response = !wake && cJSON_IsString(mode) && !strcmp(mode->valuestring, "advanced") &&
+                              cJSON_IsString(request_type) && !strcmp(request_type->valuestring, "http");
     action->queued_at = esp_timer_get_time();
     portENTER_CRITICAL(&s_action_lock);
+    action->config_revision = s_config_revision;
+    if (action->display_response) strlcpy(s_request_text[index], "Loading...", sizeof(s_request_text[index]));
     action->serial = ++s_action_serial;
     s_last_action_index = (int)index;
     s_last_action_status = s_last_action_tls_error = 0;
@@ -2924,10 +3004,19 @@ static esp_err_t status_handler(httpd_req_t *req)
         }
     }
     cJSON *live_widgets = cJSON_AddArrayToObject(root, "liveWidgets");
+    bool battery_available = g_app.power.present && g_app.power.level_pct >= 0 && g_app.power.level_pct <= 100;
+    cJSON_AddBoolToObject(root, "batteryAvailable", battery_available);
+    if (battery_available) cJSON_AddNumberToObject(root, "batteryPercent", g_app.power.level_pct);
+    else cJSON_AddNullToObject(root, "batteryPercent");
     char live_text[MEDIA_TEXT_BYTES];
     for (unsigned i = 0; i < 32; i++) {
         goopad_live_widget_text(i, live_text, sizeof(live_text));
         cJSON_AddItemToArray(live_widgets, cJSON_CreateString(live_text));
+    }
+    cJSON *requests = cJSON_AddArrayToObject(root, "requestResults");
+    for (unsigned i = 0; i < 32; i++) {
+        goopad_request_text(i, live_text, sizeof(live_text));
+        cJSON_AddItemToArray(requests, cJSON_CreateString(live_text));
     }
     portENTER_CRITICAL(&s_live_lock);
     uint32_t media_revision = s_media_revision, media_poll = s_media_poll_ms, media_age = s_media_age_ms;
@@ -3090,6 +3179,7 @@ static void live_widget_task(void *arg)
     bool waiting_for_ready[32] = {false};
     int64_t alert_updated[32] = {0};
     int64_t home_updated[32] = {0};
+    int64_t news_updated[32] = {0};
     int64_t next_nws_request = 0;
     while (true) {
         goopad_get_config(config_json, CONFIG_MAX_BYTES + 1);
@@ -3117,6 +3207,7 @@ static void live_widget_task(void *arg)
             cJSON *currency_quote = item ? cJSON_GetObjectItemCaseSensitive(item, "currencyQuote") : NULL;
             cJSON *home_token = item ? cJSON_GetObjectItemCaseSensitive(item, "homeToken") : NULL;
             bool home_state = !strcmp(kind, "home_state");
+            bool news = !strcmp(kind, "news");
             if (!strcmp(kind, "weather")) {
                 cJSON *lat = cJSON_GetObjectItemCaseSensitive(item, "weatherLatitude");
                 cJSON *lon = cJSON_GetObjectItemCaseSensitive(item, "weatherLongitude");
@@ -3166,6 +3257,14 @@ static void live_widget_task(void *arg)
                         snprintf(url, sizeof(url), "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s", symbol->valuestring, key->valuestring);
                     interval = 21600;
                 }
+            } else if (news) {
+                cJSON *source = cJSON_GetObjectItemCaseSensitive(item, "newsSource");
+                cJSON *feed = cJSON_GetObjectItemCaseSensitive(item, "newsUrl");
+                if (cJSON_IsString(source) && !strcmp(source->valuestring, "jsonfeed")) {
+                    if (cJSON_IsString(feed) && valid_url(feed->valuestring) && !strncmp(feed->valuestring, "https://", 8))
+                        strlcpy(url, feed->valuestring, sizeof(url));
+                } else strcpy(url, "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=5");
+                interval = 600;
             } else if (!strcmp(kind, "github")) {
                 cJSON *user = cJSON_GetObjectItemCaseSensitive(item, "githubUser");
                 if (valid_github_user(user))
@@ -3194,6 +3293,7 @@ static void live_widget_task(void *arg)
                 next[i] = 0;
                 alert_updated[i] = 0;
                 home_updated[i] = 0;
+                news_updated[i] = 0;
                 waiting_for_ready[i] = false;
                 set_live_waiting(i, url[0] ? "Updating..." : "Waiting for data");
             }
@@ -3202,6 +3302,8 @@ static void live_widget_task(void *arg)
                 set_live_text(i, "NWS alerts stale");
             if (home_state && home_updated[i] && now - home_updated[i] > 90)
                 set_live_text(i, "Home state stale");
+            if (news && news_updated[i] && now - news_updated[i] > 1200)
+                set_live_text(i, "News stale");
             if (waiting_for_ready[i] && connected && !time_ready)
                 set_live_waiting(i, "Waiting for time");
             goopad_network_resume_waiting(connected && time_ready, &waiting_for_ready[i], &next[i]);
@@ -3234,7 +3336,7 @@ static void live_widget_task(void *arg)
             if (!strcmp(kind, "weather_alerts")) next_nws_request = now + 30;
             memset(data, 0, 4097);
             esp_http_client_config_t config = {.url = url, .timeout_ms = 250, .is_async = true,
-                                               .disable_auto_redirect = finnhub || home_state};
+                                               .disable_auto_redirect = finnhub || home_state || news};
             client_tls(&config, NULL);
             esp_http_client_handle_t client = esp_http_client_init(&config);
             esp_err_t setup = client ? ESP_OK : ESP_ERR_NO_MEM;
@@ -3250,12 +3352,13 @@ static void live_widget_task(void *arg)
             bool preempted = false;
             int status = 0;
             bool alerts = !strcmp(kind, "weather_alerts");
-            char *alert_data = alerts ? heap_caps_malloc(65537, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
-            if (alerts && !alert_data && setup == ESP_OK) setup = ESP_ERR_NO_MEM;
-            char *response = alerts ? alert_data : data;
+            bool large_response = alerts || news;
+            char *alert_data = large_response ? heap_caps_malloc(65537, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+            if (large_response && !alert_data && setup == ESP_OK) setup = ESP_ERR_NO_MEM;
+            char *response = large_response ? alert_data : data;
             /* Media wins admission, not cancellation of an admitted request:
              * a 500 ms poll must not repeatedly restart a slower TLS handshake. */
-            esp_err_t result = setup == ESP_OK ? goopad_network_background_get(client, response, alerts ? 65536 : 4096, 10000, !finnhub && !home_state,
+            esp_err_t result = setup == ESP_OK ? goopad_network_background_get(client, response, large_response ? 65536 : 4096, 10000, !finnhub && !home_state && !news,
                 network_priority_pending, &status, &preempted) : setup;
             if (client) esp_http_client_cleanup(client);
             network_end();
@@ -3267,9 +3370,16 @@ static void live_widget_task(void *arg)
             }
             cJSON *payload = result == ESP_OK && status == 200 ? cJSON_Parse(response) : NULL;
             free(alert_data);
-            char text[64] = "Data unavailable";
+            char text[384] = "Data unavailable";
             bool weather_valid = false;
-            if (home_state) {
+            if (news) {
+                if (payload && goopad_news_text(payload, text, sizeof(text))) news_updated[i] = now;
+                else {
+                    strcpy(text, status == 429 ? "News provider limit" : "News unavailable");
+                    ESP_LOGW(TAG, "News widget %u unavailable (HTTP %d)", i + 1, status);
+                    news_updated[i] = 0;
+                }
+            } else if (home_state) {
                 strlcpy(text, "Home unavailable", sizeof(text));
                 cJSON *state = payload ? cJSON_GetObjectItemCaseSensitive(payload, "state") : NULL;
                 if (cJSON_IsString(state) && state->valuestring[0] && strlen(state->valuestring) <= 48) {
@@ -3789,6 +3899,8 @@ static esp_err_t icon_delete_handler(httpd_req_t *req)
     cJSON *root = cJSON_Parse(s_config);
     cJSON *macros = root ? cJSON_GetObjectItemCaseSensitive(root, "macros") : NULL;
     bool used = false;
+    cJSON *background = root ? cJSON_GetObjectItemCaseSensitive(root, "backgroundImage") : NULL;
+    if (cJSON_IsString(background) && !strcmp(background->valuestring, key)) used = true;
     for (cJSON *item = macros ? macros->child : NULL; item; item = item->next) {
         cJSON *icon = cJSON_GetObjectItemCaseSensitive(item, "iconImage");
         if (cJSON_IsString(icon) && !strcmp(icon->valuestring, key)) used = true;
@@ -3801,7 +3913,7 @@ static esp_err_t icon_delete_handler(httpd_req_t *req)
         httpd_resp_set_status(req, "409 Conflict");
         return httpd_resp_sendstr(req, "Icon is still used by the layout");
     }
-    const char *suffixes[] = {"rgb565", "rgb565a8", "160.rgb565a8", "gif"};
+    const char *suffixes[] = {"rgb565", "rgb565a8", "160.rgb565a8", "gif", "480.rgb565"};
     bool deleted = false;
     for (unsigned i = 0; i < sizeof(suffixes) / sizeof(suffixes[0]); i++) {
         char path[64];
@@ -4042,6 +4154,9 @@ void goopad_init(void)
     ESP_ERROR_CHECK(esp_netif_sntp_init(&time_config));
     s_config = heap_caps_malloc(CONFIG_MAX_BYTES + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     ESP_ERROR_CHECK(s_config ? ESP_OK : ESP_ERR_NO_MEM);
+    s_request_text = heap_caps_calloc(32, sizeof(*s_request_text), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    s_live_text = heap_caps_calloc(32, sizeof(*s_live_text), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    ESP_ERROR_CHECK(s_request_text && s_live_text ? ESP_OK : ESP_ERR_NO_MEM);
     s_config_lock = xSemaphoreCreateMutex();
     ESP_ERROR_CHECK(s_config_lock ? ESP_OK : ESP_ERR_NO_MEM);
     s_network_lock = xSemaphoreCreateMutex();

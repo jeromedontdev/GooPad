@@ -35,6 +35,25 @@ not soaked again at the user's request. This image is published in
 [v0.7.6](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.6).
 See the [change log](change-log.md) for deployment and validation status.
 
+## 0.7.7 development build (2026-11-27, not installed)
+
+The tile/widget additions build is **2,326,784 bytes**, leaving
+**1,867,520 bytes / 44.53% free** in the unchanged 4 MiB app slot.
+SHA-256: `50dfd9a638036a6bb910214224eebac7861da611175b3a9fa819f2190a1c3425`.
+ESP-IDF 6.1 `reconfigure build` used a fresh SDK configuration seeded from
+`sdkconfig.defaults`, with HomeKit, NVS block device, PSRAM-first custom LVGL
+allocation, compressed fonts and TLS session/performance options enabled;
+hardware AES and render/capacity diagnostics are off. The matching SD editor
+archive is `web-25b659fcb2c2.gwp` (315,446 bytes).
+
+This measures the development worktree, not a released clean-source artifact.
+An earlier local-config build accidentally used the C-library LVGL allocator;
+the final measurement above is the corrected fresh-defaults build.
+No live partition, active/recovery image, physical behavior or five-minute
+soak was verified for 0.7.7. No firmware or SD pack was installed or published.
+Time-format storage and response/headline caches add runtime memory use;
+app-slot headroom is not a measured free-PSRAM budget.
+
 ## Companion-only 0.7.4 release
 
 The [0.7.4 release](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.4)

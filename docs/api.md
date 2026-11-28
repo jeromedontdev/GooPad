@@ -31,7 +31,7 @@ encrypted HAP on TCP port 80, **not** a plaintext editor.
 | `GET /preview-font?name=lobster` | Public, whitelisted SD WOFF2 preview font. Existing names/24-hour cache policy are preserved. Unknown names return 404; missing/damaged resources return 503. |
 | `GET /api/config` | Complete saved JSON, including potentially sensitive configuration. `Cache-Control: no-store`. |
 | `POST /api/config` | Complete JSON, max 12,000 bytes. Validate, commit to NVS, update RAM; returns `{"ok":true}` or also `"restarting":true` for changed HomeKit topology. HTTP 500 can mean a config was saved but restart scheduling failed; inspect the response rather than retrying blindly. |
-| `GET /api/status` | Runtime connection, installed `firmwareVersion`, render counts, audio, last action, cached PC stats and live-widget strings. `lastAction` is the latest tracked HTTP action, not a universal completion record for every tile type. |
+| `GET /api/status` | Runtime connection, installed `firmwareVersion`, render counts, audio, last action, cached PC stats and live-widget strings. `requestResults` contains per-macro cached response text; `batteryAvailable` and nullable `batteryPercent` expose validated board telemetry. `lastAction` is the latest tracked HTTP action, not a universal completion record for every tile type. |
 | `GET /font-licenses` | Public copyright notices and SIL Open Font License for the bundled font subsets. |
 | `GET /api/diagnostics` | Authenticated, no-store report of numeric reset, memory and bounded event records. No configuration, URLs, credentials, SSIDs, location or widget data are included. Events are `[uptimeSeconds,event,result,detail]`; event types are boot (1), network deferred (2), macro result (3), widget request result (4), Wi-Fi disconnect (5), macro latency in milliseconds from queueing to result (6), and serial PC test latency (7; result is HTTP status or negative ESP error). Uptime resets at each boot; RTC-retained records can span soft resets but not power loss. |
 | `POST /api/trigger` | `{"index":0}` uses the **saved**, zero-based macro index and performs the real action. Network and wake actions use a FIFO with one running and up to four waiting; HTTP 429 means the queue is full or unavailable. Acceptance is not action completion. |
@@ -42,9 +42,9 @@ encrypted HAP on TCP port 80, **not** a plaintext editor.
 | `POST /api/ota`, `POST /api/ota/sd` | Upload an app-only binary or install `/sdcard/goopad.bin`. Successful activation schedules a reboot; interrupted/invalid transfers are rejected. |
 | `GET /api/icons` | With no query, returns the embedded gzip index; `q=` searches the matching SD catalog, or `name=` plus `style=` selects a glyph. Search results are bounded; missing/invalid SD catalog fails explicitly. |
 | `POST /api/resources?kind=text\|icons\|web\|styled&sha256=<64-lowercase-hex>` | Authenticated streaming upload of a resource matching the compiled full SHA-256. Requires mounted SD; 96 MiB maximum. Uses staging, integrity/signature checks and atomic rename. Identical content is reused; conflicting immutable content returns 409. Font installation requires reboot. Web requests verify individual asset hashes before serving. |
-| `GET /api/saved-icons?offset=0` | Authenticated SD asset list, up to 24 recognized tile images/GIFs, with a nullable next offset. Screen backgrounds and unrelated files are excluded. |
+| `GET /api/saved-icons?offset=0` | Authenticated SD asset list, up to 24 recognized tile images/GIFs, with a nullable next offset. Add `backgrounds=1` to include recognized 480-pixel backgrounds for the About image manager; the default excludes backgrounds. Unrelated files are always excluded. |
 | `GET /api/icon-match?format=...&size=...&hash=...&offset=0` | Authenticated SHA-256 lookup for normalized 160-pixel RGB565A8/GIF icons or 480-pixel RGB565 backgrounds. Returns a matching `key` or a nullable `next` offset; scans at most 16 matching files per page. |
-| `POST`, `GET`, `DELETE /api/icon?key=...` | Upload, read or delete an SD asset. Upload supports RGB565/alpha, GPR1 RLE and GIF; GET selects format/size via query. Referenced macro icons cannot be deleted. |
+| `POST`, `GET`, `DELETE /api/icon?key=...` | Upload, read or delete an SD asset. Upload supports RGB565/alpha, GPR1 RLE and GIF; GET selects format/size via query. Saved macro icons and the root `backgroundImage` cannot be deleted (409). Deletion removes recognized variants only, including 480-pixel RGB565. |
 | `POST`, `DELETE /api/sound` | Upload/delete SD WAV assets. Deletion checks references. |
 | `DELETE /api/background` | Remove the configured background reference/asset via the dedicated handler. |
 | `POST /api/time` | Set a bounded Unix epoch supplied by the editor. Network time is also started on connection. |
@@ -70,6 +70,45 @@ and visibility settings, optional Companion pairing fields, time offset, and a
 `macros` array. The implementation accepts up to 32 positions and 2–4 rows
 and columns. The exact accepted fields, defaults, combinations and bounds
 are in `validate_config()`. Empty positions are valid.
+
+`screenLayout` is `grid` (default), `ring` or `arc`. Non-grid layouts use the
+same rows/columns, original macro indices and paging, with uniformly sized
+cells inside a circular viewport. They reject spans larger than 1x1.
+`showBattery` is boolean and defaults false; unsupported boards report
+`batteryAvailable:false` and `batteryPercent:null`, never an estimated value.
+Root and tile themes additionally accept `liquid_glass` and `material`.
+`widgetTheme:"device"` or absence inherits those new root palettes; explicit
+`custom` retains custom colors. Older root themes retain historical behavior.
+
+For `actionMode:"advanced"`, `action:"http"` displays the bounded response
+after a GET or POST; `action:"webhook"` is send-only. Capture is limited to
+191 bytes, control characters are sanitized, UTF-8 is validated, and
+truncation is marked `...`. Non-2xx, transport and empty-body results replace
+stale success text. Results are volatile; a successful config save clears them
+and prevents queued results from populating a remapped layout.
+
+Clock/date retain `clockFormat`/`dateFormat` and their legacy preset keys.
+`widget:"datetime"` uses `datetimeFormat`, default `%Y-%m-%d%n%H:%M`.
+Percent formats are at most 96 UTF-8 bytes and support
+`%%`, `%a`, `%A`, `%b`, `%B`, `%d`, `%e`, `%H`, `%I`, `%m`, `%M`, `%S`,
+`%p`, `%P`, `%j`, `%u`, `%w`, `%Y`, `%y`, `%F`, `%T`, `%R`, `%D`, `%r`,
+`%n`, `%t`. Unpadded numeric directives use `%-d`, `%-H`, `%-I`, `%-m`,
+`%-M`, `%-S`, `%-j`, `%-y`. Names are English; the fixed `timeOffsetMinutes`
+applies, not daylight-saving timezone rules. Unsupported directives such as
+`%z`, control characters other than newline/tab, invalid UTF-8 and overlong
+formats are rejected.
+
+`widget:"news"` accepts `newsSource:"hackernews"` (default) or `"jsonfeed"`.
+JSON Feed requires an HTTPS `newsUrl` shorter than 180 characters and without
+URL credentials. The default source uses Algolia's front-page Hacker News
+endpoint. The background worker polls every ten minutes, with a 64 KiB response
+limit and verified TLS; redirects are not followed. It reads up to three
+`items[].title` or `hits[].title` strings, validates UTF-8, flattens control
+whitespace and limits each title to 120 bytes plus an ellipsis. Empty arrays
+show `No headlines`; invalid feeds and failed requests show an error, and old
+results become stale. RSS/Atom XML and clickable article navigation are absent.
+New widget/theme/layout/percent-format values are not downgrade-compatible:
+remove them or restore a compatible configuration before installing older firmware.
 
 Common macro fields include `name`, `icon`, `actionMode`, `action`, `method`,
 `url`, `body`, `secret`, `sound`, colors and shape. Mode-specific fields cover

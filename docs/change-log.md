@@ -853,3 +853,59 @@ not a complete historical changelog.
   worktree administrative directory; the commit and push succeeded and the
   unrelated directory was left alone. No versioned binary release is justified
   until device validation and soak succeed.
+
+## 2026-11-27 - Request results, image cleanup and display widgets
+
+- **Request:** distinguish HTTP/webhook actions, show GET results on tiles,
+  delete saved images from About, fix Layered/Modern appearance, offer themes
+  on every tile, combine date/time with percent formats, add headlines,
+  circular/arched layouts, glass/Material themes and an optional battery reading.
+- **Changes:** `http` web requests show bounded response text; `webhook` stays
+  send-only. Redirect capture resets and config revisions prevent stale text;
+  callback-owning requests are excluded from cached clients. About lists
+  recognized images/GIFs/backgrounds and protects saved/draft references.
+  Layered surfaces/visuals are centered, Modern has an accent, and all tile
+  modes expose presets. Added Date & time, bounded percent formatting with
+  owned UI strings and legacy presets, three-title JSON headline aggregation,
+  shared non-overlapping ring/arch geometry and glass/Material palettes.
+  Battery display defaults off and uses only valid existing board telemetry.
+- **Compatibility/recovery:** no storage, pairing or flash-layout migration.
+  Existing webhooks and time presets retain their meaning; explicit Custom
+  preserves colors. Ring layouts reject enlarged spans. Older firmware does
+  not accept new widgets/themes/layout/percent-format values: restore a
+  compatible layout before downgrade. Glass is simulated, not blur. Headlines
+  support HTTPS JSON Feed/Algolia JSON, not RSS/Atom XML. The Guition has no
+  readable battery gauge and reports unavailable rather than inventing a value.
+- **Validation:** Zig `-Wall -Wextra -Werror` time and news/layout tests passed,
+  including UTF-8/bounds, square-corner circle containment and exact
+  non-overlap for 4-16 positions on 240/480-pixel displays. Actual extracted
+  HTTP response and image-deletion C handlers passed their Node/Zig harnesses.
+  Existing market/layout, alarms, shared Companion config, media gestures and
+  GIF normalization tests passed. Browser `runGooPadEditorTests()` passed
+  5,081 checks across 2,520 layouts; synthetic visual previews were inspected.
+  `python -m unittest discover -s tests -p test_web_resources.py -v` passed
+  all four resource/native-loader tests with the final editor manifest.
+  A verified public HTTPS request to the default Algolia endpoint returned
+  five titled hits within the 64 KiB bound; device polling is not verified.
+  Intermediate ring-overlap, widget-centering and harness-cleanup failures
+  were fixed and affected tests rerun.
+- **Build:** ESP-IDF 6.1 production-defaults `reconfigure build` passed for
+  0.7.7, with HomeKit/NVS block device, custom LVGL allocation, compressed
+  fonts and TLS performance/session options enabled; hardware AES and
+  render/capacity diagnostics off. Initial local SDK config had the custom
+  allocator disabled; it was replaced for this build with a separate fresh
+  default-seeded config, leaving the user's local config intact. Final app:
+  2,326,784 bytes; 1,867,520 bytes free in its 4 MiB slot. Final editor pack
+  `web-25b659fcb2c2.gwp` matches source. Existing FreeRTOS/LVGL deprecation
+  warnings remain; no new source warning was introduced. See the
+  [storage ledger](storage-layout.md) for the measured image digest.
+- **Deployment/soak/publication:** source is ready for scoped commit/push to
+  the GooPad product remote. Board identity, certificate-pinned HTTPS
+  credentials and a valid live recovery slot were not established; visible
+  USB-serial adapters alone are insufficient. No serial reset, firmware/SD
+  installation, physical behavior test or five-minute device soak occurred.
+  No versioned binary release is justified. Remaining delivery: identify and
+  back up the configured device, verify recovery, install matching resources
+  and app-only firmware, test actual changed behavior, soak five minutes, then
+  prepare a clean-source release. Companion is unchanged; no Companion
+  installer build/install is required for this firmware/editor-only change.

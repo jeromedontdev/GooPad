@@ -98,7 +98,7 @@ static char s_homekit_ids[MAX_MACROS][16];
 static int s_homekit_states[MAX_MACROS];
 #endif
 static unsigned s_widget_types[MAX_MACROS];
-static const char *s_widget_formats[MAX_MACROS];
+static char s_widget_formats[MAX_MACROS][GOOPAD_TIME_FORMAT_BYTES + 1];
 static unsigned s_widget_stats[MAX_MACROS];
 static bool s_widget_fahrenheit[MAX_MACROS];
 static lv_obj_t *s_widget_graphics[MAX_MACROS], *s_widget_hands[MAX_MACROS][2], *s_widget_days[MAX_MACROS];
@@ -120,6 +120,7 @@ static void fit_widget_text(unsigned index, const char *text);
 static void update_widget_graphic(unsigned index, const struct tm *now, bool synced);
 static void update_weather_icon(unsigned index);
 static int s_time_offset;
+static lv_obj_t *s_battery_label;
 static bool s_grid_shown;
 static bool s_loading_shown;
 static volatile bool s_scan_in_progress;
@@ -227,6 +228,7 @@ void goopad_ui_capture_frame(const uint8_t *frame, const lv_area_t *area, bool l
 
 static void clear_dynamic_assets(void)
 {
+    s_battery_label = NULL;
     /* Called after LVGL objects are deleted; discard their pointers and free
      * separately owned GIF buffers before rebuilding the screen. */
     s_pages = NULL;
@@ -263,7 +265,7 @@ static void clear_dynamic_assets(void)
         s_homekit_states[i] = -2;
 #endif
         s_widget_types[i] = 0;
-        s_widget_formats[i] = NULL;
+        s_widget_formats[i][0] = '\0';
         s_widget_stats[i] = 0;
         s_widget_fahrenheit[i] = false;
         s_widget_graphics[i] = s_widget_days[i] = NULL;
@@ -338,6 +340,13 @@ static void update_widgets(void)
     epoch += s_time_offset * 60;
     struct tm now;
     gmtime_r(&epoch, &now);
+    if (s_battery_label) {
+        char battery[32];
+        if (g_app.power.present && g_app.power.level_pct >= 0 && g_app.power.level_pct <= 100)
+            snprintf(battery, sizeof(battery), "Battery %d%%", g_app.power.level_pct);
+        else strcpy(battery, "Battery unavailable");
+        if (strcmp(lv_label_get_text(s_battery_label), battery)) lv_label_set_text(s_battery_label, battery);
+    }
     for (unsigned i = 0; i < MAX_MACROS; i++) {
 #ifdef CONFIG_GOOPAD_HOMEKIT
         if (s_homekit_indicators[i]) {
@@ -390,15 +399,20 @@ static void update_widgets(void)
                 else if (!s_alarm_enabled[i]) snprintf(text, sizeof(text), "%s\nOff", s_alarm_times[i]);
                 else if (!synced) strlcpy(text, "Sync time\nin the website", sizeof(text));
                 else snprintf(text, sizeof(text), "%s\nDaily", s_alarm_times[i]);
+            } else if (s_widget_types[i] == 18)
+                goopad_request_text(i, text, sizeof(text));
+            else if (s_widget_types[i] == 17) {
+                if (!synced) strlcpy(text, "Sync time\nin the website", sizeof(text));
+                else if (!goopad_time_text(text, sizeof(text), s_widget_formats[i], &now))
+                    strlcpy(text, "Invalid time format", sizeof(text));
             } else if (s_widget_types[i] >= 6)
                 goopad_live_widget_text(i, text, sizeof(text));
             else if (s_widget_types[i] == 3)
                 goopad_pc_stat_text(s_widget_stats[i], s_widget_fahrenheit[i], text, sizeof(text));
             else if (!synced) strlcpy(text, "Sync time\nin the website", sizeof(text));
             else {
-                strftime(text, sizeof(text), s_widget_formats[i], &now);
-                if (s_widget_types[i] == 1 && !strncmp(s_widget_formats[i], "%I", 2) && text[0] == '0')
-                    memmove(text, text + 1, strlen(text));
+                if (!goopad_time_text(text, sizeof(text), s_widget_formats[i], &now))
+                    strlcpy(text, "Invalid time format", sizeof(text));
             }
             if (strcmp(lv_label_get_text(s_widget_labels[i]), text)) {
                 invalidate_macro_page(i);
@@ -681,7 +695,7 @@ static void create_widget_graphic(unsigned index, lv_obj_t *tile, const char *gr
     lv_obj_t *box = graphic_box(tile, side, side, accent);
     s_widget_graphics[index] = box;
     lv_obj_align(box, LV_ALIGN_TOP_MID, 0, 8 + header);
-    if (type == 1) {
+    if (type == 1 || (type == 17 && mode != 3)) {
         lv_obj_set_style_radius(box, LV_RADIUS_CIRCLE, 0);
         for (unsigned hand = 0; hand < 2; hand++) {
             s_widget_hands[index][hand] = lv_line_create(box);
@@ -690,7 +704,7 @@ static void create_widget_graphic(unsigned index, lv_obj_t *tile, const char *gr
             lv_obj_set_pos(s_widget_hands[index][hand], -2, -2);
         }
         set_clock_hands(index, 10, 10);
-    } else if (type == 2) {
+    } else if (type == 2 || type == 17) {
         lv_obj_t *header = graphic_box(box, side, side < 30 ? 4 : 8, accent);
         lv_obj_set_pos(header, -2, -2);
         lv_obj_set_style_bg_color(header, color(accent), 0);
@@ -1470,8 +1484,7 @@ static void build_grid_screen(void)
     cJSON *device_theme = root ? cJSON_GetObjectItemCaseSensitive(root, "theme") : NULL;
     const char *theme_name = cJSON_IsString(device_theme)
                                  ? device_theme->valuestring : "midnight";
-    bool light_theme = cJSON_IsString(device_theme) &&
-                       strcmp(device_theme->valuestring, "light") == 0;
+    bool light_theme = !strcmp(theme_name, "light") || !strcmp(theme_name, "material");
     s_page_dot_active = light_theme ? 0x334155 : 0xB7C9EE;
     s_page_dot_inactive = light_theme ? 0x94A3B8 : 0x64748B;
     unsigned theme_background = 0x111827;
@@ -1482,6 +1495,12 @@ static void build_grid_screen(void)
     } else if (!strcmp(theme_name, "forest")) {
         accent_color = 0x6EE7B7;
         theme_background = 0x10251D;
+    } else if (!strcmp(theme_name, "liquid_glass")) {
+        accent_color = 0xB8D8FF;
+        theme_background = 0x14283F;
+    } else if (!strcmp(theme_name, "material")) {
+        accent_color = 0x6750A4;
+        theme_background = 0xFFFBFE;
     } else if (light_theme) {
         accent_color = 0x334155;
         theme_background = 0xF1F5F9;
@@ -1570,6 +1589,14 @@ static void build_grid_screen(void)
     s_page_width = screen_width;
     s_page_height = page_height;
     s_page_top = page_top;
+    cJSON *screen_layout = cJSON_GetObjectItemCaseSensitive(root, "screenLayout");
+    bool radial = cJSON_IsString(screen_layout) && strcmp(screen_layout->valuestring, "grid");
+    bool arched = radial && !strcmp(screen_layout->valuestring, "arc");
+    if (cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "showBattery"))) {
+        s_battery_label = label(s_screen, "Battery unavailable", 14, light_theme ? color(0x172033) : lv_color_white());
+        lv_obj_align(s_battery_label, LV_ALIGN_TOP_MID, 0, 18);
+        lv_obj_set_clickable(s_battery_label, false);
+    }
     s_page_count = page_count;
     s_page_cache_enabled = !image_background && page_count > 1;
     lv_obj_set_pos(s_pages, 0, page_top);
@@ -1648,6 +1675,10 @@ static void build_grid_screen(void)
             int row = slot / cols;
             int x = tile_padding + column * (cell_width + tile_gap);
             int y = tile_padding + row * (cell_height + tile_gap);
+            if (radial) {
+                goopad_orbit_t orbit = goopad_orbit_position(screen_width, page_height, per_page, slot, arched);
+                x = orbit.x; y = orbit.y; width = height = orbit.side;
+            }
             cJSON *shape = macro
                 ? cJSON_GetObjectItemCaseSensitive(macro, "shape") : NULL;
             bool circle = cJSON_IsString(shape) &&
@@ -1713,6 +1744,28 @@ static void build_grid_screen(void)
                 cJSON *mode = cJSON_GetObjectItemCaseSensitive(macro, "actionMode");
                 cJSON *widget = cJSON_GetObjectItemCaseSensitive(macro, "widget");
                 bool is_widget = cJSON_IsString(mode) && !strcmp(mode->valuestring, "widget");
+                cJSON *request_type = cJSON_GetObjectItemCaseSensitive(macro, "action");
+                bool is_request = cJSON_IsString(mode) && !strcmp(mode->valuestring, "advanced") &&
+                                  cJSON_IsString(request_type) && !strcmp(request_type->valuestring, "http");
+                cJSON *widget_theme = cJSON_GetObjectItemCaseSensitive(macro, "widgetTheme");
+                const char *style_name = cJSON_IsString(widget_theme) && strcmp(widget_theme->valuestring, "device")
+                    ? widget_theme->valuestring : (!strcmp(theme_name, "liquid_glass") || !strcmp(theme_name, "material")) ? theme_name : NULL;
+                const goopad_widget_style_t *style = goopad_widget_style(style_name);
+                bool glass = style_name && !strcmp(style_name, "liquid_glass");
+                bool material = style_name && !strcmp(style_name, "material");
+                if (style) {
+                    lv_obj_set_style_bg_color(tile, color(style->background), 0);
+                    lv_obj_set_style_bg_grad_color(tile, color(style->gradient), 0);
+                    lv_obj_set_style_border_color(tile, color(style->accent), 0);
+                    text_color = color(style->text);
+                    if (!cJSON_IsString(icon_color)) icon_tint = text_color;
+                }
+                if (glass || material) {
+                    lv_obj_set_style_bg_opa(tile, glass ? LV_OPA_80 : LV_OPA_COVER, 0);
+                    lv_obj_set_style_shadow_width(tile, 6, 0);
+                    lv_obj_set_style_shadow_opa(tile, LV_OPA_20, 0);
+                    lv_obj_set_style_shadow_ofs_y(tile, 2, 0);
+                }
                 bool is_navigation = cJSON_IsString(mode) && !strcmp(mode->valuestring, "page_navigation");
 #ifdef CONFIG_GOOPAD_HOMEKIT
                 bool is_homekit = cJSON_IsString(mode) && !strcmp(mode->valuestring, "homekit");
@@ -1720,7 +1773,7 @@ static void build_grid_screen(void)
                 bool is_homekit = false;
 #endif
                 cJSON *tile_gradient = cJSON_GetObjectItemCaseSensitive(macro, "tileGradient");
-                if (!is_widget && cJSON_IsString(tile_gradient)) {
+                if (!is_widget && !style && cJSON_IsString(tile_gradient)) {
                     lv_obj_set_style_bg_color(tile, color(accent_value), 0);
                     lv_obj_set_style_bg_grad_color(tile, color((unsigned)strtoul(tile_gradient->valuestring, NULL, 16)), 0);
                     lv_obj_set_style_bg_grad_dir(tile, LV_GRAD_DIR_VER, 0);
@@ -1735,6 +1788,20 @@ static void build_grid_screen(void)
                              !strcmp(visual_fit->valuestring, "cover") :
                              !is_widget && cJSON_IsString(image_format) && !strcmp(image_format->valuestring, "gif") &&
                              cJSON_IsString(gif_fit) && !strcmp(gif_fit->valuestring, "cover"));
+                if (!classic && !layered && !cover) {
+                    lv_obj_t *rule = lv_obj_create(tile);
+                    lv_obj_set_size(rule, width / 3, 3);
+                    lv_obj_align(rule, LV_ALIGN_TOP_MID, 0, 6);
+                    cJSON *card_accent = cJSON_GetObjectItemCaseSensitive(macro, "widgetAccent");
+                    lv_obj_set_style_bg_color(rule, style ? color(style->accent) :
+                        cJSON_IsString(card_accent) ? color((unsigned)strtoul(card_accent->valuestring, NULL, 16)) : text_color, 0);
+                    lv_obj_set_style_border_width(rule, 0, 0);
+                    lv_obj_set_style_pad_all(rule, 0, 0);
+                    lv_obj_set_style_shadow_width(rule, 0, 0);
+                    lv_obj_set_style_radius(rule, LV_RADIUS_CIRCLE, 0);
+                    lv_obj_set_scrollable(rule, false);
+                    lv_obj_set_clickable(rule, false);
+                }
                 lv_obj_t *caption_rail = NULL;
                 if (layered && caption[0] && !cover && height >= caption_font->line_height + 32) {
                     caption_rail = lv_obj_create(tile);
@@ -1798,7 +1865,7 @@ static void build_grid_screen(void)
                 cJSON *custom_image = cJSON_GetObjectItemCaseSensitive(macro, "iconImage");
                 bool alpha = cJSON_IsString(image_format) &&
                              !strcmp(image_format->valuestring, "rgb565a8");
-                bool action_card = !classic && !is_widget && caption[0] && !circle && !pill && !soft &&
+                bool action_card = !classic && !layered && !is_widget && !is_request && caption[0] && !circle && !pill && !soft &&
                                    width >= 110 && height >= 100 &&
                                    !cover;
                 cJSON *size_item = cJSON_GetObjectItemCaseSensitive(macro, "iconSize");
@@ -1813,7 +1880,7 @@ static void build_grid_screen(void)
                 }
                 if (icon_size < 16) icon_size = 16;
                 int icon_y = caption[0] ? -10 - caption_extra / 2 : 0;
-                if (layered && !is_widget && !cover) {
+                if (layered && !is_widget && !is_request && !cover) {
                     int plate_size = icon_size + 12;
                     if (plate_size > width - 16) plate_size = width - 16;
                     if (plate_size > height - 16) plate_size = height - 16;
@@ -1838,9 +1905,12 @@ static void build_grid_screen(void)
                 bool image_drawn = false;
                 bool widget_icon = false;
                 int widget_icon_y = 0;
-                if (is_widget) {
+                if (is_widget || is_request) {
                     g_app.widget_count++;
-                    unsigned type = cJSON_IsString(widget) && !strcmp(widget->valuestring, "weather") ? 6 :
+                    unsigned type = is_request ? 18 :
+                                    cJSON_IsString(widget) && !strcmp(widget->valuestring, "news") ? 19 :
+                                    cJSON_IsString(widget) && !strcmp(widget->valuestring, "datetime") ? 17 :
+                                    cJSON_IsString(widget) && !strcmp(widget->valuestring, "weather") ? 6 :
                                     cJSON_IsString(widget) && !strcmp(widget->valuestring, "stock") ? 7 :
                                     cJSON_IsString(widget) && !strcmp(widget->valuestring, "crypto") ? 8 :
                                     cJSON_IsString(widget) && !strcmp(widget->valuestring, "pomodoro") ? 9 :
@@ -1875,13 +1945,12 @@ static void build_grid_screen(void)
                         lv_obj_set_clickable(tile, true);
                         lv_obj_add_event_cb(tile, stopwatch_cb, LV_EVENT_ALL, (void *)(uintptr_t)index);
                     }
-                    cJSON *format = cJSON_GetObjectItemCaseSensitive(macro, type == 2 ? "dateFormat" : "clockFormat");
-                    s_widget_formats[index] = goopad_widget_time_format(type == 2,
-                        cJSON_IsString(format) ? format->valuestring : type == 2 ? "iso" : "24h");
-                    if (!s_widget_formats[index]) {
-                        ESP_LOGW(TAG, "Invalid time format on tile %d; using default", index);
-                        s_widget_formats[index] = type == 2 ? "%Y-%m-%d" : "%H:%M";
-                    }
+                    cJSON *format = cJSON_GetObjectItemCaseSensitive(macro,
+                        type == 17 ? "datetimeFormat" : type == 2 ? "dateFormat" : "clockFormat");
+                    const char *time_format = goopad_widget_time_format(type == 2,
+                        cJSON_IsString(format) ? format->valuestring :
+                        type == 17 ? "%Y-%m-%d%n%H:%M" : type == 2 ? "iso" : "24h");
+                    strlcpy(s_widget_formats[index], time_format ? time_format : "", sizeof(s_widget_formats[index]));
                     cJSON *stat = cJSON_GetObjectItemCaseSensitive(macro, "pcStat");
                     int stat_index = goopad_pc_stat_index(cJSON_IsString(stat) ? stat->valuestring : "summary");
                     s_widget_stats[index] = stat_index >= 0 ? (unsigned)stat_index : 0;
@@ -1889,8 +1958,6 @@ static void build_grid_screen(void)
                     s_widget_fahrenheit[index] = cJSON_IsString(unit) && !strcmp(unit->valuestring, "F");
                     bool long_clock = type == 1 && strlen(s_widget_formats[index]) > 5;
                     bool long_stat = type == 3 && s_widget_stats[index] != 0;
-                    cJSON *widget_theme = cJSON_GetObjectItemCaseSensitive(macro, "widgetTheme");
-                    const goopad_widget_style_t *style = goopad_widget_style(cJSON_IsString(widget_theme) ? widget_theme->valuestring : NULL);
                     cJSON *widget_accent = cJSON_GetObjectItemCaseSensitive(macro, "widgetAccent");
                     unsigned graphic_accent = cJSON_IsString(widget_accent) ?
                         (unsigned)strtoul(widget_accent->valuestring, NULL, 16) : 0xA5B4FC;
@@ -1913,7 +1980,7 @@ static void build_grid_screen(void)
                         lv_obj_set_style_bg_color(caption_rail,
                             lv_color_brightness(text_color) < 128 ? lv_color_white() : lv_color_black(), 0);
                     if (!cJSON_IsString(icon_color)) icon_tint = text_color;
-                    bool panel = !classic &&
+                    bool panel = !classic && !layered &&
                                  width >= 110 && height >= 100 && !circle && !pill && !soft;
                     int header = panel ? 20 : 0;
                     if (layered && !panel && !cover && width >= 80 && height >= 70) {
@@ -1938,7 +2005,8 @@ static void build_grid_screen(void)
                         static const char *stat_titles[] = {"PC STATS", "CPU", "RAM", "RAM USED", "GPU",
                                                              "GPU RAM", "CPU TEMP", "GPU TEMP",
                                                              "DOWNLOAD", "UPLOAD", "FAN"};
-                        const char *title = type == 1 ? "TIME" : type == 2 ? "DATE" : type == 4 ? "COUNTDOWN" :
+                        const char *title = type == 19 ? "NEWS" : type == 17 ? "DATE & TIME" : type == 18 ? "RESPONSE" :
+                                            type == 1 ? "TIME" : type == 2 ? "DATE" : type == 4 ? "COUNTDOWN" :
                                             type == 5 ? "STOPWATCH" : type == 6 ? "WEATHER" : type == 7 ? "STOCK" :
                                             type == 8 ? "CRYPTO" : type == 9 ? "POMODORO" : type == 10 ? "GITHUB" :
                                             type == 11 ? "AIR QUALITY" : type == 12 ? "EXCHANGE" :
@@ -1992,7 +2060,7 @@ static void build_grid_screen(void)
                     } else if (cover) {
                         widget_icon = true;
                     } else {
-                        create_widget_graphic(index, tile, cJSON_IsString(graphic) ? graphic->valuestring : "text",
+                        create_widget_graphic(index, tile, !is_request && cJSON_IsString(graphic) ? graphic->valuestring : "text",
                             type, graphic_accent, width, height, caption[0], caption_extra, header);
                         widget_icon = s_widget_graphic_modes[index] == 6;
                         if (widget_icon) {
@@ -2083,7 +2151,7 @@ static void build_grid_screen(void)
                             lv_obj_set_clickable(image_obj, false);
                             lv_image_set_src(image_obj, &s_icon_images[index]);
                             cJSON *fa_icon = cJSON_GetObjectItemCaseSensitive(macro, "faIcon");
-                            if (cJSON_IsString(fa_icon) && cJSON_IsString(icon_color)) {
+                            if (cJSON_IsString(fa_icon) && (cJSON_IsString(icon_color) || style)) {
                                 lv_obj_set_style_image_recolor(image_obj, icon_tint, 0);
                                 lv_obj_set_style_image_recolor_opa(image_obj, LV_OPA_COVER, 0);
                             }

@@ -105,12 +105,52 @@ Montserrat and essential offline fonts remain embedded. Without matching SD
 fonts, core fallback text remains readable. Some browser previews use similar
 system fonts.
 **Custom web request** sends a GET or POST from GooPad and allows a JSON body
-and optional `X-GooPad-Token` header. Existing service-link tiles remain GET
+and optional `X-GooPad-Token` header. Choose **Show response on tile** to display
+the returned text or JSON after tapping; **Send only (webhook)** sends the
+request without replacing the tile contents. Responses are bounded to 191
+bytes, with explicit HTTP/network/empty-body errors; long responses are
+truncated, not parsed into selectable JSON fields. Existing webhook records
+remain send-only. Existing service-link tiles remain GET
 requests. To open a website on your
 PC, choose **Macro** and the **Open a website** starter or step.
 It uses the Companion pairing in Settings and opens HTTP(S) links in the PC's
 default browser. Existing website tiles keep working. Requests from GooPad
 validate HTTPS certificates.
+
+### New display options (0.7.7 development source)
+
+- **About → Saved images** lists uploaded icons, GIFs and screen backgrounds
+  and deletes unused files. Images referenced by the saved layout or current
+  editor draft are protected. This is not a general SD-card file browser.
+- Every tile's **Appearance** section offers preset themes and **Custom**.
+  Layered centers its inset surface/visual; Modern has an accent and, where
+  space allows, a heading/card layout. Full-cover visuals retain priority.
+  **Liquid glass** uses translucent gradients/highlights, not real blur;
+  **Material** uses flat tonal surfaces. **Device default** inherits these
+  new device palettes without changing historical palettes on older themes.
+- **Widgets → Clock → Date & time** combines both readings. Clock, Date and
+  Date & time accept percent formats: `%H:%M`, `%-I:%M %p`, or
+  `%a %b %-d%n%H:%M`. `%n` starts a new line; `%%` shows a percent sign.
+  English names and the configured fixed UTC offset apply. Existing saved
+  format presets remain supported. See [supported directives](docs/api.md).
+- **Widgets → News → Headlines** displays up to three Hacker News headlines
+  or titles from a custom HTTPS JSON Feed, refreshed every ten minutes.
+  RSS/Atom XML is not supported. Provider/network errors are shown explicitly.
+- **Layout settings → Screen layout** offers Grid, Circular ring and Arched
+  ring. Ring layouts keep existing tile indices/pages but use smaller,
+  non-overlapping square cells; use fewer rows/columns for larger targets.
+  Enlarged tiles require Grid. Physical circular-screen operation is unverified.
+- **Show battery indicator** is off by default. It displays a percentage only
+  when the board supplies valid telemetry. This Guition board has no readable
+  battery gauge and shows **Battery unavailable**; hardware/backend support
+  is required for an actual reading.
+
+These additions are source/build-validated, not yet device-installed or
+published as a binary release. Install the matching SD editor pack with a
+future validated application-only update. Before downgrading, remove new
+widgets/themes/layouts and restore legacy time presets or a compatible backup;
+older firmware does not accept the new configuration values.
+
 To wake a computer, choose **Widgets → PC → Wake-on-LAN** and enter the
 target network adapter's MAC address (on Windows, its **Physical Address** in
 `ipconfig /all`). Enable Wake-on-LAN in the computer's firmware and operating

@@ -64,9 +64,17 @@ footer{padding:20px 26px 32px}a{color:var(--accent)}body.light a{color:#175fb8}
 @media(prefers-reduced-motion:reduce){button{transition:none}}
 .device-frame .preview-dots{margin:10px 0 0}.preview-dots span[aria-current=true]{width:18px;border-radius:8px;transform:none}
 .preview button.caption-rail::before{content:"";position:absolute;inset:auto 0 0;height:var(--rail-height);background:var(--rail-color);pointer-events:none}
-.preview button.action-medallion::after{content:"";position:absolute;left:var(--medallion-left);top:var(--medallion-top);width:var(--medallion-size);height:var(--medallion-size);border-radius:50%;background:var(--medallion-color);pointer-events:none}.preview button.action-medallion>.ico,.preview button.action-medallion>img,.preview button.action-medallion>.icon-mask,.preview button.action-medallion>small{position:relative;z-index:1}
+.preview button.action-medallion::after{content:"";position:absolute;left:50%;top:var(--visual-center);transform:translate(-50%,-50%);width:var(--medallion-size);height:var(--medallion-size);border-radius:50%;background:var(--medallion-color);pointer-events:none}.preview button.action-medallion>.ico,.preview button.action-medallion>img,.preview button.action-medallion>.icon-mask,.preview button.action-medallion>small{position:relative;z-index:1}
 .preview button.widget-surface::after{content:"";position:absolute;left:var(--surface-inset);right:var(--surface-inset);top:var(--surface-top);height:var(--surface-height);border-radius:var(--surface-radius);background:var(--surface-color);pointer-events:none}.preview button.widget-surface>.widget,.preview button.widget-surface>.widget-graphic,.preview button.widget-surface>small{position:relative;z-index:1}
 .preview button.action-card>.ico,.preview button.action-card>img,.preview button.action-card>.icon-mask{position:absolute;left:var(--card-inset);top:var(--card-inset);width:var(--card-icon);height:var(--card-icon)}.preview button.action-card>.ico{display:grid;place-items:center;font-size:var(--card-icon);line-height:1}.preview button.action-card>small{position:absolute;left:var(--card-inset);bottom:var(--card-bottom);width:calc(100% - 2 * var(--card-inset))!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.preview .modern-accent{position:absolute;top:var(--accent-top);left:33.333%;width:33.333%;height:var(--accent-height);border-radius:4px;background:var(--widget-accent);pointer-events:none}
+.preview-page.radial{display:block;position:relative}.preview-page.radial>.preview-cell{position:absolute}
+.preview button.liquid-glass{box-shadow:inset 0 1px 0 #ffffff66,0 2px 6px #0003}
+.preview button.material{box-shadow:0 2px 6px #0003}
+.preview button.action-medallion>.ico,.preview button.action-medallion>img,.preview button.action-medallion>.icon-mask{position:absolute;left:50%;top:var(--visual-center);width:var(--visual-size);height:var(--visual-size);transform:translate(-50%,-50%)!important;display:grid;place-items:center;font-size:var(--visual-size);line-height:1}
+.preview button.caption-rail>small{position:absolute;bottom:var(--caption-bottom);left:8px;width:calc(100% - 16px)!important}
+.preview button.widget-surface>.widget,.preview button.widget-surface>.widget-graphic{transform:translateY(var(--surface-offset))}
+.preview button.widget-surface:not(.has-graphic)>.widget{position:absolute;left:8px;width:calc(100% - 16px);top:calc(var(--surface-top) + var(--surface-height)/2);transform:translateY(-50%)}
 </style>
 </head>
 <body>
@@ -81,6 +89,8 @@ footer{padding:20px 26px 32px}a{color:var(--accent)}body.light a{color:#175fb8}
 <div class="field"><label>Columns</label><select id="cols"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field"><label>Rows per page</label><select id="rows"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field"><label for="deviceTheme">Device theme</label><select id="deviceTheme"><option value="midnight">Midnight</option><option value="ocean">Ocean</option><option value="forest">Forest</option><option value="light">Light</option><option value="slate">Slate</option><option value="violet">Violet</option><option value="ember">Ember</option><option value="berry">Berry</option><option value="teal">Teal</option><option value="black">Black</option><option value="custom">Custom</option></select></div>
+<div class="field"><label for="screenLayout">Screen layout</label><select id="screenLayout"><option value="grid">Grid (default)</option><option value="ring">Circular ring</option><option value="arc">Arched ring</option></select><span class="hint">Ring layouts keep the same page positions and use smaller tiles. Enlarged tiles require Grid. Fewer rows/columns make larger ring icons.</span></div>
+<div class="field"><label><input id="showBattery" type="checkbox"> Show battery indicator</label><span class="hint">Off by default. Requires readable battery telemetry; this Guition board cannot report a battery percentage.</span></div>
 <div class="field" id="customBackground"><label for="background">Custom background</label><input id="background" type="color" value="#111827"></div>
 <div id="backgroundUploadField" class="field wide hidden"><label for="backgroundUpload">Background image (SD card required, up to 15 MB)</label><input id="backgroundUpload" type="file" accept="image/*"><p class="hint">Images are center-cropped to fill the 480×480 screen. Transparent areas use your background color.</p><img id="backgroundSample" class="background-sample hidden" alt="Custom background"><span id="backgroundStatus" class="hint" role="status"></span><button id="removeBackground" type="button">Remove image</button></div>
 <div class="field wide"><span class="hint">Presets use their own background palette. Choose Custom to edit the background; each tile can also override its font, tile, and outline colors.</span></div>
@@ -101,6 +111,7 @@ footer{padding:20px 26px 32px}a{color:var(--accent)}body.light a{color:#175fb8}
 <section class="panel"><h2>Admin password</h2><p class="hint">Set a new password for the admin account. Use 8-64 printable characters. After saving, sign in again with the new password.</p><div class="fields"><div class="field"><label for="newPassword">New password</label><input id="newPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"></div><div class="field"><label for="confirmPassword">Confirm password</label><input id="confirmPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"></div></div><button id="changePassword" class="primary" type="button" style="margin-top:12px">Change admin password</button></section></aside>
 </div></div>
 <div id="aboutView" class="hidden about">
+<section class="panel"><h2>Saved images</h2><p class="hint">Delete unused images, GIFs and backgrounds from SD. Images used by the saved layout cannot be deleted. Clear their references and save first. This does not delete fonts, resources, sounds, backups or pairing.</p><button id="filesLoad" type="button">Browse saved images</button><div id="filesList"></div><div class="toolbar"><button id="filesPrev" class="hidden" type="button">Previous</button><button id="filesNext" class="hidden" type="button">Next</button></div><p id="filesStatus" class="hint" role="status"></p></section>
 <section class="panel"><h2>Diagnostics</h2><p class="hint">Download a bounded diagnostic report to share when requesting help. It contains numeric event codes and memory statistics, not URLs, passwords, tokens, network names or widget data. Raw serial logs and backups are not safe to share.</p><button id="downloadDiagnostics" type="button">Download diagnostic report</button><p id="diagnosticStatus" class="hint" role="status"></p></section>
 <section class="panel"><h2>About GooPad</h2><p>Your local Wi-Fi macro pad. Edit here, save to the device, then press a tile to run its action.</p><p id="firmwareVersion" class="hint">Installed firmware: unavailable</p><div class="toolbar"><a href="https://github.com/jeromedontdev/GooPad/releases/latest/download/GooPadCompanion-Windows.zip" target="_blank" rel="noopener noreferrer">Download Windows Companion app (ZIP)</a><a href="https://github.com/jeromedontdev/GooPad" target="_blank" rel="noopener noreferrer">Source on GitHub</a><a href="https://github.com/jeromedontdev/GooPad/releases" target="_blank" rel="noopener noreferrer">Firmware and releases</a></div><p class="hint">Extract the entire ZIP, then run GooPadCompanion.exe. No Python installation is required for the Windows app. Source and the Python launcher are included. Only run downloads from the GooPad repository.</p></section>
 <section class="panel" id="companionHelp"><h2>Connect your Windows PC</h2><ol><li>Download and extract the Companion ZIP. Run <strong>GooPadCompanion.exe</strong> as your normal Windows user, not as Administrator.</li><li>Keep the app running. Choose <strong>Copy secure pairing</strong>, paste the code in GooPad <strong>Settings → Windows companion</strong>, and choose <strong>Apply secure pairing</strong>. This includes its HTTPS address, private token and public certificate. Only copy it directly from your own PC; never paste a private key.</li><li>Allow the app through Windows Firewall only on a <strong>Private</strong> network. Port 8787 must be reachable from GooPad.</li><li>Choose <strong>Check HTTPS connection</strong>, then <strong>Save settings</strong>. In Tiles, choose <strong>Macro</strong>, pick a starter or add your own steps, then <strong>Save to device</strong>.</li><li>Focus the intended Windows app before pressing a tile. Hotkeys and typed text go to the foreground application; media keys use Windows media controls.</li></ol><p>Both links use HTTPS. GooPad verifies the specific Companion certificate you paired. The PC does the work; it does not need a USB cable to GooPad.</p><p>Upgrading from an older app: import secure pairing and save your PC macros again to update their URLs. Old HTTP actions are blocked until migrated. Your pairing token and local permissions remain unchanged.</p></section>
@@ -152,9 +163,11 @@ function scrollToTile(index){
  updatePreviewDots()
 }
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-const themeBackgrounds={midnight:"111827",ocean:"0B1B2A",forest:"10251D",light:"F1F5F9",slate:"202B3A",violet:"241938",ember:"2F1B1A",berry:"301729",teal:"102F31",black:"000000"};
+const themeBackgrounds={midnight:"111827",ocean:"0B1B2A",forest:"10251D",light:"F1F5F9",slate:"202B3A",violet:"241938",ember:"2F1B1A",berry:"301729",teal:"102F31",black:"000000",liquid_glass:"14283F",material:"FFFBFE"};
 const themeAccents={ocean:"67E8F9",forest:"6EE7B7",light:"334155",slate:"CBD5E1",violet:"D8B4FE",ember:"FDBA74",berry:"FDA4C4",teal:"5EEAD4",black:"E2E8F0"};
 function updateThemeFields(){const custom=$("#deviceTheme").value==="custom";$("#customBackground").classList.toggle("hidden",!custom);$("#backgroundUploadField").classList.toggle("hidden",!custom);$("#background").disabled=!custom;if(!custom)$("#background").value="#"+themeBackgrounds[$("#deviceTheme").value]}
+$("#deviceTheme").insertAdjacentHTML("beforeend",'<option value="liquid_glass">Liquid glass</option><option value="material">Material</option>');
+const previewBattery=document.createElement("p");previewBattery.id="previewBattery";previewBattery.className="hint hidden";previewBattery.style.textAlign="center";$("#preview").before(previewBattery);
 function setForm(){ $("#cols").value=cfg.cols;$("#rows").value=cfg.rows;$("#hideUnconfigured").checked=cfg.hideUnconfigured===true;$("#hideEmptyTiles").checked=cfg.hideEmptyTiles===true;$("#timeOffset").value=cfg.timeOffsetMinutes??-new Date().getTimezoneOffset();$("#background").value="#"+(cfg.background||"111827").replace("#","");$("#deviceTheme").value=cfg.theme||"midnight";$("#companionStatus").textContent=cfg.companionCertificate?"Secure pairing configured.":"Apply a secure pairing code to connect your PC.";updateThemeFields();render()}
 function rawPixelPreview(pixels,side,alpha=false){
  const count=side*side;if(pixels.length!==count*(alpha?3:2))throw Error("Invalid image size.");
@@ -404,10 +417,10 @@ function editorActionMode(m){
  return mode==="simple_link"?"advanced":mode
 }
 const widgetGroups={
- clock:["clock","date","countdown","pomodoro","stopwatch","alarm"],
+ clock:["clock","date","datetime","countdown","pomodoro","stopwatch","alarm"],
  weather:["weather","weather_alerts","air_quality"],
  market:["stock","crypto","exchange_rate"],
- pc:["pc_monitor","now_playing","wake_on_lan"]
+ pc:["pc_monitor","now_playing","wake_on_lan"],news:["news"]
 };
 function widgetGroup(widget){return Object.keys(widgetGroups).find(group=>widgetGroups[group].includes(widget))||"legacy"}
 function widgetSelection(m){return m.actionMode==="wake_on_lan"?"wake_on_lan":m.widget||"clock"}
@@ -437,6 +450,7 @@ function organizeTileEditor(card,openSections,mode){
 }
 function render(){
  // Only the selected tile gets editing controls; cfg remains the shared draft.
+ $("#screenLayout").value=cfg.screenLayout||"grid";$("#showBattery").checked=cfg.showBattery===true;
  const root=$("#macros"),oldCard=root.querySelector(".macro");
  const openSections=oldCard&&Number(oldCard.dataset.index)===selectedTile?Array.from(oldCard.querySelectorAll(".tile-section[open]"),section=>section.dataset.section):null;
  root.replaceChildren();
@@ -471,13 +485,15 @@ function render(){
   <div class="field"><label>Button sound (device speaker)</label><select data-k="sound"><option value="none">None</option><option value="click">Click</option><option value="beep">Beep</option><option value="chime">Chime</option><option value="alert">Alert</option><option value="file">Uploaded WAV / MP3</option></select></div>
   <div class="field wide" data-sound-upload><label>Upload sound (WAV / MP3, at most 30 seconds)</label><input data-k="soundUpload" type="file" accept=".wav,.mp3,audio/wav,audio/mpeg"><span class="hint" data-sound-name>${esc(m.soundName||"Choose a file. Audio is converted in your browser and stored on SD.")}</span></div>
   <div class="field wide mode-field" data-mode-field="page_navigation"><span class="hint">Page navigation tiles have been removed from the editor. This existing tile will keep working until you clear it or choose another action.</span></div>
-  <div class="field wide mode-field" data-mode-field="widget"><label>Widget category</label><select data-widget-category><option value="clock">Clock</option><option value="weather">Weather</option><option value="market">Market</option><option value="pc">PC</option>${m.widget==="github"?'<option value="legacy" disabled>Existing widget</option>':""}</select><label>Widget type</label><select data-k="widget"><option value="clock">Time</option><option value="date">Date</option><option value="countdown">Countdown to a date</option><option value="pomodoro">Pomodoro timer</option><option value="stopwatch">Stopwatch</option><option value="alarm">Alarm</option><option value="weather">Weather</option><option value="weather_alerts">Weather alerts (US NWS)</option><option value="air_quality">Air quality (US AQI)</option><option value="stock">Stock</option><option value="crypto">Cryptocurrency</option><option value="exchange_rate">Exchange rate</option><option value="pc_monitor">PC stats</option><option value="now_playing">PC now playing</option><option value="wake_on_lan">Wake-on-LAN</option>${m.widget==="github"?'<option value="github">GitHub profile stats (existing)</option>':""}<option value="home_state" hidden>Home Assistant state</option></select><details class="widget-help"><summary>Widget tips</summary><span class="hint">PC stats use the pairing in Settings. Time uses synchronized time and the UTC offset in Settings. Tap a stopwatch or Pomodoro to start or pause; hold to reset. Pomodoro pauses and chimes between focus and break phases. Timer state resets when the layout reloads or device restarts.</span></details></div>
+  <div class="field wide mode-field" data-mode-field="widget"><label>Widget category</label><select data-widget-category><option value="clock">Clock</option><option value="weather">Weather</option><option value="market">Market</option><option value="pc">PC</option>${m.widget==="github"?'<option value="legacy" disabled>Existing widget</option>':""}</select><label>Widget type</label><select data-k="widget"><option value="clock">Time</option><option value="date">Date</option><option value="datetime">Date &amp; time</option><option value="countdown">Countdown to a date</option><option value="pomodoro">Pomodoro timer</option><option value="stopwatch">Stopwatch</option><option value="alarm">Alarm</option><option value="weather">Weather</option><option value="weather_alerts">Weather alerts (US NWS)</option><option value="air_quality">Air quality (US AQI)</option><option value="stock">Stock</option><option value="crypto">Cryptocurrency</option><option value="exchange_rate">Exchange rate</option><option value="pc_monitor">PC stats</option><option value="now_playing">PC now playing</option><option value="wake_on_lan">Wake-on-LAN</option>${m.widget==="github"?'<option value="github">GitHub profile stats (existing)</option>':""}<option value="home_state" hidden>Home Assistant state</option></select><details class="widget-help"><summary>Widget tips</summary><span class="hint">PC stats use the pairing in Settings. Time uses synchronized time and the UTC offset in Settings. Tap a stopwatch or Pomodoro to start or pause; hold to reset. Pomodoro pauses and chimes between focus and break phases. Timer state resets when the layout reloads or device restarts.</span></details></div>
   <div class="field" data-widget-option="alarm"><label>Daily alarm time</label><input data-k="alarmTime" type="time" value="${esc(m.alarmTime??"07:00")}"><label><input data-k="alarmEnabled" type="checkbox" ${m.alarmEnabled!==false?"checked":""}> Alarm enabled</label></div>
   <div class="field wide" data-widget-option="alarm"><label>Alarm sound</label><select data-k="alarmSound"><option value="alert">Alert</option><option value="chime">Chime</option><option value="beep">Beep</option></select><span class="hint">Plays once daily using the device's fixed UTC offset and speaker volume. GooPad must be powered on with synchronized time. Missed alarms are not replayed; do not rely on this as your only alarm.</span></div>
   <div class="field" data-widget-option="pomodoro"><label>Focus minutes</label><input data-k="focusMinutes" type="number" min="1" max="180" step="1" value="${esc(m.focusMinutes??25)}"></div>
   <div class="field" data-widget-option="pomodoro"><label>Break minutes</label><input data-k="breakMinutes" type="number" min="1" max="180" step="1" value="${esc(m.breakMinutes??5)}"></div>
-  <div class="field wide" data-widget-option="clock"><label>Time format</label><select data-k="clockFormat"><option value="24h">24-hour (14:30)</option><option value="12h">12-hour (2:30 PM)</option><option value="12h_plain">12-hour, no AM/PM (2:30)</option><option value="24h_seconds">24-hour with seconds (14:30:45)</option><option value="12h_seconds">12-hour with seconds (2:30:45 PM)</option><option value="12h_plain_seconds">12-hour with seconds, no AM/PM (2:30:45)</option></select></div>
-  <div class="field wide" data-widget-option="date"><label>Date format</label><select data-k="dateFormat"><option value="iso">Year-month-day (2026-11-20)</option><option value="mdy">Month/day/year (11/20/2026)</option><option value="dmy">Day/month/year (20/11/2026)</option><option value="month_short">Short month and day (Nov 20)</option></select></div>
+  <div class="field wide" data-widget-option="clock"><label>Time format</label><input data-k="clockFormat" maxlength="96" placeholder="%H:%M"><span class="hint">Examples: %H:%M, %-I:%M %p, %H:%M:%S. Percent formats use English names and the device UTC offset.</span></div>
+  <div class="field wide" data-widget-option="date"><label>Date format</label><input data-k="dateFormat" maxlength="96" placeholder="%Y-%m-%d"><span class="hint">Examples: %Y-%m-%d, %d/%m/%Y, %A, %B %-d. Use %-d for a day without a leading zero.</span></div>
+  <div class="field wide" data-widget-option="datetime"><label>Date &amp; time format</label><input data-k="datetimeFormat" maxlength="96" placeholder="%Y-%m-%d%n%H:%M"><span class="hint">Example: %a, %b %-d%n%-I:%M %p. %n adds a new line; %% shows a percent sign. Also supports %F, %T, %R, %D, %r, %e, %j, %u, %w, %y, %P and %t. Unsupported directives are rejected.</span></div>
+  <div class="field wide" data-widget-option="news"><label>Headline source</label><select data-k="newsSource"><option value="hackernews">Hacker News (technology)</option><option value="jsonfeed">Custom JSON Feed</option></select><label>JSON Feed HTTPS URL (custom source only)</label><input data-k="newsUrl" type="url" maxlength="179" value="${esc(m.newsUrl||"")}" placeholder="https://example.com/feed.json"><span class="hint">Shows up to three headlines; refreshes every ten minutes. Custom feeds need JSON Feed items with title fields, not RSS/Atom XML. HTTPS certificates are verified; redirects, feeds over 64 KiB and malformed responses are rejected. No API key is required for Hacker News.</span></div>
   <div class="field wide" data-widget-option="pc_monitor"><label>PC statistic</label><select data-k="pcStat">${Object.entries(pcStatLabels).map(([key,label])=>`<option value="${key}">${label}</option>`).join("")}</select><span class="hint">Network speed totals non-loopback interfaces. Fan speed is the fastest reported fan and requires LibreHardwareMonitor or OpenHardwareMonitor. GPU readings require supported drivers. Missing readings say Unavailable, never zero.</span></div>
   <div class="field wide" data-widget-option="now_playing"><span class="hint">Pair the Windows Companion in Settings and enable now-playing sharing in the Companion. Tap to play/pause; hold to skip to the next track. Media keys target the PC's active player. Media title and artist are shared with paired devices on your local network.</span></div>
   <div class="field" data-widget-option="pc_temperature"><label>Temperature unit</label><select data-k="temperatureUnit"><option value="C">Celsius</option><option value="F">Fahrenheit</option></select></div>
@@ -509,7 +525,11 @@ function render(){
   <div class="field wide mode-field" data-mode-field="pc_open_url"><label>Website to open on the PC</label><input data-k="pcTarget" type="url" value="${esc(m.pcTarget||"")}" maxlength="179" placeholder="https://example.com"><span class="hint">Uses the Windows companion address and private pairing token in Settings. Opens this website in that PC's default browser.</span></div>
   <div class="field wide mode-field" data-mode-field="home_assistant"><label>Home Assistant HTTPS address</label><input data-k="homeAddress" type="url" value="${esc(m.homeAddress||"")}" placeholder="https://home.example.com"><label>Switch or light entity</label><input data-k="homeEntity" value="${esc(m.homeEntity||"")}" maxlength="100" placeholder="switch.desk_light"><label>Action</label><select data-k="homeOperation"><option value="toggle">Toggle</option><option value="turn_on">Turn on</option><option value="turn_off">Turn off</option></select><label>Long-lived access token</label><input data-k="homeToken" type="password" value="${esc(m.homeToken||"")}" maxlength="512" autocomplete="off"><span class="hint">Create a long-lived token in Home Assistant profile Security. HTTPS must have a publicly trusted certificate; self-signed certificates and HTTP are not accepted. The token is stored in this device configuration and backups; protect both. This action only controls entities available to Home Assistant.</span></div>
   <div class="field wide mode-field" data-mode-field="homekit"><label>Switch name in Apple Home</label><input data-k="homekitName" value="${esc(m.homekitName||"")}" maxlength="24" placeholder="Desk light control"><span class="hint">This virtual switch appears in Apple Home. Use an automation there to control a light. Save first; pairing is in Settings.</span></div>
-  <div class="field wide mode-field" data-mode-field="advanced"><label>Request type</label><select data-k="action"><option value="webhook">Webhook</option><option value="http">HTTP command</option></select><label>Target URL</label><input data-k="url" type="url" value="${esc(m.url)}"><label>Method</label><select data-k="method"><option>GET</option><option>POST</option></select><label>JSON body (POST)</label><textarea data-k="body" rows="2">${esc(m.body)}</textarea><label>Request token (optional)</label><input data-k="secret" value="${esc(m.secret||"")}" maxlength="64" autocomplete="off"></div></div>`;
+  <div class="field wide mode-field" data-mode-field="advanced"><label>Request result</label><select data-k="action"><option value="http">Show response on tile</option><option value="webhook">Send only (webhook)</option></select><span class="hint">Both send HTTP requests. Show response displays bounded plain text or JSON after a tap, for GET or POST. Long responses end with ...; errors replace stale data. Send only reports completion below the preview.</span><label>Target URL</label><input data-k="url" type="url" value="${esc(m.url)}"><label>Method</label><select data-k="method"><option>GET</option><option>POST</option></select><label>JSON body (POST)</label><textarea data-k="body" rows="2">${esc(m.body)}</textarea><label>Request token (optional)</label><input data-k="secret" value="${esc(m.secret||"")}" maxlength="64" autocomplete="off"></div></div>`;
+  card.querySelector("[data-widget-category]").insertAdjacentHTML("beforeend",'<option value="news">News</option>');
+  card.querySelector('[data-k="widget"]').insertAdjacentHTML("beforeend",'<option value="news">News headlines</option>');
+  card.querySelector('[data-k="widgetTheme"]').insertAdjacentHTML("afterbegin",'<option value="device">Device default</option>');
+  card.querySelector('[data-k="widgetTheme"]').insertAdjacentHTML("beforeend",'<option value="liquid_glass">Liquid glass</option><option value="material">Material</option>');
   organizeTileEditor(card,openSections,mode);
   root.append(card);
   card.querySelector("[data-test-action]").onclick=async()=>{
@@ -532,15 +552,19 @@ function render(){
   card.querySelector("[data-widget-category]").value=widgetGroup(widgetSelection(m));
   card.querySelector('[data-k="stockProvider"]').value=stockProvider(m);
   card.querySelector('[data-k="homeOperation"]').value=m.homeOperation||"toggle";
-  card.querySelector('[data-k="clockFormat"]').value=m.clockFormat||"24h";
-  card.querySelector('[data-k="dateFormat"]').value=m.dateFormat||"iso";
+  card.querySelector('[data-k="clockFormat"]').value=timeFormat(false,m.clockFormat);
+  card.querySelector('[data-k="dateFormat"]').value=timeFormat(true,m.dateFormat);
+  card.querySelector('[data-k="datetimeFormat"]').value=m.datetimeFormat||"%Y-%m-%d%n%H:%M";
   card.querySelector('[data-k="alarmSound"]').value=m.alarmSound||"alert";
   card.querySelector('[data-k="pcStat"]').value=m.pcStat||"summary";
   card.querySelector('[data-k="temperatureUnit"]').value=m.temperatureUnit||"C";
-  card.querySelector('[data-k="widgetTheme"]').value=m.widgetTheme||"custom";
+  card.querySelector('[data-k="widgetTheme"]').value=m.widgetTheme||"device";
+  card.querySelector('[data-k="newsSource"]').value=m.newsSource||"hackernews";
+  card.querySelector('[data-k="widgetTheme"]').closest(".field").querySelector("label").textContent="Tile theme";
   card.querySelector('[data-k="widgetLayout"]').value=m.widgetLayout||"panel";
   card.querySelector('[data-k="spanCols"]').value=String(m.spanCols||1);
   card.querySelector('[data-k="spanRows"]').value=String(m.spanRows||1);
+  for(const key of ["spanCols","spanRows"])card.querySelector(`[data-k="${key}"]`).disabled=!!cfg.screenLayout&&cfg.screenLayout!=="grid";
   if(m.countdownAt){const local=new Date((m.countdownAt+Number($("#timeOffset").value)*60)*1000);card.querySelector('[data-k="countdownAt"]').value=local.toISOString().slice(0,10)}
   card.querySelector('[data-k="widgetGraphic"]').value=m.widgetGraphic||"text";
   card.querySelector('[data-k="widgetTextSize"]').value=String(m.widgetTextSize||0);
@@ -575,7 +599,7 @@ function render(){
     if(el.value==="widget"&&m.widget==="home_state"){m.widget="clock";card.querySelector('[data-k="widget"]').value="clock"}
    });
    if(el.dataset.k==="actionMode"){
-    const newCard=()=>{if(!editorActionMode(m)&&!m.widgetLayout){m.widgetLayout="classic";card.querySelector('[data-k="widgetLayout"]').value="classic"}};
+    const newCard=()=>{if(!editorActionMode(m)){if(!m.widgetLayout){m.widgetLayout="classic";card.querySelector('[data-k="widgetLayout"]').value="classic"}if(el.value==="advanced"){m.action="http";card.querySelector('[data-k="action"]').value="http"}}};
     el.addEventListener("input",newCard);el.addEventListener("change",newCard);
    }
    if(["spanCols","spanRows"].includes(el.dataset.k)){
@@ -673,6 +697,36 @@ async function showSavedAssets(card,macro,offset){
   }
  }catch(error){status.textContent="Could not load saved visuals: "+error.message;status.classList.add("error")}
 }
+async function showImageFiles(offset=0){
+ const list=$("#filesList"),status=$("#filesStatus"),prev=$("#filesPrev"),next=$("#filesNext");
+ list.replaceChildren();status.classList.remove("error");status.textContent="Loading saved images...";
+ prev.classList.add("hidden");next.classList.add("hidden");
+ try{
+  const data=await api("/api/saved-icons?offset="+offset+"&backgrounds=1");
+  if(!Array.isArray(data.assets)||!(data.next===null||Number.isInteger(data.next)&&data.next>offset))throw Error("Invalid asset list.");
+  prev.classList.toggle("hidden",offset===0);next.classList.toggle("hidden",data.next===null);
+  prev.onclick=()=>showImageFiles(Math.max(0,offset-24));next.onclick=()=>showImageFiles(data.next);
+  status.textContent=data.assets.length?"Only unused images can be deleted.":"No saved images.";
+  for(const asset of data.assets){
+   if(!/^i[0-9a-f]{16}$/.test(asset.key)||!["gif","rgb565","rgb565a8"].includes(asset.format)||![32,160,480].includes(asset.size))throw Error("Invalid asset entry.");
+   const row=document.createElement("div"),name=document.createElement("span"),remove=document.createElement("button");
+   row.className="toolbar";name.textContent=`${asset.size===480?"Background":asset.format==="gif"?"GIF":"Image"} ${asset.key} (${asset.size} px)`;
+   remove.type="button";remove.className="danger";remove.textContent="Delete";
+   const used=()=>cfg.backgroundImage===asset.key||cfg.macros.some(m=>m.iconImage===asset.key);
+   remove.disabled=used();remove.title=remove.disabled?"Used by the current draft. Clear the reference and save first.":"Delete this saved image";
+   remove.onclick=async()=>{
+    if(pendingUploads||faBusy){status.textContent="Wait for the upload to finish.";return}
+    if(used()){status.textContent="This image is used by the current draft. Clear it and save first.";return}
+    if(!confirm(`Delete saved image ${asset.key} from SD? This cannot be undone.`))return;
+    remove.disabled=true;
+    try{await api("/api/icon?key="+encodeURIComponent(asset.key),{method:"DELETE"});await showImageFiles(offset)}
+    catch(error){status.textContent="Could not delete image: "+error.message;status.classList.add("error");remove.disabled=false}
+   };
+   row.append(name,remove);list.append(row)
+  }
+ }catch(error){status.textContent="Could not load saved images: "+error.message;status.classList.add("error")}
+}
+$("#filesLoad").onclick=()=>showImageFiles();
 const widgetThemes={
  minimal:["0F172A","0F172A","F8FAFC","94A3B8"],neon:["06121C","102A43","CFFAFE","22D3EE"],
  terminal:["081A14","081A14","86EFAC","22C55E"],paper:["F8FAFC","E2E8F0","172033","EF4444"],
@@ -686,8 +740,12 @@ const widgetThemes={
  indigo:["303B83","181D49","F5F3FF","B8B8FF"],arctic:["E5F6FA","A9D6E4","14384A","26718C"],
  lime:["253C20","112417","F2FCE8","A3E635"],plum:["4C2850","21172E","FFF1FF","E9A8F0"],
  copper:["5B3426","291C19","FFF2E5","F4B183"],mono:["424242","151515","FAFAFA","D4D4D4"],
- berry:["621E45","30192F","FFF1F5","FB8BB4"],sky:["DDEEFF","B5D2F2","1A3657","3569AB"]
+ berry:["621E45","30192F","FFF1F5","FB8BB4"],sky:["DDEEFF","B5D2F2","1A3657","3569AB"],
+ liquid_glass:["43546E","27354F","F8FAFF","B8D8FF"],material:["E8DEF8","E8DEF8","1D192B","6750A4"]
 };
+function tileTheme(m){return m.widgetTheme&&m.widgetTheme!=="device"?m.widgetTheme:["liquid_glass","material"].includes(cfg.theme)?cfg.theme:"custom"}
+function tilePalette(m){return widgetThemes[tileTheme(m)]}
+function previewIconColor(m){return m.iconColor||tilePalette(m)?.[2]}
 const previewFonts={lobster:"Goo Script Preview",pacifico:"Goo Pacific Preview",sharetechmono:"Goo Terminal Preview",righteous:"Goo Rounded Preview",acme:"Acme Preview",bangers:"Bangers Preview",patrickhand:"Patrick Hand Preview",pressstart2p:"Press Start Preview",spacemono:"Space Mono Preview"};
 const previewFontStyles=document.createElement("style");
 previewFontStyles.textContent=Object.entries(previewFonts).map(([name,family])=>`@font-face{font-family:"${family}";src:url("${location.protocol==="file:"?`fonts/web/${name}.woff2`:`/preview-font?name=${name}`}") format("woff2")}`).join("\n");
@@ -702,16 +760,17 @@ function formatPreview(element,m,nativeWidth,size){
  if(size)element.style.fontSize=`calc(100cqw * ${size} / ${nativeWidth})`
 }
 function widgetGraphicAllowed(graphic,widget,stat){
- return graphic==="text"||graphic==="custom_icon"||graphic==="icon"&&["clock","date","pc_monitor"].includes(widget)||graphic==="analog"&&widget==="clock"||
-  graphic==="calendar"&&widget==="date"||["bar","ring"].includes(graphic)&&widget==="pc_monitor"&&["summary","cpu","ram","gpu"].includes(stat)
+ return graphic==="text"||graphic==="custom_icon"||graphic==="icon"&&["clock","date","datetime","pc_monitor"].includes(widget)||graphic==="analog"&&["clock","datetime"].includes(widget)||
+  graphic==="calendar"&&["date","datetime"].includes(widget)||["bar","ring"].includes(graphic)&&widget==="pc_monitor"&&["summary","cpu","ram","gpu"].includes(stat)
 }
 function syncWidgetStyle(card,m){
- const widget=m.actionMode==="widget",palette=widget&&widgetThemes[m.widgetTheme];
- card.querySelectorAll("[data-widget-style]").forEach(field=>field.classList.toggle("hidden",!widget));
+ const widget=m.actionMode==="widget",palette=tilePalette(m);
+ card.querySelectorAll("[data-widget-style]").forEach(field=>field.classList.toggle("hidden",!widget&&!field.querySelector('[data-k="widgetTheme"]')&&!(responseTile(m)&&field.querySelector('[data-k="widgetTextSize"]'))));
  card.querySelector('[data-k="widgetGraphic"] option[value="text"]').textContent=m.widget==="weather"?"Automatic weather icon":"Text only";
  for(const [key,value]of [["color",palette?.[0]||m.color],["textColor",palette?.[2]||m.textColor],["outlineColor",palette?.[3]||m.outlineColor||"A5B4FC"],["widgetAccent",palette?.[3]||m.widgetAccent||"A5B4FC"],["widgetGradient",palette?.[1]||m.widgetGradient||m.color||"4F46E5"]]){
   const control=card.querySelector(`[data-k="${key}"]`);control.disabled=!!palette;control.value="#"+value
  }
+ card.querySelector('[data-k="tileGradient"]').disabled=!!palette;
  card.querySelector('[data-k="widgetGraphic"]').querySelectorAll("option").forEach(option=>{option.hidden=option.disabled=!widgetGraphicAllowed(option.value,m.widget||"clock",m.pcStat||"summary")})
 }
 const pcKeyNames=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ",..."0123456789",...Array.from({length:24},(_,i)=>"F"+(i+1)),"ENTER","TAB","ESC","SPACE","BACKSPACE","DELETE","INSERT","HOME","END","PAGEUP","PAGEDOWN","LEFT","RIGHT","UP","DOWN","PRINTSCREEN"];
@@ -803,6 +862,7 @@ function layoutIssue(macros,cols,rows,compact){
   const m=macros[i],width=m.spanCols??1,height=m.spanRows??1,slot=i%cap,column=slot%cols,row=Math.floor(slot/cols);
   if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||column+width>cols||row+height>rows||i+(height-1)*cols+width-1>=32)return "Tile size must fit within its page and the 32 available positions.";
   const enlarged=width>1||height>1;
+  if(enlarged&&cfg.screenLayout&&cfg.screenLayout!=="grid")return "Enlarged tiles require the Grid screen layout.";
   if(enlarged&&compact)return "Turn off Compact configured tiles before enlarging a tile.";
   if(!enlarged&&!macroConfigured(m)&&!m.name&&!m.icon&&!editorActionMode(m))continue;
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
@@ -814,7 +874,8 @@ function layoutIssue(macros,cols,rows,compact){
  return ""
 }
 function visualCover(m){return !!m&&(m.actionMode!=="widget"||m.widgetGraphic==="custom_icon")&&(m.visualFit??(m.actionMode!=="widget"&&m.iconFormat==="gif"?m.gifFit:"contain"))==="cover"}
-function actionCard(m,cols,rows){const d=widgetDimensions(m,cols,rows);return m.widgetLayout!=="classic"&&m.actionMode!=="widget"&&!!m.name&&!["circle","pill","soft"].includes(m.shape)&&d.width>=110&&d.height>=100&&!visualCover(m)}
+function actionCard(m,cols,rows){const d=widgetDimensions(m,cols,rows);return m.widgetLayout!=="classic"&&m.widgetLayout!=="layered"&&m.actionMode!=="widget"&&!responseTile(m)&&!!m.name&&!["circle","pill","soft"].includes(m.shape)&&d.width>=110&&d.height>=100&&!visualCover(m)}
+function responseTile(m){return m?.actionMode==="advanced"&&m.action==="http"}
 function defaultIconColor(m){return m.iconSource==="fontawesome"?"FFFFFF":m.textColor||(cfg.theme==="light"?"172033":"FFFFFF")}
 function preview(){
  // Compact layouts display a filtered list but retain the original macro index.
@@ -826,7 +887,7 @@ function preview(){
  $("#addPage").disabled=hide||count>=Math.ceil(32/cap);$("#removePage").disabled=hide||count<=1;
  const covered=new Set();
  for(let pageIndex=0;pageIndex<count;pageIndex++){
-  const page=document.createElement("div");page.className="preview-page";page.style.setProperty("--cols",cols);page.style.setProperty("--rows",rows);
+  const page=document.createElement("div");page.className="preview-page";page.classList.toggle("radial",!!cfg.screenLayout&&cfg.screenLayout!=="grid");page.style.setProperty("--cols",cols);page.style.setProperty("--rows",rows);
   for(let slot=0;slot<cap;slot++){
    const position=pageIndex*cap+slot;if(covered.has(position))continue;
    const entry=macros[position],m=entry?.macro,index=entry?.index??position;if(hide&&!m)continue;
@@ -834,6 +895,7 @@ function preview(){
    for(let y=0;y<spanRows;y++)for(let x=0;x<spanCols;x++)if(x||y)covered.add(position+y*cols+x);
    const cell=document.createElement("div"),b=document.createElement("button");cell.className="preview-cell";
    cell.style.gridColumn=`${slot%cols+1} / span ${spanCols}`;cell.style.gridRow=`${Math.floor(slot/cols)+1} / span ${spanRows}`;
+   if(cfg.screenLayout&&cfg.screenLayout!=="grid"){const orbit=orbitPosition(deviceDisplay.width,deviceDisplay.height-84,cap,slot,cfg.screenLayout==="arc");cell.style.left=orbit.x/deviceDisplay.width*100+"%";cell.style.top=orbit.y/(deviceDisplay.height-84)*100+"%";cell.style.width=orbit.side/deviceDisplay.width*100+"%";cell.style.height=orbit.side/(deviceDisplay.height-84)*100+"%"}
    b.dataset.shape=m?.shape||"rounded";b.style.border=m?.outline===false?"0":"2px solid #"+(m?.outlineColor||themeAccents[cfg.theme]||"A5B4FC");
    b.type="button";b.dataset.tile=index;b.setAttribute("aria-label",m?.name||m?.widget||"Edit tile");b.setAttribute("aria-pressed",String(index===selectedTile));b.disabled=index>=32;b.draggable=index<32;b.onclick=()=>selectTile(index);
    const cover=visualCover(m);b.classList.toggle("visual-cover",cover);
@@ -841,10 +903,15 @@ function preview(){
    if(!macroConfigured(m)){b.style.background=$("#hideEmptyTiles").checked?"transparent":cfg.theme==="light"?"#e2e8f0":"#1b2432";b.style.border=$("#hideEmptyTiles").checked?"0":`1px solid ${cfg.theme==="light"?"#cbd5e1":"#354153"}`}
    else{
     b.style.background=m.actionMode!=="widget"&&m.tileGradient?`linear-gradient(#${m.color||"4F46E5"},#${m.tileGradient})`:m.widgetLayout==="layered"?`linear-gradient(color-mix(in srgb,#${m.color||"4F46E5"} 90%,white),color-mix(in srgb,#${m.color||"4F46E5"} 80%,black))`:`linear-gradient(#${m.color||"4F46E5"},color-mix(in srgb,#${m.color||"4F46E5"} 90%,black))`;b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.classList.toggle("image-only",!m.name);
+    const preset=tilePalette(m),styleTheme=tileTheme(m);
+    if(preset){b.style.background=`linear-gradient(#${preset[0]},#${preset[1]})`;b.style.color="#"+preset[2];if(m.outline!==false)b.style.borderColor="#"+preset[3]}
+    if(styleTheme==="liquid_glass"){b.classList.add("liquid-glass");b.style.background=`linear-gradient(#${preset[0]}cc,#${preset[1]}cc)`}
+    if(styleTheme==="material")b.classList.add("material");
+    if(m.widgetLayout!=="classic"&&m.widgetLayout!=="layered"&&!cover){const d=widgetDimensions(m,cols,rows),unit=value=>`calc(100cqw * ${value} / ${d.width})`,accent=document.createElement("span");accent.className="modern-accent";accent.setAttribute("aria-hidden","true");b.style.setProperty("--accent-top",unit(6));b.style.setProperty("--accent-height",unit(3));b.style.setProperty("--widget-accent","#"+(preset?.[3]||m.widgetAccent||m.textColor||"FFFFFF"));b.append(accent)}
     if(actionCard(m,cols,rows)){const d=widgetDimensions(m,cols,rows),unit=value=>`calc(100cqw * ${value} / ${d.width})`;b.classList.add("action-card");b.style.setProperty("--card-inset",unit(12));b.style.setProperty("--card-bottom",unit(10));b.style.setProperty("--card-icon",unit(Math.max(16,Math.min(Math.floor(Math.min(d.width,d.height)*42/100),d.height-28-Math.ceil((m.textSize||14)*1.3)))))}
-    if(m.widgetLayout==="layered"&&m.actionMode!=="widget"&&!cover){const d=widgetDimensions(m,cols,rows),card=b.classList.contains("action-card"),fontHeight=Math.ceil((m.textSize||14)*1.3),extra=Math.max(0,fontHeight-16),base=card?Math.min(Math.floor(Math.min(d.width,d.height)*42/100),d.height-28-fontHeight):Math.min(d.width,d.height)-(m.name?32+extra:20),icon=Math.max(16,Math.floor(base*(m.visualScale||100)/100)),size=Math.min(icon+12,d.width-16,d.height-16),fg=parseInt(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"),16),brightness=((fg>>16)*3+((fg>>8)&255)*6+(fg&255))/10,unit=value=>`calc(100cqw * ${value} / ${d.width})`;if(size>=24){b.classList.add("action-medallion");b.style.setProperty("--medallion-size",unit(size));b.style.setProperty("--medallion-left",unit(card?12+(icon-size)/2:(d.width-size)/2));b.style.setProperty("--medallion-top",unit(card?12+(icon-size)/2:(d.height-size)/2+(m.name?-10-extra/2:0)));b.style.setProperty("--medallion-color",brightness<128?"#0003":"#fff3")}}
+    if(m.widgetLayout==="layered"&&m.actionMode!=="widget"&&!responseTile(m)&&!cover){const d=widgetDimensions(m,cols,rows),fontHeight=Math.ceil((m.textSize||14)*1.3),extra=Math.max(0,fontHeight-16),base=Math.min(d.width,d.height)-(m.name?32+extra:20),icon=Math.max(16,Math.floor(base*(m.visualScale||100)/100)),size=Math.min(icon+12,d.width-16,d.height-16),fg=parseInt(preset?.[2]||m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"),16),brightness=((fg>>16)*3+((fg>>8)&255)*6+(fg&255))/10,unit=value=>`calc(100cqw * ${value} / ${d.width})`;if(size>=24){b.classList.add("action-medallion");b.style.setProperty("--medallion-size",unit(size));b.style.setProperty("--visual-center",`calc(50% + 100cqw * ${m.name?-10-extra/2:0} / ${d.width})`);b.style.setProperty("--visual-size",unit(icon));b.style.setProperty("--medallion-color",brightness<128?"#0003":"#fff3")}}
     if(cover){
-     let visual;if(m.imagePreview&&m.faIcon&&m.iconColor){visual=document.createElement("span");visual.className="icon-mask";visual.style.setProperty("--icon-image",`url("${m.imagePreview}")`);visual.style.setProperty("--icon-color","#"+m.iconColor)}
+     let visual;if(m.imagePreview&&m.faIcon&&previewIconColor(m)){visual=document.createElement("span");visual.className="icon-mask";visual.style.setProperty("--icon-image",`url("${m.imagePreview}")`);visual.style.setProperty("--icon-color","#"+previewIconColor(m))}
      else if(m.imagePreview){visual=document.createElement("img");visual.src=m.imagePreview;visual.alt=""}
      else{visual=document.createElement("span");visual.className="ico";visual.textContent=m.iconSource==="emoji"||!m.iconSource?m.icon||"":"";if(m.iconColor)visual.style.color="#"+m.iconColor}
      visual.classList.add("visual-background");visual.setAttribute("aria-hidden","true");b.append(visual)
@@ -852,21 +919,25 @@ function preview(){
       if(visual.classList.contains("icon-mask"))visual.style.setProperty("--icon-image",`url("${source}")`);else visual.src=source
      }).catch(error=>{console.error("Could not prepare visual background preview:",error);msg("Could not prepare visual background preview: "+error.message,true)})
     }
-    if(m.actionMode==="widget"){
-     const palette=widgetThemes[m.widgetTheme];
+    if(m.actionMode==="widget"||responseTile(m)){
+     const palette=tilePalette(m);
      if(palette){b.style.background=`linear-gradient(#${palette[0]},#${palette[1]})`;b.style.color="#"+palette[2];if(m.outline!==false)b.style.borderColor="#"+palette[3]}
      else if(m.widgetGradient)b.style.background=`linear-gradient(#${m.color||"4F46E5"},#${m.widgetGradient})`;
-     const native=widgetDimensions(m,cols,rows),graphic=m.widgetGraphic||"text",panel=m.widgetLayout!=="classic"&&native.width>=110&&native.height>=100&&!["circle","pill","soft"].includes(m.shape),header=panel?20:0,fits=native.height-(m.name?28:12)-header>=(m.widget==="pc_monitor"?50:38);
-     if(m.widgetLayout==="layered"&&!cover&&!panel&&native.width>=80&&native.height>=70){const fontHeight=Math.ceil((m.textSize||14)*1.3),surfaceHeight=native.height-(m.name?36+Math.max(0,fontHeight-16):16),fg=parseInt(palette?.[2]||m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"),16),brightness=((fg>>16)*3+((fg>>8)&255)*6+(fg&255))/10,unit=value=>`calc(100cqw * ${value} / ${native.width})`;if(surfaceHeight>=24){b.classList.add("widget-surface");b.style.setProperty("--surface-inset",unit(m.shape==="circle"?Math.floor(native.width/8):8));b.style.setProperty("--surface-top",unit(8));b.style.setProperty("--surface-height",unit(surfaceHeight));b.style.setProperty("--surface-radius",unit(12));b.style.setProperty("--surface-color",brightness<128?"#0002":"#fff2")}}
+     const native=widgetDimensions(m,cols,rows),graphic=m.widgetGraphic||"text",panel=m.widgetLayout!=="classic"&&m.widgetLayout!=="layered"&&native.width>=110&&native.height>=100&&!["circle","pill","soft"].includes(m.shape),header=panel?20:0,fits=native.height-(m.name?28:12)-header>=(m.widget==="pc_monitor"?50:38);
+     if(m.widgetLayout==="layered"&&!cover&&!panel&&native.width>=80&&native.height>=70){const fontHeight=Math.ceil((m.textSize||14)*1.3),surfaceHeight=native.height-(m.name?36+Math.max(0,fontHeight-16):16),fg=parseInt(palette?.[2]||m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"),16),brightness=((fg>>16)*3+((fg>>8)&255)*6+(fg&255))/10,unit=value=>`calc(100cqw * ${value} / ${native.width})`;if(surfaceHeight>=24){b.classList.add("widget-surface");b.style.setProperty("--surface-inset",unit(m.shape==="circle"?Math.floor(native.width/8):8));b.style.setProperty("--surface-top",unit(8));b.style.setProperty("--surface-height",unit(surfaceHeight));b.style.setProperty("--surface-offset",unit(m.name?-10-Math.max(0,fontHeight-16)/2:0));b.style.setProperty("--surface-radius",unit(12));b.style.setProperty("--surface-color",brightness<128?"#0002":"#fff2")}}
      if(panel){const heading=document.createElement("span"),unit=value=>`calc(100cqw * ${value} / ${native.width})`;b.classList.add("widget-panel");b.style.setProperty("--widget-header",unit(28));b.style.setProperty("--widget-heading-top",unit(9));b.style.setProperty("--widget-heading-left",unit(12));b.style.setProperty("--widget-heading-size",unit(10));b.style.setProperty("--widget-accent","#"+(palette?.[3]||m.widgetAccent||"A5B4FC"));heading.className="widget-heading";heading.setAttribute("aria-hidden","true");heading.textContent=m.widget==="date"?"DATE":m.widget==="countdown"?"COUNTDOWN":m.widget==="stopwatch"?"STOPWATCH":m.widget==="pomodoro"?"POMODORO":m.widget==="alarm"?"ALARM":m.widget==="weather"?"WEATHER":m.widget==="weather_alerts"?"NWS ALERTS":m.widget==="air_quality"?"AIR QUALITY":m.widget==="stock"?"STOCK":m.widget==="crypto"?"CRYPTO":m.widget==="exchange_rate"?"EXCHANGE":m.widget==="github"?"GITHUB":m.widget==="home_state"?"HOME STATE":m.widget==="now_playing"?"NOW PLAYING":m.widget==="pc_monitor"?({summary:"PC STATS",cpu:"CPU",ram:"RAM",ram_used:"RAM USED",gpu:"GPU",gpu_memory:"GPU RAM",cpu_temp:"CPU TEMP",gpu_temp:"GPU TEMP",net_down:"DOWNLOAD",net_up:"UPLOAD",fan:"FAN"}[m.pcStat||"summary"]):"TIME";b.append(heading)}
-     if(!cover&&(graphic!=="text"||m.widget==="weather")&&fits){const image=document.createElement("span");image.className="widget-graphic";image.setAttribute("aria-hidden","true");b.classList.add("has-graphic");b.classList.toggle("has-bar",graphic==="bar");b.append(image)}
-     const widget=document.createElement("span");widget.className="widget";widget.dataset.widget=m.widget||"clock";formatPreview(widget,m,native.width);b.append(widget)
+     if(!responseTile(m)&&!cover&&(graphic!=="text"||m.widget==="weather")&&fits){const image=document.createElement("span");image.className="widget-graphic";image.setAttribute("aria-hidden","true");b.classList.add("has-graphic");b.classList.toggle("has-bar",graphic==="bar");b.append(image)}
+     const widget=document.createElement("span");widget.className="widget";widget.dataset.widget=responseTile(m)?"response":m.widget||"clock";formatPreview(widget,m,native.width);b.append(widget);
+     if(responseTile(m)&&panel)b.querySelector(".widget-heading").textContent="RESPONSE";
+     else if(m.widget==="datetime"&&panel)b.querySelector(".widget-heading").textContent="DATE & TIME"
+     else if(m.widget==="news"&&panel)b.querySelector(".widget-heading").textContent="NEWS";
+     if(styleTheme==="liquid_glass")b.style.background=`linear-gradient(#${preset[0]}cc,#${preset[1]}cc)`
     }
     else if(cover){}
-    else if(m.imagePreview&&m.faIcon&&m.iconColor){const icon=document.createElement("span");icon.className="icon-mask";icon.style.setProperty("--icon-image",`url("${m.imagePreview}")`);icon.style.setProperty("--icon-color","#"+m.iconColor);icon.style.transform=`scale(${(m.visualScale||100)/100})`;b.append(icon)}
+    else if(m.imagePreview&&m.faIcon&&previewIconColor(m)){const icon=document.createElement("span");icon.className="icon-mask";icon.style.setProperty("--icon-image",`url("${m.imagePreview}")`);icon.style.setProperty("--icon-color","#"+previewIconColor(m));icon.style.transform=`scale(${(m.visualScale||100)/100})`;b.append(icon)}
     else if(m.imagePreview){const img=document.createElement("img");img.src=m.imagePreview;img.alt="";img.draggable=false;img.style.transform=`scale(${(m.visualScale||100)/100})`;b.append(img)}
     else{const icon=document.createElement("span");icon.className="ico";icon.textContent=m.iconSource!=="emoji"&&m.iconSource?m.iconImage?"…":"":m.icon||"";if(m.iconColor)icon.style.color="#"+m.iconColor;icon.style.transform=`scale(${(m.visualScale||100)/100})`;b.append(icon)}
-    if(m.name){const d=widgetDimensions(m,cols,rows),fontHeight=Math.ceil((m.textSize||14)*1.3),fg=(m.actionMode==="widget"&&widgetThemes[m.widgetTheme]?.[2])||m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"),rgb=parseInt(fg,16),brightness=((rgb>>16)*3+((rgb>>8)&255)*6+(rgb&255))/10;if(m.widgetLayout==="layered"&&!cover&&d.height>=fontHeight+32){b.classList.add("caption-rail");b.style.setProperty("--rail-height",`calc(100cqw * ${fontHeight+20} / ${d.width})`);b.style.setProperty("--rail-color",brightness<128?"#fff3":"#0003")}const name=document.createElement("small");name.textContent=m.name;name.style.width="100%";formatPreview(name,m,d.width,m.textSize||14);if(b.classList.contains("action-card")&&!m.textAlign)name.style.textAlign="left";b.append(name)}
+    if(m.name){const d=widgetDimensions(m,cols,rows),fontHeight=Math.ceil((m.textSize||14)*1.3),fg=tilePalette(m)?.[2]||m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"),rgb=parseInt(fg,16),brightness=((rgb>>16)*3+((rgb>>8)&255)*6+(rgb&255))/10;if(m.widgetLayout==="layered"&&!cover&&d.height>=fontHeight+32){b.classList.add("caption-rail");b.style.setProperty("--rail-height",`calc(100cqw * ${fontHeight+20} / ${d.width})`);b.style.setProperty("--caption-bottom",`calc(100cqw * 10 / ${d.width})`);b.style.setProperty("--rail-color",brightness<128?"#fff3":"#0003")}const name=document.createElement("small");name.textContent=m.name;name.style.width="100%";formatPreview(name,m,d.width,m.textSize||14);if(b.classList.contains("action-card")&&!m.textAlign)name.style.textAlign="left";b.append(name)}
     if(m.actionMode==="homekit"){const indicator=document.createElement("span");indicator.className="homekit-indicator";indicator.title="Example indicator; live state appears on GooPad";indicator.setAttribute("aria-hidden","true");b.append(indicator)}
    }
    cell.append(b);page.append(cell);
@@ -875,7 +946,20 @@ function preview(){
  }
  scrollPreviewPage(Math.min(previousPage,count-1));updateWidgetPreview()
 }
-let pcMonitorPreview="CPU --%\nRAM --%",pcStatsPreview={},pcStatsFPreview={},liveWidgetPreview=[];
+let pcMonitorPreview="CPU --%\nRAM --%",pcStatsPreview={},pcStatsFPreview={},liveWidgetPreview=[],requestPreview=[],batteryPreview=null;
+const legacyTimeFormats={"24h":"%H:%M","12h":"%-I:%M %p","24h_seconds":"%H:%M:%S","12h_seconds":"%-I:%M:%S %p","12h_plain":"%-I:%M","12h_plain_seconds":"%-I:%M:%S",iso:"%Y-%m-%d",mdy:"%m/%d/%Y",dmy:"%d/%m/%Y",month_short:"%b %d"};
+function timeFormat(date,key){return legacyTimeFormats[key]||key||(date?"%Y-%m-%d":"%H:%M")}
+function validTimeFormat(format){
+ if(typeof format!=="string"||!format||new TextEncoder().encode(format).length>96||/[\x00-\x08\x0b-\x1f\x7f]/.test(format))return false;
+ return !format.replace(/%(-[dHmIMSjy]|[%aAbBdeHImMSpPjuwYyFTRDrnt])/g,"").includes("%")
+}
+function percentTimeText(format,time){
+ if(!validTimeFormat(format))return "Invalid time format";
+ const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],months=["January","February","March","April","May","June","July","August","September","October","November","December"],pad=(v,n=2)=>String(v).padStart(n,"0"),h=time.getUTCHours(),d=time.getUTCDate(),y=time.getUTCFullYear(),month=time.getUTCMonth();
+ const values={a:days[time.getUTCDay()].slice(0,3),A:days[time.getUTCDay()],b:months[month].slice(0,3),B:months[month],d:pad(d),e:String(d).padStart(2," "),H:pad(h),I:pad(h%12||12),m:pad(month+1),M:pad(time.getUTCMinutes()),S:pad(time.getUTCSeconds()),p:h<12?"AM":"PM",P:h<12?"am":"pm",j:pad(Math.floor((time-Date.UTC(y,0,1))/86400000)+1,3),u:String(time.getUTCDay()||7),w:String(time.getUTCDay()),Y:String(y),y:pad(y%100),n:"\n",t:"\t","%":"%"};
+ values.F=`${values.Y}-${values.m}-${values.d}`;values.T=`${values.H}:${values.M}:${values.S}`;values.R=`${values.H}:${values.M}`;values.D=`${values.m}/${values.d}/${values.y}`;values.r=`${values.I}:${values.M}:${values.S} ${values.p}`;
+ return format.replace(/%(-?)(.)/g,(_,plain,key)=>plain?String(Number(values[key])):values[key])
+}
 function widgetTimeText(m,time){
  if(m.widget==="stopwatch")return "00:00:00";
  if(m.widget==="pomodoro")return "Focus\n"+String(m.focusMinutes??25).padStart(2,"0")+":00";
@@ -885,16 +969,14 @@ function widgetTimeText(m,time){
   const offset=Number($("#timeOffset").value)*60,days=Math.max(0,Math.floor((m.countdownAt+offset)/86400)-Math.floor(time.getTime()/86400000));
   return `${days} ${days===1?"day":"days"}`
  }
- const hours=time.getUTCHours(),minutes=String(time.getUTCMinutes()).padStart(2,"0"),seconds=String(time.getUTCSeconds()).padStart(2,"0");
- if(m.widget==="date"){
-  const iso=time.toISOString().slice(0,10),[year,month,day]=iso.split("-");
-  return m.dateFormat==="mdy"?`${month}/${day}/${year}`:m.dateFormat==="dmy"?`${day}/${month}/${year}`:
-   m.dateFormat==="month_short"?`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][time.getUTCMonth()]} ${day}`:iso
- }
- const format=m.clockFormat||"24h",twelve=format.startsWith("12h");
- return `${twelve?hours%12||12:String(hours).padStart(2,"0")}:${minutes}${format.endsWith("_seconds")?":"+seconds:""}${twelve&&!format.includes("_plain")?hours<12?" AM":" PM":""}`
+ return percentTimeText(m.widget==="datetime"?m.datetimeFormat||"%Y-%m-%d%n%H:%M":timeFormat(m.widget==="date",m.widget==="date"?m.dateFormat:m.clockFormat),time)
+}
+function orbitPosition(width,height,count,slot,arc){
+ const step=arc?Math.PI*4/3/Math.max(1,count-1):Math.PI*2/Math.max(1,count),extent=Math.min(width,height)-20,chord=Math.sin(step/2),side=Math.max(1,Math.min(72,Math.floor(extent*chord/(Math.SQRT2*(1+chord)))-2)),radius=(extent-side*Math.SQRT2)/2,angle=(arc?-Math.PI*7/6:-Math.PI/2)+slot*step;
+ return {x:Math.round(width/2+Math.cos(angle)*radius-side/2),y:Math.round(height/2+Math.sin(angle)*radius-side/2),side}
 }
 function widgetDimensions(m,cols,rows){
+ if(cfg.screenLayout&&cfg.screenLayout!=="grid"){const {side}=orbitPosition(deviceDisplay.width,deviceDisplay.height-84,cols*rows,0,cfg.screenLayout==="arc");return {width:side,height:side}}
  const spanCols=m.spanCols||1,spanRows=m.spanRows||1;
  let width=Math.floor((deviceDisplay.width-20-(cols-1)*8)/cols)*spanCols+8*(spanCols-1),height=Math.floor((deviceDisplay.height-104-(rows-1)*8)/rows)*spanRows+8*(spanRows-1);
  if(m.shape==="circle")width=height=Math.min(width,height);
@@ -908,7 +990,7 @@ function widgetGraphicSvg(m,time,text){
   const drops=text.includes("Snow")?"#F8FAFC":text.includes("Storm")?"#FBBF24":"#38BDF8";
   return `<svg viewBox="0 0 100 100" fill="none" stroke="none">${sun?'<circle cx="35" cy="25" r="25" fill="#FBBF24"/>':""}${!clear?'<rect x="20" y="60" width="70" height="20" rx="10" fill="#64748B"/><rect x="20" y="50" width="70" height="20" rx="10" fill="#CBD5E1"/><circle cx="50" cy="50" r="20" fill="#CBD5E1"/><circle cx="75" cy="55" r="15" fill="#CBD5E1"/>':""}${rain?`<circle cx="35" cy="85" r="5" fill="${drops}"/><circle cx="55" cy="85" r="5" fill="${drops}"/><circle cx="75" cy="85" r="5" fill="${drops}"/>`:text.includes("Fog")?'<rect x="20" y="80" width="70" height="10" rx="5" fill="#CBD5E1"/>':""}</svg>`
  }
- const graphic=m.widgetGraphic||"text",accent="#"+(widgetThemes[m.widgetTheme]?.[3]||m.widgetAccent||"A5B4FC");
+ const graphic=m.widgetGraphic||"text",accent="#"+(tilePalette(m)?.[3]||m.widgetAccent||"A5B4FC");
  const usage=(m.pcStat||"summary")==="summary"?text.split("\n")[0]:text,match=usage.match(/(?:^|\s)(\d+(?:\.\d+)?)%/),value=match?Math.min(100,Math.max(0,Number(match[1]))):0;
  let drawing;
  if(graphic==="bar")drawing=`<rect x="3" y="5" width="94" height="8" rx="4" opacity=".2" fill="currentColor"/><rect x="3" y="5" width="${94*value/100}" height="8" rx="4" fill="currentColor"/>`;
@@ -923,7 +1005,7 @@ function widgetGraphicSvg(m,time,text){
 }
 function drawWidgetIcon(element,m){
  element.replaceChildren();
- if(m.imagePreview&&m.faIcon&&m.iconColor){const icon=document.createElement("span");icon.className="icon-mask";icon.style.setProperty("--icon-image",`url("${m.imagePreview}")`);icon.style.setProperty("--icon-color","#"+m.iconColor);element.append(icon)}
+ if(m.imagePreview&&m.faIcon&&previewIconColor(m)){const icon=document.createElement("span");icon.className="icon-mask";icon.style.setProperty("--icon-image",`url("${m.imagePreview}")`);icon.style.setProperty("--icon-color","#"+previewIconColor(m));element.append(icon)}
  else if(m.imagePreview){const img=document.createElement("img");img.src=m.imagePreview;img.alt="";element.append(img)}
  else{const icon=document.createElement("span");icon.className="ico";icon.textContent=m.iconSource==="emoji"||!m.iconSource?m.icon||"":"";if(m.iconColor)icon.style.color="#"+m.iconColor;element.append(icon)}
 }
@@ -941,13 +1023,15 @@ function fitWidgetPreview(element,m){
  element.style.fontSize=Math.max(1,size)+"px";element.style.lineHeight="1.4"
 }
 function updateWidgetPreview(){
+ $("#previewBattery").classList.toggle("hidden",cfg.showBattery!==true);
+ $("#previewBattery").textContent=batteryPreview===null?"Battery unavailable":`Battery ${batteryPreview}%`;
  const offset=Number($("#timeOffset").value);
  if(!Number.isInteger(offset)||offset < -840||offset > 840){$("#preview").querySelectorAll("[data-widget]").forEach(element=>element.textContent="Invalid UTC offset");return}
  const time=new Date(Date.now()+offset*60000);
  $("#preview").querySelectorAll("[data-widget]").forEach(element=>{
   const index=Number(element.closest("[data-tile]").dataset.tile),macro=cfg.macros[index],stat=macro.pcStat||"summary";
-  element.textContent=element.dataset.widget==="pc_monitor"?(macro.temperatureUnit==="F"&&pcStatsFPreview[stat]||pcStatsPreview[stat]||(stat==="summary"?pcMonitorPreview:"PC sampling")):
-   ["weather","weather_alerts","air_quality","stock","crypto","github","exchange_rate","home_state","now_playing"].includes(element.dataset.widget)?liveWidgetPreview[index]||"Save to load data":widgetTimeText(macro,time);
+  element.textContent=element.dataset.widget==="response"?(requestPreview[index]||"Tap to fetch"):element.dataset.widget==="pc_monitor"?(macro.temperatureUnit==="F"&&pcStatsFPreview[stat]||pcStatsPreview[stat]||(stat==="summary"?pcMonitorPreview:"PC sampling")):
+   ["weather","weather_alerts","air_quality","stock","crypto","github","exchange_rate","home_state","now_playing","news"].includes(element.dataset.widget)?liveWidgetPreview[index]||"Save to load data":widgetTimeText(macro,time);
   element.style.setProperty("--widget-chars",Math.max(...element.textContent.split("\n").map(line=>line.length)))
   const graphic=element.closest("button").querySelector(".widget-graphic");
   if(graphic){if(macro.widgetGraphic==="custom_icon")drawWidgetIcon(graphic,macro);else graphic.innerHTML=widgetGraphicSvg(macro,time,element.textContent)}
@@ -963,6 +1047,8 @@ async function refreshMonitorPreview(){
   for(const [key,required] of [["pcStats",Object.keys(pcStatLabels)],["pcStatsF",["cpu_temp","gpu_temp"]]]){if(!data[key]||required.some(stat=>typeof data[key][stat]!=="string"||!data[key][stat].length||data[key][stat].length>64))throw Error("Update firmware to use configurable PC stats.")}
   pcMonitorPreview=data.pcMonitor;pcStatsPreview=data.pcStats;pcStatsFPreview=data.pcStatsF;
   liveWidgetPreview=Array.isArray(data.liveWidgets)?data.liveWidgets:[];
+  requestPreview=Array.isArray(data.requestResults)?data.requestResults:[];
+  batteryPreview=data.batteryAvailable===true&&Number.isInteger(data.batteryPercent)&&data.batteryPercent>=0&&data.batteryPercent<=100?data.batteryPercent:null;
   if(data.lastAction){let result=$("#actionStatus");if(!result){result=document.createElement("p");result.id="actionStatus";result.className="status";result.setAttribute("role","status");$("#saveStatus").after(result)}result.textContent=data.lastAction.message||"";result.style.color=data.lastAction.running||data.lastAction.success?"var(--green)":"#ef4444"}
  }
  catch(error){pcMonitorPreview="PC unavailable\n"+error.message.slice(0,40);pcStatsPreview=Object.fromEntries(Object.keys(pcStatLabels).map(key=>[key,pcMonitorPreview]));pcStatsFPreview={}}
@@ -1079,6 +1165,9 @@ function parseWebUrl(value,label){
  return parsed.href
 }
 function prepareMacroAction(m,index){
+ for(const [key,date] of [["clockFormat",false],["dateFormat",true],["datetimeFormat",false]]){
+  if(m[key]!==undefined&&!validTimeFormat(key==="datetimeFormat"?m[key]:timeFormat(date,m[key])))throw Error(`Button ${index+1}: invalid ${key}. Use supported percent directives (maximum 96 bytes).`);
+ }
  // Translate guided choices into the durable wire format before device validation.
  if(m.actionMode==="display"){
   if(!["image","gif"].includes(m.iconSource)||!m.iconImage)throw Error(`Button ${index+1}: choose an image or GIF for the image-only tile.`);
@@ -1090,6 +1179,12 @@ function prepareMacroAction(m,index){
  if(m.actionMode!=="wake_on_lan")delete m.wakeMac;
  if(m.actionMode==="widget"){
   m.widget=m.widget||"clock";m.sound="none";m.method="GET";m.action="http";m.body="";
+  if(m.widget==="news"){
+   m.newsSource=m.newsSource||"hackernews";
+   if(!["hackernews","jsonfeed"].includes(m.newsSource))throw Error(`Button ${index+1}: choose a headline source.`);
+   if(m.newsSource==="jsonfeed"){m.newsUrl=parseWebUrl(m.newsUrl,`Button ${index+1} news feed`);if(!m.newsUrl.startsWith("https://")||m.newsUrl.length>=180)throw Error(`Button ${index+1}: use a JSON Feed HTTPS URL under 180 characters.`)}
+   else delete m.newsUrl;
+  }else{delete m.newsSource;delete m.newsUrl}
   if(m.widget==="alarm"){
    if(m.alarmTime===undefined)m.alarmTime="07:00";
    if(!/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(m.alarmTime))throw Error(`Button ${index+1}: choose a valid alarm time.`);
@@ -1323,6 +1418,13 @@ $("#deviceTheme").onchange=()=>{
  cfg.theme=$("#deviceTheme").value;updateThemeFields();cfg.background=$("#background").value.slice(1).toUpperCase();preview()
 };
 $("#background").oninput=()=>{cfg.background=$("#background").value.slice(1).toUpperCase();preview()};
+$("#showBattery").onchange=()=>{cfg.showBattery=$("#showBattery").checked;updateWidgetPreview()};
+$("#screenLayout").onchange=()=>{
+ const previous=cfg.screenLayout;cfg.screenLayout=$("#screenLayout").value;
+ const issue=layoutIssue(cfg.macros,Number($("#cols").value),Number($("#rows").value),$("#hideUnconfigured").checked);
+ if(issue){cfg.screenLayout=previous;$("#screenLayout").value=previous||"grid";msg(issue,true);return}
+ render()
+};
 $("#changePassword").onclick=async()=>{
  const password=$("#newPassword").value,confirmation=$("#confirmPassword").value;
  if(!/^[\x20-\x7e]{8,64}$/.test(password)){msg("Password must be 8-64 printable ASCII characters.",true);return}

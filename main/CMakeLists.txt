@@ -30,6 +30,8 @@ set(goopad_sources
         "goopad_network.c"
         "goopad_alerts.c"
         "goopad_alarm.c"
+        "goopad_time.c"
+        "goopad_news.c"
         "goopad_market.c"
         "goopad_ui.c"
         "goopad_fonts.c"

@@ -38,6 +38,80 @@ globalThis.runGooPadEditorTests = async function () {
   check(invalidDisplay,"Partial display capabilities are rejected rather than silently replaced");
   setDeviceDisplay({});
   check(![...document.querySelector('#rows').options].find(option=>option.value==="4").disabled,"Legacy firmware retains 480x480 grid support");
+  reset({cols:3,rows:3,pageCount:1,macros:[make(0)]});selectTile(0);
+  check(!document.querySelector("#showBattery").checked&&document.querySelector("#previewBattery").classList.contains("hidden"),"Battery indicator defaults off");
+  document.querySelector("#showBattery").checked=true;document.querySelector("#showBattery").dispatchEvent(new Event("change"));
+  batteryPreview=null;updateWidgetPreview();check(document.querySelector("#previewBattery").textContent==="Battery unavailable","Unsupported telemetry never invents a percentage");
+  batteryPreview=65;updateWidgetPreview();check(document.querySelector("#previewBattery").textContent==="Battery 65%","Available battery percentage is displayed");
+  for(const layout of ["ring","arc"]){
+   const control=document.querySelector("#screenLayout");control.value=layout;control.dispatchEvent(new Event("change"));
+   check(cfg.screenLayout===layout&&document.querySelector(".preview-page.radial")&&document.querySelector('[data-k="spanCols"]').disabled,"Ring layout is previewed and disables enlargement: "+layout);
+   const tiles=[...document.querySelectorAll(".preview-cell")].map(cell=>cell.getBoundingClientRect());
+   for(let i=0;i<tiles.length;i++)for(let j=0;j<i;j++)check(tiles[i].right<=tiles[j].left+.1||tiles[j].right<=tiles[i].left+.1||tiles[i].bottom<=tiles[j].top+.1||tiles[j].bottom<=tiles[i].top+.1,"Ring tiles do not overlap");
+  }
+  document.querySelector("#screenLayout").value="grid";document.querySelector("#screenLayout").dispatchEvent(new Event("change"));
+  change("spanCols","2");document.querySelector("#screenLayout").value="arc";document.querySelector("#screenLayout").dispatchEvent(new Event("change"));
+  check(cfg.screenLayout==="grid"&&document.querySelector("#screenLayout").value==="grid","Ring selection refuses existing enlarged tiles without changing them");
+  change("spanCols","1");
+  for(const theme of ["liquid_glass","material"]){
+   document.querySelector("#deviceTheme").value=theme;document.querySelector("#deviceTheme").dispatchEvent(new Event("change"));
+   check(document.querySelector('[data-tile="0"]').classList.contains(theme==="liquid_glass"?"liquid-glass":"material"),"New device theme styles default tiles: "+theme);
+  }
+  check(previewIconColor({widgetTheme:"device"})==="1D192B"&&previewIconColor({widgetTheme:"device",iconColor:"ABCDEF"})==="ABCDEF","Font Awesome preview inherits preset text color but preserves explicit tint");
+  reset({pageCount:1,macros:[{...make(0),widgetLayout:"layered",widgetGraphic:"text"}]});
+  const layeredWidget=document.querySelector('[data-tile="0"]'),surface=getComputedStyle(layeredWidget,"::after"),widgetBounds=layeredWidget.querySelector(".widget").getBoundingClientRect();
+  const surfaceCenter=layeredWidget.getBoundingClientRect().top+layeredWidget.clientTop+parseFloat(surface.top)+parseFloat(surface.height)/2;
+  check(Math.abs((widgetBounds.top+widgetBounds.bottom)/2-surfaceCenter)<2,"Layered widget text centers in its inset surface above the caption");
+  selectTile(0);
+  change("widget","news");change("newsSource","jsonfeed");change("newsUrl","https://example.com/feed.json");
+  prepareMacroAction(cfg.macros[0],0);render();
+  check(cfg.macros[0].newsUrl==="https://example.com/feed.json"&&document.querySelector('[data-k="newsSource"]').value==="jsonfeed","Custom headline source survives saving and reopening");
+  let invalidFeed=false;try{prepareMacroAction({...cfg.macros[0],newsUrl:"http://example.com/feed.json"},0)}catch{invalidFeed=true}
+  check(invalidFeed,"News feeds require verified HTTPS");
+  liveWidgetPreview=["First headline\nSecond headline"];updateWidgetPreview();
+  check(document.querySelector('[data-tile="0"] .widget').textContent==="First headline\nSecond headline","News tiles use the cached aggregator results");
+  requestPreview=[];batteryPreview=null;liveWidgetPreview=[];
+  const sampleTime=new Date("2026-11-07T14:03:09Z");
+  check(percentTimeText("%A %B %-d%n%-I:%M:%S %p %%",sampleTime)==="Saturday November 7\n2:03:09 PM %","Percent formats support names, unpadded values, newlines and literals");
+  check(widgetTimeText({widget:"clock",clockFormat:"12h_seconds"},sampleTime)==="2:03:09 PM","Legacy clock formats retain their readings");
+  check(widgetTimeText({widget:"date",dateFormat:"mdy"},sampleTime)==="11/07/2026","Legacy date formats retain their readings");
+  for(const format of ["%","%Q","%-A","%100Y","%z","x".repeat(97),"bad\rformat"]){
+   let rejected=false;try{prepareMacroAction({...make(0),clockFormat:format},0)}catch{rejected=true}
+   check(rejected,"Invalid percent format is rejected: "+format);
+  }
+  reset({pageCount:1,macros:[make(0)]});selectTile(0);change("widget","datetime");
+  check(!document.querySelector('[data-widget-option="datetime"]').classList.contains("hidden"),"Date & time widget exposes its format");
+  change("datetimeFormat","%a %b %-d%n%H:%M");prepareMacroAction(cfg.macros[0],0);render();
+  check(document.querySelector('[data-k="datetimeFormat"]').value==="%a %b %-d%n%H:%M"&&widgetTimeText(cfg.macros[0],sampleTime)==="Sat Nov 7\n14:03","Combined format survives preparation and reopening");
+  for(const mode of ["advanced","sound","pc_macro","homekit","wake_on_lan","display"]){
+   reset({pageCount:1,macros:[{...emptyMacro(),actionMode:mode,url:"https://example.com/",icon:"★",sound:"beep",iconSource:"emoji"}]});selectTile(0);
+   check(!document.querySelector('[data-k="widgetTheme"]').closest(".field").classList.contains("hidden"),"Preset themes are available on "+mode);
+   change("widgetTheme","paper");
+   check(document.querySelector('[data-tile="0"]').style.color==="rgb(23, 32, 51)"&&document.querySelector('[data-k="color"]').disabled,"Action theme applies text and locks custom colors");
+   change("widgetTheme","custom");check(!document.querySelector('[data-k="color"]').disabled,"Custom colors can be restored");
+  }
+  reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);change("actionMode","advanced");change("url","https://example.com/");
+  check(cfg.macros[0].action==="http"&&document.querySelector('[data-tile="0"] [data-widget="response"]'),"New web request defaults to displaying its response");
+  requestPreview=["<b>42</b>"];updateWidgetPreview();
+  check(document.querySelector('[data-tile="0"] .widget').textContent==="<b>42</b>"&&!document.querySelector('[data-tile="0"] .widget b'),"HTTP response renders text, not HTML");
+  change("action","webhook");check(!document.querySelector('[data-tile="0"] .widget'),"Send-only webhook does not display response data");
+  const fileKey="i0000000000000001",backgroundKey="i0000000000000002",unusedKey="i0000000000000003";
+  reset({pageCount:1,backgroundImage:backgroundKey,macros:[{...make(0),iconImage:fileKey}]});
+  let deletedFile,failDelete=false;
+  globalThis.confirm=()=>true;
+  globalThis.fetch=async(url,options={})=>{
+   if(url==="/api/saved-icons?offset=0&backgrounds=1")return new Response(JSON.stringify({assets:[{key:fileKey,format:"rgb565a8",size:160},{key:backgroundKey,format:"rgb565",size:480},{key:unusedKey,format:"gif",size:160}],next:24}));
+   if(options.method==="DELETE"){deletedFile=url;return new Response(failDelete?"Icon is still used by the layout":"{}",{status:failDelete?409:200})}
+   throw Error("Unexpected file manager request "+url);
+  };
+  await showImageFiles();
+  const deleteButtons=()=>[...document.querySelectorAll("#filesList button")];
+  check(deleteButtons()[0].disabled&&deleteButtons()[1].disabled&&!deleteButtons()[2].disabled,"File manager protects draft images and backgrounds");
+  check(!document.querySelector("#filesNext").classList.contains("hidden"),"File manager exposes pagination");
+  await deleteButtons()[2].onclick();check(deletedFile==="/api/icon?key="+unusedKey,"File manager uses protected deletion API");
+  failDelete=true;await deleteButtons()[2].onclick();
+  check(document.querySelector("#filesStatus").textContent.includes("Icon is still used")&&!deleteButtons()[2].disabled,"Deletion failures stay visible and can be retried");
+  globalThis.fetch=fetchOriginal;globalThis.confirm=confirmOriginal;
   globalThis.fetch=fetchOriginal;
   reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);
   const actionOptions=[...document.querySelector('[data-k="actionMode"]').options].map(option=>option.textContent);
@@ -111,7 +185,7 @@ globalThis.runGooPadEditorTests = async function () {
   change("clockFormat","12h_seconds");change("widgetGraphic","analog");change("widgetGraphic","text");
   check(!clockOptions.classList.contains("hidden")&&cfg.macros[0].clockFormat==="12h_seconds","Clock options stay visible and preserve the selected format after other widget edits");
   render();
-  check(!document.querySelector('[data-widget-option="clock"]').classList.contains("hidden")&&document.querySelector('[data-k="clockFormat"]').value==="12h_seconds","Clock format stays visible after reopening");
+  check(!document.querySelector('[data-widget-option="clock"]').classList.contains("hidden")&&document.querySelector('[data-k="clockFormat"]').value==="%-I:%M:%S %p","Legacy clock format reopens as an editable percent format");
   change("widget","exchange_rate");
   check(!document.querySelector('[data-widget-option="exchange_rate"]').classList.contains("hidden"),"Exchange rate currency fields are visible");
   change("currencyBase","usd");change("currencyQuote","eur");
@@ -150,7 +224,7 @@ globalThis.runGooPadEditorTests = async function () {
   change("widgetLayout","classic");
   check(!document.querySelector('[data-tile="0"] .widget-heading')&&!document.querySelector('[data-tile="0"]').classList.contains("caption-rail"),"Classic widget has no modern heading or layered surfaces");
   change("widgetLayout","layered");
-  check(document.querySelector('[data-tile="0"] .widget-heading')&&document.querySelector('[data-tile="0"]').classList.contains("caption-rail"),"Layered widget uses the new surfaces");
+  check(!document.querySelector('[data-tile="0"] .widget-heading')&&document.querySelector('[data-tile="0"]').classList.contains("caption-rail")&&document.querySelector('[data-tile="0"]').classList.contains("widget-surface"),"Layered widget centers its content without a modern heading");
   render();
   check(document.querySelector('[data-k="widgetLayout"]').value==="layered"&&JSON.parse(JSON.stringify(cfg)).macros[0].widgetLayout==="layered","Widget style survives rerender and serialization");
   reset({cols:3,rows:3,pageCount:1,macros:[{...emptyMacro(),name:"Lights",icon:"★",url:"https://example.com/"}]});selectTile(0);
@@ -161,11 +235,15 @@ globalThis.runGooPadEditorTests = async function () {
   check(!document.querySelector('[data-tile="0"]').classList.contains("action-card")&&!document.querySelector('[data-tile="0"]').classList.contains("caption-rail")&&document.querySelector('[data-k="textAlign"]').value==="center","Classic action uses the centered layout");
   change("widgetLayout","layered");
   action=document.querySelector('[data-tile="0"]');
-  check(action.classList.contains("action-card")&&action.classList.contains("action-medallion")&&action.classList.contains("caption-rail"),"Layered action has the new surfaces");
+  check(!action.classList.contains("action-card")&&action.classList.contains("action-medallion")&&action.classList.contains("caption-rail"),"Layered action uses centered surfaces, not Modern's left-aligned layout");
   prepareMacroAction(cfg.macros[0],0);render();
   check(document.querySelector('[data-k="widgetLayout"]').value==="layered"&&JSON.parse(JSON.stringify(cfg)).macros[0].widgetLayout==="layered","Action style survives preparation and reload");
+  action=document.querySelector('[data-tile="0"]');
   const iconBounds=action.querySelector(".ico").getBoundingClientRect(),captionBounds=action.querySelector("small").getBoundingClientRect();
   check(iconBounds.bottom<=captionBounds.top,"Action icon and caption do not overlap");
+  const tileBounds=action.getBoundingClientRect(),plateStyle=getComputedStyle(action,"::after"),plateLeft=parseFloat(plateStyle.left),plateWidth=parseFloat(plateStyle.width),plateShift=new DOMMatrix(plateStyle.transform).m41;
+  check(Math.abs((iconBounds.left+iconBounds.right)/2-(tileBounds.left+tileBounds.right)/2)<1,"Layered visual is horizontally centered");
+  check(Math.abs((iconBounds.left+iconBounds.right)/2-(tileBounds.left+action.clientLeft+plateLeft+plateWidth/2+plateShift))<1,"Layered visual and medallion share a center");
   change("textSize","40");
   action=document.querySelector('[data-tile="0"]');
   check(action.querySelector(".ico").getBoundingClientRect().bottom<=action.querySelector("small").getBoundingClientRect().top,"Large captions leave room for the action icon");
@@ -173,6 +251,9 @@ globalThis.runGooPadEditorTests = async function () {
   check(document.querySelector('[data-tile="0"] small').style.textAlign==="right","Explicit caption alignment is preserved");
   change("shape","circle");
   check(!document.querySelector('[data-tile="0"]').classList.contains("action-card"),"Curved action tiles keep their centered layout");
+  change("widgetLayout","panel");
+  check(!!document.querySelector('[data-tile="0"] .modern-accent'),"Modern remains visibly distinct on curved tiles");
+  change("widgetLayout","layered");
   check(document.querySelector('[data-tile="0"]').classList.contains("caption-rail")&&document.querySelector('[data-tile="0"]').classList.contains("action-medallion"),"Curved action tiles receive the new icon and caption surfaces");
   reset({cols:3,rows:3,pageCount:1,macros:[{...make(0),shape:"soft",widgetLayout:"layered"}]});
   check(document.querySelector('[data-tile="0"]').classList.contains("caption-rail")&&document.querySelector('[data-tile="0"]').classList.contains("widget-surface")&&!document.querySelector('[data-tile="0"] .widget-heading'),"Layered curved widgets have inset surfaces without a clipped heading");

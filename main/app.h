@@ -9,6 +9,7 @@
 
 #include "driver/i2c_master.h"
 #include "lvgl.h"
+#include "goopad_time.h"
 
 typedef enum {
     TEST_UNKNOWN = 0,
@@ -169,7 +170,7 @@ void goopad_monitor_text(char *out, size_t capacity);
 int goopad_pc_stat_index(const char *key);
 const char *goopad_pc_stat_key(unsigned index);
 void goopad_pc_stat_text(unsigned index, bool fahrenheit, char *out, size_t capacity);
-const char *goopad_widget_time_format(bool date, const char *key);
+void goopad_request_text(unsigned index, char *out, size_t capacity);
 typedef struct {
     uint32_t background, gradient, text, accent;
 } goopad_widget_style_t;

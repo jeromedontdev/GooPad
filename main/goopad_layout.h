@@ -2,6 +2,27 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <math.h>
+
+typedef struct { int x, y, side; } goopad_orbit_t;
+
+static inline goopad_orbit_t goopad_orbit_position(int width, int height, int count, int slot, bool arc)
+{
+    const double pi = 3.141592653589793;
+    double step = arc ? pi * 4 / 3 / (count > 1 ? count - 1 : 1) : pi * 2 / (count > 0 ? count : 1);
+    int extent = (width < height ? width : height) - 20;
+    double chord = sin(step / 2);
+    // Keep square diagonals inside the circle and below adjacent-center spacing.
+    int side = (int)floor(extent * chord / (1.4142135623730951 * (1 + chord))) - 2;
+    if (side > 72) side = 72;
+    if (side < 1) side = 1;
+    double radius = (extent - side * 1.4142135623730951) / 2;
+    double angle = (arc ? -pi * 7 / 6 : -pi / 2) + slot * step;
+    return (goopad_orbit_t){
+        (int)round(width / 2.0 + cos(angle) * radius - side / 2.0),
+        (int)round(height / 2.0 + sin(angle) * radius - side / 2.0), side
+    };
+}
 
 static inline int goopad_grid_limit(int extent, int reserved, int minimum)
 {

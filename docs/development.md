@@ -136,6 +136,26 @@ and verify the actual listening process path, not just the default location.
 
 ## Tests
 
+* **Time, headlines and radial geometry:** after IDF has installed cJSON:
+
+  ```powershell
+  zig cc -Wall -Wextra -Werror -I main main\goopad_time.c tests\test_time.c -o build\test_time.exe
+  .\build\test_time.exe
+  zig cc -Wall -Wextra -Werror -I main -I managed_components\espressif__cjson\cJSON main\goopad_news.c managed_components\espressif__cjson\cJSON\cJSON.c tests\test_news_layout.c -o build\test_news_layout.exe
+  .\build\test_news_layout.exe
+  node tests\test_request_response.js
+  node tests\test_asset_deletion.js
+  ```
+
+  The Node harnesses compile actual firmware functions against host mocks.
+  They cover bounded HTTP responses, redirect reset, stale-layout suppression,
+  and saved image/background deletion protection. Radial tests verify exact
+  non-overlap and square-corner circle bounds, not merely viewport containment.
+  Editor tests cover the corresponding controls and previews. None substitutes
+  for live HTTPS, physical touch/rendering or the five-minute device soak.
+  News uses JSON Feed/Algolia JSON, not RSS/Atom; battery-percentage validation
+  needs a supported telemetry backend, which the current Guition lacks.
+
 Run the smallest relevant tests first, then hardware validation when behavior
 depends on the board:
 

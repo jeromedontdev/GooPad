@@ -1559,3 +1559,18 @@ not a complete historical changelog.
   installer and restart test passed for 300.05 seconds and 61 samples with
   zero errors and preserved fixture settings and identity. Release assets and
   checksums were prepared; publication remains pending.
+
+## 2026-11-28 - 0.7.15 publication
+
+- **Release:** published `v0.7.15` on the GooPad product repository, with the
+  annotated tag pointing to build source `ed48be2`. The app-only image,
+  matching SD resources, isolated-environment Companion ZIP and installer,
+  notices, build inputs and checksums were downloaded and verified against
+  their staged SHA-256 values. GitHub's latest-release metadata reports the
+  matching sizes and digests; an actual Companion update check with 0.7.13 as
+  its current version selected the 0.7.15 installer and its correct digest.
+  The installer is unsigned and digests are not publisher signatures.
+- **Remaining:** the earlier unrecorded protected-record difference remains
+  unexplained. Device soak deferrals and the lack of independent physical
+  pixel observation are recorded above. The published package does not
+  install itself onto an existing Companion.

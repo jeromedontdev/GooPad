@@ -21,7 +21,7 @@ cca8dceb46a23605a490e75027f0d2af52d372dad5004226b30b27806a0c60e1
 KiB means 1,024 bytes; MiB means 1,048,576 bytes. All percentages below use the
 4,194,304-byte app slot, not the whole flash chip.
 
-## Current 0.7.6 build
+## Published 0.7.6 build
 
 The clean-source 0.7.6 build installed on COM9 is **2,318,928 bytes**, leaving
 **1,875,376 bytes** in its app slot. Its SHA-256 is
@@ -95,6 +95,28 @@ between 3,375,844 and 3,436,772 bytes, ending at 3,408,388 bytes without a
 sustained decline. These measurements cover the preserved configuration,
 not every new RSS/Glass layout. See the [change log](change-log.md) for warning
 counts and remaining physical-validation/release-packaging limits.
+
+## 0.7.9 rendering/editor development build (2026-11-27)
+
+The Circles/Arches, GIF layering, multi-stop gradients, font emphasis and
+selectable-headline build is **2,425,328 bytes**, leaving **1,768,976 bytes /
+42.18% free** in the unchanged 4 MiB slot. SHA-256:
+`a242af7b193e65b197462b5da311dcd23e37a67bb6bbf076cbcf49870e689aca`.
+The matching editor is `web-755d62f9147c.gwp`, **331,501 bytes**, SHA-256
+`755d62f9147c5e0859dbd2482c159fc92bd303790dcb4b63dcd092cb0a087c25`.
+Production ESP-IDF 6.1 reconfiguration/build retains the preceding settings,
+with six LVGL gradient stops and complex gradients enabled. Compile-time
+guards reject existing configurations without that capacity/support.
+
+The live-text cache grows from 384 to 640 bytes per position: **8,192 additional
+PSRAM bytes** across 32 positions. Gradient descriptors are allocated together
+in PSRAM only when needed; emphasized-font wrappers are cached by base font and
+style in PSRAM. They remain alive until their LVGL objects are deleted.
+Glyph transformation uses the caller's enlarged A8 buffer in place; raw bitmap
+requests allocate a temporary owned draw buffer released with the glyph.
+These are runtime costs, not storage or app-slot headroom. No SD font pack
+changes are required. Installation/soak and publication status are recorded
+in the change log; this is not a published binary release.
 
 ## Companion-only 0.7.4 release
 

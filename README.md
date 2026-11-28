@@ -117,7 +117,7 @@ It uses the Companion pairing in Settings and opens HTTP(S) links in the PC's
 default browser. Existing website tiles keep working. Requests from GooPad
 validate HTTPS certificates.
 
-### New display options (0.7.7 development source)
+### Development display options
 
 - **About → Saved images** shows thumbnails of uploaded icons, GIFs and screen backgrounds
   and deletes unused files. Images referenced by the saved layout or current
@@ -133,6 +133,18 @@ validate HTTPS certificates.
   subtle outlines and a primary-colored pressed state, without Modern's decorative
   accent strip. **Device default** inherits these
   new device palettes without changing historical palettes on older themes.
+  Choosing Material or Liquid Glass in Layout settings applies it to all tiles,
+  replacing existing tile-theme overrides in the draft. **Apply to every tile**
+  reapplies the current palette; individual tile themes can be changed afterward.
+  Filled GIFs and images stay above the frosted surface, preserving their animation
+  and colors. Opaque cover images naturally hide the surface beneath them.
+- **Appearance → Custom gradient** offers two to six color stops. Select a
+  marker, pick its color, and slide its position; endpoints stay at 0% and 100%.
+  Choose horizontal, vertical or circle (center-outward) direction. Matching stop
+  colors makes a solid tile. Select Custom tile theme to edit gradients.
+- **Text → Font style** offers independent Bold and Italic for labels and
+  widget readings. The device synthesizes weight/slant on the existing fonts;
+  no additional SD font pack is required. Text still shrinks to fit.
 - **Widgets → Clock → Date & time** combines both readings. Clock, Date and
   Date & time accept percent formats: `%H:%M`, `%-I:%M %p`, or
   `%a %b %-d%n%H:%M`. `%n` starts a new line; `%%` shows a percent sign.
@@ -140,14 +152,18 @@ validate HTTPS certificates.
   format presets remain supported. See [supported directives](docs/api.md).
 - **Widgets → News → Headlines** reads RSS/Atom and offers BBC World/Technology,
   NPR, The Guardian, NYTimes, Ars Technica, The Verge and Hacker News presets,
-  plus a custom HTTPS feed URL. It displays up to three titles every ten minutes.
+  plus a custom HTTPS feed URL. Choose **one to five headlines** (default three),
+  separated by divider lines, refreshed every ten minutes. Use fewer headlines
+  or enlarge the tile when long titles cannot fit.
   XML feeds are limited to 256 KiB; DTDs, redirects and malformed feeds are
-  rejected. Existing JSON Feed/Hacker News JSON configurations remain supported.
+  rejected. JSON sources are no longer offered. Untouched legacy configurations
+  remain supported; choosing an RSS feed explicitly replaces the legacy source.
   Provider/network errors are shown explicitly; feed availability can change.
-- **Layout settings → Screen layout** offers Grid and **Arches**: distinct
+- **Layout settings → Screen layout** offers Grid, **Circles** (icons around
+  a ring) and **Arches**: distinct
   stacked upward-curved rows inside a circular viewport, not a single ring.
-  Existing ring configurations retain their original rendering and appear as an
-  existing-layout option until explicitly changed. Indices/pages are preserved;
+  Existing ring configurations remain Circles; older arched-ring configurations
+  retain an existing-layout option until explicitly changed. Indices/pages are preserved;
   use fewer rows/columns for larger targets.
   Enlarged tiles require Grid. Physical circular-screen operation is unverified.
 - **Show battery indicator** is off by default. It displays a percentage only
@@ -155,13 +171,16 @@ validate HTTPS certificates.
   battery gauge and shows **Battery unavailable**; hardware/backend support
   is required for an actual reading.
 
-The development image and matching SD editor are installed on the verified
-Guition on COM9; they are not published as a versioned binary release.
+These are development changes, not a published versioned binary release.
+See the [change log](docs/change-log.md) for the latest verified installation
+on the Guition on COM9 and validation status.
 Circular-screen hardware and every newly configured widget have not been
 physically exercised. Firmware updates require the matching SD editor pack.
 Before downgrading, remove new
 widgets/themes/layouts and restore legacy time presets or a compatible backup;
 older firmware does not accept the new configuration values.
+Older firmware ignores multi-stop gradients, font emphasis and headline counts;
+restore legacy colors/gradient ends and three-headline behavior before downgrading.
 
 To wake a computer, choose **Widgets → PC → Wake-on-LAN** and enter the
 target network adapter's MAC address (on Windows, its **Physical Address** in

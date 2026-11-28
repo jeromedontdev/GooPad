@@ -42,6 +42,9 @@ For the responsive-network build, also select
 For the PSRAM-first LVGL allocator, select `CONFIG_LV_USE_CUSTOM_MALLOC`;
 existing configurations may still select the C library allocator instead.
 Select `CONFIG_LV_USE_FONT_COMPRESSED` for the bundled compressed fonts.
+Select `CONFIG_LV_GRADIENT_MAX_STOPS=6` and
+`CONFIG_LV_USE_DRAW_SW_COMPLEX_GRADIENTS=y` for multi-stop and circular tile
+gradients; existing SDK configurations do not inherit these new defaults.
 `idf.py set-target` can reset configuration; do not run it casually against an
 existing configured workspace. Keep the SDK and the build's `SDKCONFIG`
 consistent. `main/CMakeLists.txt` generates the compressed editor and Font
@@ -155,6 +158,7 @@ and verify the actual listening process path, not just the default location.
   .\build\test_news_layout.exe
   node tests\test_request_response.js
   node tests\test_asset_deletion.js
+  node tests\test_visual_layers.js
   ```
 
   The Node harnesses compile actual firmware functions against host mocks.
@@ -169,6 +173,26 @@ and verify the actual listening process path, not just the default location.
   byte count, validity and headline count; use it to verify preset responses
   without copying headline content into reports. Battery-percentage validation
   needs a supported telemetry backend, which the current Guition lacks.
+
+* **Font emphasis:** uses the actual LVGL glyph-selection API with synthetic
+  regular/fallback bitmaps to verify bold/italic pixels, expanded metrics,
+  in-place stride expansion and raw/decoded buffer ownership:
+
+  ```powershell
+  $lv = 'managed_components\lvgl__lvgl'
+  $fonts = @(8,10,12,14,16,20,28,40) | ForEach-Object { "-DLV_FONT_MONTSERRAT_$_=1" }
+  zig cc -std=c11 -O0 -ffunction-sections -fdata-sections -DLV_CONF_SKIP `
+    -DCONFIG_LV_USE_FONT_PLACEHOLDER=1 @fonts `
+    -I "$lv\include\lvgl" -I "$lv\include" -I "$lv\src" `
+    -I tests\unicode_stubs -I main tests\test_font_emphasis.c main\goopad_fonts.c `
+    "$lv\src\font\lv_font.c" '-Wl,--gc-sections' -o build\test_font_emphasis.exe
+  .\build\test_font_emphasis.exe
+  ```
+
+  The visual harness extracts actual firmware rendering blocks, without
+  claiming physical frame playback. Browser controls cover two-to-six gradient
+  stops and drag continuity, directions, uniform select heights, theme reset,
+  font emphasis and headline counts. No live layout fixtures are required.
 
 Run the smallest relevant tests first, then hardware validation when behavior
 depends on the board:

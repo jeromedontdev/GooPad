@@ -18,6 +18,7 @@
 #include "goopad_layout.h"
 #include "goopad_market.h"
 #include "goopad_news.h"
+#include "goopad_gradient.h"
 #include "goopad_utf8.h"
 #include "goopad_network.h"
 #include "goopad_alerts.h"
@@ -130,7 +131,7 @@ static double s_monitor_values[GOOPAD_PC_STAT_COUNT];
 static bool s_monitor_valid[GOOPAD_PC_STAT_COUNT];
 static bool s_monitor_sampling;
 static portMUX_TYPE s_live_lock = portMUX_INITIALIZER_UNLOCKED;
-static char (*s_live_text)[384];
+static char (*s_live_text)[GOOPAD_NEWS_TEXT_BYTES];
 static char *s_media_text;
 static uint32_t s_media_mask;
 static uint32_t s_media_revision, s_media_poll_ms, s_media_age_ms;
@@ -1442,6 +1443,7 @@ static bool validate_config(const char *json)
         cJSON *news_source = cJSON_GetObjectItemCaseSensitive(item, "newsSource");
         cJSON *news_url = cJSON_GetObjectItemCaseSensitive(item, "newsUrl");
         cJSON *news_feed = cJSON_GetObjectItemCaseSensitive(item, "newsFeed");
+        cJSON *news_count = cJSON_GetObjectItemCaseSensitive(item, "newsCount");
         cJSON *pc_stat = cJSON_GetObjectItemCaseSensitive(item, "pcStat");
         cJSON *temperature_unit = cJSON_GetObjectItemCaseSensitive(item, "temperatureUnit");
         cJSON *widget_theme = cJSON_GetObjectItemCaseSensitive(item, "widgetTheme");
@@ -1449,6 +1451,9 @@ static bool validate_config(const char *json)
         cJSON *widget_size = cJSON_GetObjectItemCaseSensitive(item, "widgetTextSize");
         cJSON *text_size = cJSON_GetObjectItemCaseSensitive(item, "textSize");
         cJSON *font = cJSON_GetObjectItemCaseSensitive(item, "font");
+        cJSON *font_bold = cJSON_GetObjectItemCaseSensitive(item, "fontBold");
+        cJSON *font_italic = cJSON_GetObjectItemCaseSensitive(item, "fontItalic");
+        goopad_gradient_t gradient_spec;
         cJSON *text_align = cJSON_GetObjectItemCaseSensitive(item, "textAlign");
         cJSON *text_decoration = cJSON_GetObjectItemCaseSensitive(item, "textDecoration");
         cJSON *text_spacing = cJSON_GetObjectItemCaseSensitive(item, "textSpacing");
@@ -1479,7 +1484,11 @@ static bool validate_config(const char *json)
              companion_cert);
         if (shared_pc && shared_valid) effective_url = shared_url;
         if (gif) gif_count++;
-        valid = shared_valid && cJSON_IsObject(item) && cJSON_IsString(name) && strlen(name->valuestring) <= 24 &&
+        valid = shared_valid && cJSON_IsObject(item) && goopad_gradient_parse(item, &gradient_spec) &&
+                (!font_bold || cJSON_IsBool(font_bold)) && (!font_italic || cJSON_IsBool(font_italic)) &&
+                (!news_count || (cJSON_IsNumber(news_count) && news_count->valuedouble == news_count->valueint &&
+                    news_count->valueint >= 1 && news_count->valueint <= GOOPAD_NEWS_HEADLINES)) &&
+                cJSON_IsString(name) && strlen(name->valuestring) <= 24 &&
                 (!tile_name || (cJSON_IsString(tile_name) && strlen(tile_name->valuestring) <= 24)) &&
                 (!gif_fit || (cJSON_IsString(gif_fit) &&
                              (!strcmp(gif_fit->valuestring, "contain") || !strcmp(gif_fit->valuestring, "cover")))) &&
@@ -3284,9 +3293,15 @@ static void live_widget_task(void *arg)
                     snprintf(url, sizeof(url), "https://api.github.com/users/%s", user->valuestring);
                 interval = 1800;
             }
+            cJSON *news_count = cJSON_GetObjectItemCaseSensitive(item, "newsCount");
+            unsigned headline_count = cJSON_IsNumber(news_count) ? (unsigned)news_count->valueint : 3;
             char identity[384];
             snprintf(identity, sizeof(identity), "%s|%s%s", url,
                      finnhub && valid_finnhub_key(finnhub_key) ? finnhub_key->valuestring : "", rss ? "|rss" : "");
+            if (news) {
+                size_t used = strlen(identity);
+                snprintf(identity + used, sizeof(identity) - used, "|headlines:%u", headline_count);
+            }
             if (home_state && valid_home_token(home_token)) {
                 unsigned char digest[32];
                 size_t digest_len = 0;
@@ -3382,14 +3397,14 @@ static void live_widget_task(void *arg)
                 retry_soon = true;
                 continue;
             }
-            char text[384] = "Data unavailable";
+            char text[GOOPAD_NEWS_TEXT_BYTES] = "Data unavailable";
             bool rss_valid = rss && result == ESP_OK && status == 200 &&
-                             goopad_news_xml_text(response, strlen(response), text, sizeof(text));
+                             goopad_news_xml_text_limit(response, strlen(response), text, sizeof(text), headline_count);
             cJSON *payload = !rss && result == ESP_OK && status == 200 ? cJSON_Parse(response) : NULL;
             free(alert_data);
             bool weather_valid = false;
             if (news) {
-                if (rss_valid || (payload && goopad_news_text(payload, text, sizeof(text)))) news_updated[i] = now;
+                if (rss_valid || (payload && goopad_news_text_limit(payload, text, sizeof(text), headline_count))) news_updated[i] = now;
                 else {
                     strcpy(text, status == 429 ? "News provider limit" : "News unavailable");
                     ESP_LOGW(TAG, "News widget %u unavailable (HTTP %d)", i + 1, status);

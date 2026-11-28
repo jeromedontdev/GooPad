@@ -26,9 +26,9 @@ typedef struct {
     XML_Parser parser;
     char *out;
     size_t capacity, used, title_size;
-    unsigned depth, entry_depth, title_depth, channel_depth, count, entries, kind;
+    unsigned depth, entry_depth, title_depth, channel_depth, count, entries, kind, limit;
     bool failed, channel, overflow;
-    char title[129], headlines[3][124];
+    char title[129], headlines[GOOPAD_NEWS_HEADLINES][124];
 } news_xml_t;
 
 static void *news_alloc(size_t size)
@@ -89,7 +89,7 @@ static void XMLCALL news_xml_start(void *data, const char *name, const char **at
 static void XMLCALL news_xml_characters(void *data, const char *text, int size)
 {
     news_xml_t *state = data;
-    if (!state->title_depth || state->count >= 3) return;
+    if (!state->title_depth || state->count >= state->limit) return;
     for (int i = 0; i < size; i++) {
         unsigned char ch = (unsigned char)text[i];
         if (ch <= 32 || ch == 127) {
@@ -105,7 +105,7 @@ static void XMLCALL news_xml_end(void *data, const char *name)
 {
     news_xml_t *state = data;
     (void)name;
-    if (state->title_depth == state->depth && state->count < 3) {
+    if (state->title_depth == state->depth && state->count < state->limit) {
         size_t length = state->title_size;
         while (length && state->title[length - 1] == ' ') length--;
         state->title[length] = '\0';
@@ -120,9 +120,13 @@ static void XMLCALL news_xml_end(void *data, const char *name)
             bool duplicate = false;
             for (unsigned i = 0; i < state->count; i++) if (!strcmp(headline, state->headlines[i])) duplicate = true;
             if (!state->failed && !duplicate) {
-                if (state->used + (state->count ? 1 : 0) + size >= state->capacity) state->failed = true;
+                size_t separator = state->count ? sizeof(GOOPAD_NEWS_SEPARATOR) - 1 : 0;
+                if (state->used + separator + size >= state->capacity) state->failed = true;
                 else {
-                    if (state->count) state->out[state->used++] = '\n';
+                    if (separator) {
+                        memcpy(state->out + state->used, GOOPAD_NEWS_SEPARATOR, separator);
+                        state->used += separator;
+                    }
                     memcpy(state->out + state->used, headline, size + 1);
                     state->used += size;
                     strcpy(state->headlines[state->count], headline);
@@ -153,9 +157,14 @@ static int XMLCALL news_xml_external(XML_Parser parser, const char *context, con
 
 bool goopad_news_xml_text(const char *feed, size_t size, char *out, size_t capacity)
 {
+    return goopad_news_xml_text_limit(feed, size, out, capacity, 3);
+}
+
+bool goopad_news_xml_text_limit(const char *feed, size_t size, char *out, size_t capacity, unsigned limit)
+{
     if (!out || !capacity) return false;
     out[0] = '\0';
-    if (!feed || !size || size > GOOPAD_NEWS_XML_BYTES) return false;
+    if (!feed || !size || size > GOOPAD_NEWS_XML_BYTES || limit < 1 || limit > GOOPAD_NEWS_HEADLINES) return false;
     news_xml_t *state = news_alloc(sizeof(*state));
     if (!state) return false;
     memset(state, 0, sizeof(*state));
@@ -163,7 +172,7 @@ bool goopad_news_xml_text(const char *feed, size_t size, char *out, size_t capac
     state->parser = XML_ParserCreate_MM(NULL, &memory, "|");
     bool valid = false;
     if (state->parser) {
-        state->out = out; state->capacity = capacity;
+        state->out = out; state->capacity = capacity; state->limit = limit;
         XML_SetUserData(state->parser, state);
         XML_SetElementHandler(state->parser, news_xml_start, news_xml_end);
         XML_SetCharacterDataHandler(state->parser, news_xml_characters);
@@ -183,8 +192,14 @@ bool goopad_news_xml_text(const char *feed, size_t size, char *out, size_t capac
 
 bool goopad_news_text(const cJSON *feed, char *out, size_t capacity)
 {
+    return goopad_news_text_limit(feed, out, capacity, 3);
+}
+
+bool goopad_news_text_limit(const cJSON *feed, char *out, size_t capacity, unsigned limit)
+{
     if (!out || capacity < 4) return false;
     out[0] = '\0';
+    if (limit < 1 || limit > GOOPAD_NEWS_HEADLINES) return false;
     const cJSON *items = cJSON_GetObjectItemCaseSensitive(feed, "items");
     if (!items) items = cJSON_GetObjectItemCaseSensitive(feed, "hits");
     if (!cJSON_IsArray(items)) return false;
@@ -196,7 +211,7 @@ bool goopad_news_text(const cJSON *feed, char *out, size_t capacity)
     size_t used = 0;
     unsigned count = 0;
     const char *previous = NULL;
-    for (const cJSON *item = items->child; item && count < 3; item = item->next) {
+    for (const cJSON *item = items->child; item && count < limit; item = item->next) {
         const cJSON *title = cJSON_GetObjectItemCaseSensitive(item, "title");
         if (!cJSON_IsString(title) || !title->valuestring[0] ||
             (previous && !strcmp(previous, title->valuestring))) continue;
@@ -205,8 +220,9 @@ bool goopad_news_text(const cJSON *feed, char *out, size_t capacity)
         size_t size = length > 120 ? 120 : length;
         while (size && ((unsigned char)title->valuestring[size] & 0xc0) == 0x80) size--;
         size_t extra = size < length ? 3 : 0;
-        if (used + (count ? 1 : 0) + size + extra >= capacity) return false;
-        if (count) out[used++] = '\n';
+        size_t separator = count ? sizeof(GOOPAD_NEWS_SEPARATOR) - 1 : 0;
+        if (used + separator + size + extra >= capacity) return false;
+        if (separator) { memcpy(out + used, GOOPAD_NEWS_SEPARATOR, separator); used += separator; }
         for (size_t i = 0; i < size; i++) {
             unsigned char c = (unsigned char)title->valuestring[i];
             out[used++] = c < 32 || c == 127 ? ' ' : (char)c;

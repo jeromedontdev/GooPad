@@ -81,6 +81,17 @@ uint32_t lv_draw_buf_width_to_stride(uint32_t width, lv_color_format_t format)
     return width;
 }
 
+lv_draw_buf_t *lv_draw_buf_create(uint32_t width, uint32_t height, lv_color_format_t format, uint32_t stride)
+{
+    lv_draw_buf_t *draw = calloc(1, sizeof(*draw));
+    if (!draw) return NULL;
+    draw->header.stride = stride ? stride : lv_draw_buf_width_to_stride(width, format);
+    draw->data = calloc(height, draw->header.stride);
+    if (!draw->data) { free(draw); return NULL; }
+    return draw;
+}
+void lv_draw_buf_destroy(lv_draw_buf_t *draw) { free(draw->data); free(draw); }
+
 static void assert_acyclic_fallbacks(const lv_font_t *font)
 {
     const lv_font_t *seen[8];

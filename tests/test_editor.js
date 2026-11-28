@@ -43,7 +43,7 @@ globalThis.runGooPadEditorTests = async function () {
   document.querySelector("#showBattery").checked=true;document.querySelector("#showBattery").dispatchEvent(new Event("change"));
   batteryPreview=null;updateWidgetPreview();check(document.querySelector("#previewBattery").textContent==="Battery unavailable","Unsupported telemetry never invents a percentage");
   batteryPreview=65;updateWidgetPreview();check(document.querySelector("#previewBattery").textContent==="Battery 65%","Available battery percentage is displayed");
-  check(!document.querySelector('#screenLayout option[value="ring"]')&&!document.querySelector('#screenLayout option[value="arc"]'),"New layouts offer Arches rather than the two similar rings");
+  check(document.querySelector('#screenLayout option[value="ring"]').textContent==="Circles"&&document.querySelector('#screenLayout option[value="arches"]')&&!document.querySelector('#screenLayout option[value="arc"]'),"Circles and Arches are both available; legacy arc is retained only when loaded");
   for(const layout of ["arches","ring","arc"]){
    if(layout!=="arches"){cfg.screenLayout=layout;render()}
    const control=document.querySelector("#screenLayout");control.value=layout;control.dispatchEvent(new Event("change"));
@@ -55,11 +55,42 @@ globalThis.runGooPadEditorTests = async function () {
   change("spanCols","2");document.querySelector("#screenLayout").value="arches";document.querySelector("#screenLayout").dispatchEvent(new Event("change"));
   check(cfg.screenLayout==="grid"&&document.querySelector("#screenLayout").value==="grid","Ring selection refuses existing enlarged tiles without changing them");
   change("spanCols","1");
+  change("widgetTheme","custom");
+  const gradientRoot=()=>document.querySelector("[data-gradient-editor]");
+  gradientRoot().querySelector("[data-gradient-add]").click();
+  check(cfg.macros[0].gradientStops.length===3&&cfg.macros[0].gradientStops[1].position===50,"Gradient editor inserts an interior color stop");
+  const slider=gradientRoot().querySelector("[data-gradient-position]");slider.value="35";slider.dispatchEvent(new Event("input"));
+  check(slider===gradientRoot().querySelector("[data-gradient-position]")&&cfg.macros[0].gradientStops[1].position===35&&gradientRoot().querySelector("output").textContent==="35%","Gradient slider updates without replacing itself during a drag");
+  const stopColor=gradientRoot().querySelector("[data-gradient-color]");stopColor.value="#00ff00";stopColor.dispatchEvent(new Event("input"));
+  for(const direction of ["horizontal","vertical","circle"]){
+   const control=gradientRoot().querySelector("[data-gradient-direction]");control.value=direction;control.dispatchEvent(new Event("change"));prepareMacroAction(cfg.macros[0],0);
+   const background=document.querySelector('[data-tile="0"]').style.backgroundImage;
+   check(background.includes(direction==="circle"?"radial-gradient":"linear-gradient")&&cfg.macros[0].gradientDirection===direction,"Directional multi-stop gradient is rendered and persisted: "+direction)
+  }
+  for(let i=0;i<3;i++)gradientRoot().querySelector("[data-gradient-add]").click();
+  check(cfg.macros[0].gradientStops.length===6&&gradientRoot().querySelector("[data-gradient-add]").disabled,"Gradient editor caps stop count at six");
+  gradientRoot().querySelector("[data-gradient-remove]").click();
+  check(cfg.macros[0].gradientStops.length===5&&validGradient(cfg.macros[0]),"Removing an interior gradient stop preserves ordered endpoints");
+  for(const bad of [{gradientDirection:"diagonal"},{gradientStops:null},{gradientStops:[{color:"GGGGGG",position:0},{color:"000000",position:100}]},{gradientStops:[{color:"FFFFFF",position:0},{color:"000000",position:0}]}]){
+   let rejected=false;try{prepareMacroAction({...cfg.macros[0],...bad},0)}catch{rejected=true}
+   check(rejected,"Malformed gradient is rejected before saving")
+  }
+  for(const key of ["fontBold","fontItalic"]){const control=document.querySelector(`[data-k="${key}"]`);control.checked=true;control.dispatchEvent(new Event("change"))}
+  check([...document.querySelectorAll('[data-tile="0"] small,[data-tile="0"] .widget')].every(text=>getComputedStyle(text).fontWeight==="700"&&getComputedStyle(text).fontStyle==="italic"),"Bold and italic apply to caption and widget readings");
+  const emphasisCopy=structuredClone(cfg.macros[0]);prepareMacroAction(emphasisCopy,0);check(emphasisCopy.fontBold&&emphasisCopy.fontItalic,"Font emphasis survives serialization");
+  for(const section of document.querySelectorAll(".tile-section"))section.open=true;
+  check([...document.querySelectorAll(".macro select")].filter(control=>control.getBoundingClientRect().height).every(control=>control.getBoundingClientRect().height===42),"Select controls remain a single uniform height beside long hints");
+  delete cfg.macros[0].gradientStops;delete cfg.macros[0].gradientDirection;delete cfg.macros[0].fontBold;delete cfg.macros[0].fontItalic;
+  cfg.macros[0].widgetTheme="cloud";
+  cfg.macros[1]={...make(1),widgetTheme:"custom"};
   cfg.macros[0].outline=true;
   for(const theme of ["liquid_glass","material"]){
    document.querySelector("#deviceTheme").value=theme;document.querySelector("#deviceTheme").dispatchEvent(new Event("change"));
    check(document.querySelector('[data-tile="0"]').classList.contains(theme==="liquid_glass"?"liquid-glass":"material"),"New device theme styles default tiles: "+theme);
+   check(cfg.macros.every(m=>m.widgetTheme==="device")&&document.querySelector('[data-tile="1"]').classList.contains(theme==="liquid_glass"?"liquid-glass":"material"),"Device theme selection replaces old per-tile overrides consistently");
   }
+  cfg.macros[0].widgetTheme="custom";render();document.querySelector("#applyDeviceTheme").click();
+  check(cfg.macros[0].widgetTheme==="device"&&document.querySelector('[data-tile="0"]').classList.contains("material"),"Apply to every tile unifies the current saved palette without requiring a different theme");
   check(previewIconColor({widgetTheme:"device"})==="1D1B20"&&previewIconColor({widgetTheme:"device",iconColor:"ABCDEF"})==="ABCDEF","Font Awesome preview inherits preset text color but preserves explicit tint");
   const materialTile=document.querySelector('[data-tile="0"]');
   check(materialTile.style.backgroundColor==="rgb(243, 237, 247)"&&getComputedStyle(materialTile).backgroundImage==="none"&&!materialTile.querySelector(".modern-accent")&&materialTile.style.borderColor==="rgb(202, 196, 208)","Material uses flat tonal containers and subtle outlines without decorative strips");
@@ -84,7 +115,7 @@ globalThis.runGooPadEditorTests = async function () {
   check(Math.abs((widgetBounds.top+widgetBounds.bottom)/2-surfaceCenter)<2,"Layered widget text centers in its inset surface above the caption");
   selectTile(0);
   change("widget","news");
-  check(cfg.macros[0].newsSource==="rss"&&cfg.macros[0].newsFeed==="bbc_world"&&!document.querySelector("[data-news-preset]").classList.contains("hidden"),"New news widgets default to RSS and expose popular presets");
+  check(cfg.macros[0].newsSource==="rss"&&cfg.macros[0].newsFeed==="bbc_world"&&!document.querySelector('[data-k="newsSource"]'),"New news widgets default to RSS without JSON source choices");
   for(const key of Object.keys(newsFeeds)){change("newsFeed",key);prepareMacroAction(cfg.macros[0],0);render();check(cfg.macros[0].newsFeed===key&&document.querySelector('[data-k="newsFeed"]').value===key&&!cfg.macros[0].newsUrl,"RSS preset survives saving and reopening: "+key)}
   change("newsFeed","custom");change("newsUrl","https://example.com/feed.xml");prepareMacroAction(cfg.macros[0],0);
   check(cfg.macros[0].newsUrl==="https://example.com/feed.xml"&&!document.querySelector("[data-news-url]").classList.contains("hidden"),"Custom RSS enables its HTTPS URL");
@@ -92,13 +123,20 @@ globalThis.runGooPadEditorTests = async function () {
    let rejected=false;try{prepareMacroAction({...cfg.macros[0],...bad},0)}catch{rejected=true}
    check(rejected,"RSS rejects invalid preset identities and missing/unverified custom URLs")
   }
-  change("newsSource","jsonfeed");change("newsUrl","https://example.com/feed.json");
+  cfg.macros[0].newsSource="jsonfeed";cfg.macros[0].newsUrl="https://example.com/feed.json";render();
   prepareMacroAction(cfg.macros[0],0);render();
-  check(cfg.macros[0].newsUrl==="https://example.com/feed.json"&&document.querySelector('[data-k="newsSource"]').value==="jsonfeed","Custom headline source survives saving and reopening");
+  check(cfg.macros[0].newsUrl==="https://example.com/feed.json"&&document.querySelector('[data-k="newsFeed"]').value===""&&!document.querySelector("[data-news-legacy]").classList.contains("hidden"),"Untouched legacy source is preserved without pretending an RSS feed is selected");
   let invalidFeed=false;try{prepareMacroAction({...cfg.macros[0],newsUrl:"http://example.com/feed.json"},0)}catch{invalidFeed=true}
   check(invalidFeed,"News feeds require verified HTTPS");
   liveWidgetPreview=["First headline\nSecond headline"];updateWidgetPreview();
-  check(document.querySelector('[data-tile="0"] .widget').textContent==="First headline\nSecond headline","News tiles use the cached aggregator results");
+  check(document.querySelector('[data-tile="0"] .widget').textContent==="First headline\n---\nSecond headline","News tiles separate cached headlines visibly");
+  change("newsFeed","hackernews");change("newsCount","5");prepareMacroAction(cfg.macros[0],0);render();
+  check(cfg.macros[0].newsSource==="rss"&&!cfg.macros[0].newsUrl&&cfg.macros[0].newsCount===5&&document.querySelector('[data-k="newsCount"]').value==="5","Selecting RSS explicitly migrates legacy news and persists the headline count");
+  change("newsCount","1");check(document.querySelector('[data-tile="0"] .widget').textContent==="First headline","Draft headline count limits the cached preview immediately");change("newsCount","5");
+  for(const newsCount of [0,6,1.5,"3",null]){
+   let rejected=false;try{prepareMacroAction({...cfg.macros[0],newsCount},0)}catch{rejected=true}
+   check(rejected,"Headline count rejects values outside the supported integer range")
+  }
   requestPreview=[];batteryPreview=null;liveWidgetPreview=[];
   const sampleTime=new Date("2026-11-07T14:03:09Z");
   check(percentTimeText("%A %B %-d%n%-I:%M:%S %p %%",sampleTime)==="Saturday November 7\n2:03:09 PM %","Percent formats support names, unpadded values, newlines and literals");
@@ -723,21 +761,21 @@ globalThis.runGooPadEditorTests = async function () {
   for(const theme of Object.keys(widgetThemes)) {
    change("widgetTheme",theme);
    check(document.querySelector('[data-k="color"]').disabled && cfg.macros[0].color==="123456", "Preset preserves custom color: "+theme);
-   check(document.querySelector('[data-k="widgetGradient"]').value.toUpperCase()==="#"+widgetThemes[theme][1], "Preset gradient shown: "+theme);
+   check(document.querySelector('[data-gradient-color]').value.toUpperCase()==="#"+widgetThemes[theme][0]&&document.querySelector('[data-gradient-color]').disabled, "Preset gradient shown without overwriting custom stops: "+theme);
   }
   change("widgetTheme","custom");
   check(!document.querySelector('[data-k="color"]').disabled && document.querySelector('[data-k="color"]').value==="#123456", "Custom colors restored");
-  change("widgetGradient","#335577");change("widgetLayout","panel");
+  cfg.macros[0].widgetGradient="335577";render();change("widgetLayout","panel");
   check(cfg.macros[0].widgetGradient==="335577" && cfg.macros[0].widgetLayout==="panel" && !!document.querySelector('[data-tile="0"] .widget-heading'), "Modern card and custom gradient update the preview");
   change("widgetTheme","cloud");
-  check(document.querySelector('[data-k="widgetGradient"]').disabled && cfg.macros[0].widgetGradient==="335577", "Preset preserves custom gradient");
+  check(document.querySelector('[data-gradient-color]').disabled && cfg.macros[0].widgetGradient==="335577", "Preset preserves custom gradient");
   change("widgetTheme","custom");
-  check(document.querySelector('[data-k="widgetGradient"]').value==="#335577", "Custom gradient restored");
+  check(gradientStops(cfg.macros[0])[1].color==="335577", "Custom gradient restored");
   check(!document.querySelector('[data-k="actionMode"] option[value="simple_link"],[data-k="actionMode"] option[value="page_navigation"]'),"Removed actions cannot be selected for new tiles");
   const widgetConfig = structuredClone(cfg);
   change("actionMode","advanced");
   change("url","https://example.com/trigger");
-  change("tileGradient","#AA7744");change("visualScale","75");
+  cfg.macros[0].tileGradient="AA7744";render();change("visualScale","75");
   prepareMacroAction(cfg.macros[0],0);
   check(document.querySelector('[data-tile="0"]').style.backgroundImage.includes("linear-gradient"), "Action preview shows tile gradient");
   check(cfg.macros[0].visualScale===75 && document.querySelector('[data-tile="0"] .ico').style.transform==="scale(0.75)", "Visual size persists and updates the preview");

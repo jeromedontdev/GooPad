@@ -1,6 +1,7 @@
 #include "goopad_news.h"
 #include "goopad_layout.h"
 #include "goopad_glass.h"
+#include "goopad_gradient.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -15,13 +16,13 @@ int main(int argc, char **argv)
         size_t bytes = fread(xml, 1, GOOPAD_NEWS_XML_BYTES + 1, stdin);
         bool valid = goopad_news_xml_text(xml, bytes, text, sizeof(text));
         unsigned headlines = valid ? 1 : 0;
-        for (const char *p = text; *p; p++) if (*p == '\n') headlines++;
+        for (const char *p = text; (p = strstr(p, GOOPAD_NEWS_SEPARATOR)); p += sizeof(GOOPAD_NEWS_SEPARATOR) - 1) headlines++;
         printf("Feed bytes=%zu valid=%d headlines=%u\n", bytes, valid, headlines);
         free(xml);
         return valid ? 0 : 1;
     }
     cJSON *feed = cJSON_Parse("{\"hits\":[{\"title\":\"First\"},{\"title\":\"First\"},{\"title\":null},{\"title\":\"Second\"},{\"title\":\"Third\"},{\"title\":\"Fourth\"}]}");
-    assert(goopad_news_text(feed, text, sizeof(text)) && !strcmp(text, "First\nSecond\nThird"));
+    assert(goopad_news_text(feed, text, sizeof(text)) && !strcmp(text, "First\n---\nSecond\n---\nThird"));
     cJSON_Delete(feed);
     const char *rss = "<rss><channel><title>Channel title</title>"
         "<item><title><![CDATA[First & plain]]></title></item>"
@@ -29,7 +30,59 @@ int main(int argc, char **argv)
         "<item><title><![CDATA[First & plain]]></title></item>"
         "<item><title>Third</title></item><item><title>Fourth</title></item></channel></rss>";
     assert(goopad_news_xml_text(rss, strlen(rss), text, sizeof(text)));
-    assert(!strcmp(text, "First & plain\nSecond & \xe2\x82\xac\nThird"));
+    assert(!strcmp(text, "First & plain\n---\nSecond & \xe2\x82\xac\n---\nThird"));
+    assert(goopad_news_xml_text_limit(rss, strlen(rss), text, sizeof(text), 1) && !strcmp(text, "First & plain"));
+    assert(goopad_news_xml_text_limit(rss, strlen(rss), text, sizeof(text), 4) && strstr(text, "\n---\nFourth"));
+    assert(!goopad_news_xml_text_limit(rss, strlen(rss), text, sizeof(text), 0) && !text[0]);
+    assert(!goopad_news_xml_text_limit(rss, strlen(rss), text, sizeof(text), 6) && !text[0]);
+    char five_xml[1400] = "<rss><channel>";
+    char max_text[GOOPAD_NEWS_TEXT_BYTES];
+    for (unsigned i = 0; i < 5; i++) {
+        size_t used = strlen(five_xml);
+        strcpy(five_xml + used, "<item><title>");
+        used = strlen(five_xml);
+        memset(five_xml + used, 'a' + i, 130);
+        strcpy(five_xml + used + 130, "</title></item>");
+    }
+    strcat(five_xml, "</channel></rss>");
+    assert(goopad_news_xml_text_limit(five_xml, strlen(five_xml), max_text, sizeof(max_text), 5));
+    assert(strlen(max_text) == 635 && strstr(max_text, "\n---\n") && !strcmp(max_text + 632, "..."));
+    assert(!goopad_news_xml_text_limit(five_xml, strlen(five_xml), max_text, 635, 5) && !max_text[0]);
+    goopad_gradient_t gradient;
+    cJSON *config = cJSON_Parse("{\"gradientDirection\":\"circle\",\"gradientStops\":[{\"color\":\"FF0000\",\"position\":0},{\"color\":\"00FF00\",\"position\":30},{\"color\":\"0000FF\",\"position\":100}]}");
+    assert(goopad_gradient_parse(config, &gradient) && gradient.count == 3 &&
+           gradient.direction == GOOPAD_GRADIENT_CIRCLE && gradient.colors[1] == 0x00ff00 && gradient.positions[1] == 30);
+    cJSON_Delete(config);
+    config = cJSON_CreateObject();
+    cJSON *stops = cJSON_AddArrayToObject(config, "gradientStops");
+    for (int i = 0; i < 6; i++) {
+        cJSON *stop = cJSON_CreateObject();
+        cJSON_AddStringToObject(stop, "color", "123ABC");
+        cJSON_AddNumberToObject(stop, "position", i * 20);
+        cJSON_AddItemToArray(stops, stop);
+    }
+    assert(goopad_gradient_parse(config, &gradient) && gradient.count == 6 &&
+           gradient.positions[5] == 100 && gradient.direction == GOOPAD_GRADIENT_VERTICAL);
+    cJSON_AddStringToObject(config, "gradientDirection", "horizontal");
+    assert(goopad_gradient_parse(config, &gradient) && gradient.direction == GOOPAD_GRADIENT_HORIZONTAL);
+    cJSON *extra = cJSON_CreateObject();
+    cJSON_AddStringToObject(extra, "color", "ABC123");
+    cJSON_AddNumberToObject(extra, "position", 100);
+    cJSON_AddItemToArray(stops, extra);
+    assert(!goopad_gradient_parse(config, &gradient) && gradient.count == 0);
+    cJSON_Delete(config);
+    const char *bad_gradients[] = {
+        "{\"gradientStops\":[]}", "{\"gradientDirection\":\"diagonal\"}", "{\"gradientStops\":null}",
+        "{\"gradientStops\":[{\"color\":\"FF0000\",\"position\":0},{\"color\":\"0000GG\",\"position\":100}]}",
+        "{\"gradientStops\":[{\"color\":\"FF0000\",\"position\":1},{\"color\":\"0000FF\",\"position\":100}]}",
+        "{\"gradientStops\":[{\"color\":\"FF0000\",\"position\":0},{\"color\":\"0000FF\",\"position\":99}]}",
+        "{\"gradientStops\":[{\"color\":\"FF0000\",\"position\":0},{\"color\":\"0000FF\",\"position\":0}]}"
+    };
+    for (unsigned i = 0; i < sizeof(bad_gradients) / sizeof(bad_gradients[0]); i++) {
+        config = cJSON_Parse(bad_gradients[i]);
+        assert(config && !goopad_gradient_parse(config, &gradient));
+        cJSON_Delete(config);
+    }
     assert(!goopad_news_xml_text(rss, strlen(rss), text, 10) && !text[0]);
     const char *atom = "<a:feed xmlns:a=\"http://www.w3.org/2005/Atom\"><a:title>Feed title</a:title>"
         "<a:entry><a:title type=\"xhtml\"><div xmlns=\"http://www.w3.org/1999/xhtml\">"

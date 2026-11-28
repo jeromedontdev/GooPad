@@ -39,9 +39,10 @@ service running on the ESP32.
 | Firmware service | [`main/goopad.c`](../main/goopad.c) | Configuration validation/persistence, Wi-Fi events, HTTPS handlers, action dispatch, OTA, status and widget workers. |
 | Daily alarms | [`main/goopad_alarm.c`](../main/goopad_alarm.c), [`main/goopad.c`](../main/goopad.c) | Validate saved schedules and check them in a worker independent of UI refresh and connectivity; deduplication is in RAM. |
 | Background network reads | [`main/goopad_network.c`](../main/goopad_network.c) | Bounded streaming HTTPS requests that yield to manual actions. |
-| Time and headlines | [`main/goopad_time.c`](../main/goopad_time.c), [`main/goopad_news.c`](../main/goopad_news.c) | Bounded percent formatting, RSS/RDF/Atom through Expat, and legacy JSON headline aggregation. |
+| Time and headlines | [`main/goopad_time.c`](../main/goopad_time.c), [`main/goopad_news.c`](../main/goopad_news.c) | Bounded percent formatting, one-to-five separated RSS/RDF/Atom headlines through Expat, and compatible legacy JSON aggregation. |
 | Glass backdrop | [`main/goopad_glass.c`](../main/goopad_glass.c), [`main/goopad_ui.c`](../main/goopad_ui.c) | Shared downsampled/blurred RGB565 backdrop, pastel scene and scene-aligned clipped tile surfaces. |
 | Layout geometry | [`main/goopad_layout.h`](../main/goopad_layout.h) | Grid/span validation, stacked Arches and legacy ring/arc positions; editor geometry mirrors these helpers. |
+| Gradients and emphasis | [`main/goopad_gradient.h`](../main/goopad_gradient.h), [`main/goopad_fonts.c`](../main/goopad_fonts.c), [`main/goopad_text.h`](../main/goopad_text.h) | Shared gradient validation, persistent LVGL stop descriptors, and synthesized glyph weight/slant with expanded fitting metrics. |
 | Touch UI | [`main/goopad_ui.c`](../main/goopad_ui.c) | Setup, keyboard, tile layout, swipe and info menu, LVGL widget rendering, action callbacks. |
 | Shared interface | [`main/app.h`](../main/app.h) | Driver interfaces, application state, UI/service functions and widget interfaces. It still includes scaffolding-era declarations; inclusion is not proof a module is built. |
 | Hardware | [`main/board.h`](../main/board.h), `board.c`, `hw_display.c`, `hw_touch.c`, `hw_wifi.c`, `hw_sdcard.c`, `hw_audio.c`, `hw_gpio.c` in [`main/`](../main/) | Pin map, power caps, panel and touch, networking, SD and audio. The authoritative build list is [`main/CMakeLists.txt`](../main/CMakeLists.txt). |
@@ -87,6 +88,9 @@ build directory matches the current source, SDK or configuration.
    page count. A reboot starts on page one. Compact layouts maintain a map back
    to original macro indices. GIF decoding and widget/switch updates pause
    while pages scroll and refresh at scroll end.
+   Glass backdrop/tint children precede filled visuals, which precede headings
+   and captions. Multi-stop gradient descriptors and emphasized-font wrappers
+   are PSRAM-owned and freed only after their LVGL objects are deleted.
 7. An actionable tile calls `goopad_trigger()`. Sound and HomeKit have local
    paths; HTTP and Wake-on-LAN actions copy their input into a worker-owned structure and run
    asynchronously. `/api/status` exposes the last action result.

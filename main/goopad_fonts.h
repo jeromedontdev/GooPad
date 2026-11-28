@@ -5,3 +5,5 @@
 int goopad_font_index(const char *name);
 unsigned goopad_font_variants(unsigned family);
 const lv_font_t *goopad_font_variant(unsigned family, unsigned variant, unsigned *size);
+const lv_font_t *goopad_font_emphasis(const lv_font_t *base, unsigned emphasis);
+void goopad_font_emphasis_clear(void);

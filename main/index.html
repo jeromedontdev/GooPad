@@ -76,6 +76,12 @@ footer{padding:20px 26px 32px}a{color:var(--accent)}body.light a{color:#175fb8}
 .preview button.caption-rail>small{position:absolute;bottom:var(--caption-bottom);left:8px;width:calc(100% - 16px)!important}
 .preview button.widget-surface>.widget,.preview button.widget-surface>.widget-graphic{transform:translateY(var(--surface-offset))}
 .preview button.widget-surface:not(.has-graphic)>.widget{position:absolute;left:8px;width:calc(100% - 16px);top:calc(var(--surface-top) + var(--surface-height)/2);transform:translateY(-50%)}
+.field{align-content:start}.field select{height:42px;min-height:42px;min-width:0}
+.gradient-rail{position:relative;height:36px;margin:8px 12px 18px;border:1px solid var(--line);border-radius:9px}
+.gradient-rail button{position:absolute;top:24px;width:22px;height:22px;padding:0;transform:translateX(-50%);border:2px solid var(--ink);border-radius:50%;box-shadow:0 2px 5px #0005}
+.gradient-rail button[aria-pressed=true]{outline:3px solid var(--accent);outline-offset:2px}
+.gradient-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.gradient-tools input[type=color]{width:52px}.gradient-tools input[type=range]{flex:1;min-width:100px;padding:0}
+.font-emphasis{display:flex;gap:20px;align-items:center}
 </style>
 </head>
 <body>
@@ -89,8 +95,8 @@ footer{padding:20px 26px 32px}a{color:var(--accent)}body.light a{color:#175fb8}
 <section class="panel stage"><div class="stage-heading"><h2>Your GooPad</h2><span class="hint" id="count"></span></div><p class="hint stage-intro">Select a tile to make it yours.</p><div class="device-frame"><div class="preview" id="preview" aria-label="Select a tile to edit; drag tiles to rearrange"></div><div class="preview-dots" id="previewDots" aria-label="Preview pages"></div></div><div class="preview-controls"><button id="prevPage" type="button" aria-label="Previous page" title="Previous page">&larr;</button><button id="addPage" type="button" aria-label="Add page after current" title="Add page after current">+</button><button id="removePage" type="button" aria-label="Remove current page" title="Remove current page">&minus;</button><button id="nextPage" type="button" aria-label="Next page" title="Next page">&rarr;</button></div><p class="hint">Drag tiles to rearrange them. Use the arrows to change pages, or + and − to add or remove a page.</p><details class="layout-settings"><summary>Layout settings</summary><div class="fields">
 <div class="field"><label>Columns</label><select id="cols"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field"><label>Rows per page</label><select id="rows"><option>2</option><option selected>3</option><option>4</option></select></div>
-<div class="field"><label for="deviceTheme">Device theme</label><select id="deviceTheme"><option value="midnight">Midnight</option><option value="ocean">Ocean</option><option value="forest">Forest</option><option value="light">Light</option><option value="slate">Slate</option><option value="violet">Violet</option><option value="ember">Ember</option><option value="berry">Berry</option><option value="teal">Teal</option><option value="black">Black</option><option value="custom">Custom</option></select></div>
-<div class="field"><label for="screenLayout">Screen layout</label><select id="screenLayout"><option value="grid">Grid (default)</option><option value="arches">Arches</option></select><span class="hint">Arches stacks upward-curved rows inside a circular viewport. Fewer rows/columns make larger icons. Enlarged tiles require Grid. Existing ring layouts are retained until you explicitly choose another layout.</span></div>
+<div class="field"><label for="deviceTheme">Device theme</label><select id="deviceTheme"><option value="midnight">Midnight</option><option value="ocean">Ocean</option><option value="forest">Forest</option><option value="light">Light</option><option value="slate">Slate</option><option value="violet">Violet</option><option value="ember">Ember</option><option value="berry">Berry</option><option value="teal">Teal</option><option value="black">Black</option><option value="custom">Custom</option></select><button type="button" id="applyDeviceTheme">Apply to every tile</button><span class="hint">Choosing Material or Glass replaces existing tile-theme overrides. Apply again to unify a saved layout; individual tile themes can be changed afterward.</span></div>
+<div class="field"><label for="screenLayout">Screen layout</label><select id="screenLayout"><option value="grid">Grid (default)</option><option value="ring">Circles</option><option value="arches">Arches</option></select><span class="hint">Circles places icons around a ring; Arches stacks upward-curved rows. Fewer rows/columns make larger icons. Enlarged tiles require Grid.</span></div>
 <div class="field"><label><input id="showBattery" type="checkbox"> Show battery indicator</label><span class="hint">Off by default. Requires readable battery telemetry; this Guition board cannot report a battery percentage.</span></div>
 <div class="field" id="customBackground"><label for="background">Custom background</label><input id="background" type="color" value="#111827"></div>
 <div id="backgroundUploadField" class="field wide hidden"><label for="backgroundUpload">Background image (SD card required, up to 15 MB)</label><input id="backgroundUpload" type="file" accept="image/*"><p class="hint">Images are center-cropped to fill the 480×480 screen. Transparent areas use your background color.</p><img id="backgroundSample" class="background-sample hidden" alt="Custom background"><span id="backgroundStatus" class="hint" role="status"></span><button id="removeBackground" type="button">Remove image</button></div>
@@ -166,7 +172,7 @@ function scrollToTile(index){
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 const themeBackgrounds={midnight:"111827",ocean:"0B1B2A",forest:"10251D",light:"F1F5F9",slate:"202B3A",violet:"241938",ember:"2F1B1A",berry:"301729",teal:"102F31",black:"000000",liquid_glass:"DDEBF6",material:"FFFBFE"};
 const themeAccents={ocean:"67E8F9",forest:"6EE7B7",light:"334155",slate:"CBD5E1",violet:"D8B4FE",ember:"FDBA74",berry:"FDA4C4",teal:"5EEAD4",black:"E2E8F0"};
-function updateThemeFields(){const custom=$("#deviceTheme").value==="custom";$("#customBackground").classList.toggle("hidden",!custom);$("#backgroundUploadField").classList.toggle("hidden",!custom);$("#background").disabled=!custom;if(!custom)$("#background").value="#"+themeBackgrounds[$("#deviceTheme").value]}
+function updateThemeFields(){const custom=$("#deviceTheme").value==="custom";$("#customBackground").classList.toggle("hidden",!custom);$("#backgroundUploadField").classList.toggle("hidden",!custom);$("#background").disabled=!custom;$("#applyDeviceTheme").disabled=!["liquid_glass","material"].includes($("#deviceTheme").value);if(!custom)$("#background").value="#"+themeBackgrounds[$("#deviceTheme").value]}
 $("#deviceTheme").insertAdjacentHTML("beforeend",'<option value="liquid_glass">Liquid glass</option><option value="material">Material</option>');
 const previewBattery=document.createElement("p");previewBattery.id="previewBattery";previewBattery.className="hint hidden";previewBattery.style.textAlign="center";$("#preview").before(previewBattery);
 function setForm(){ $("#cols").value=cfg.cols;$("#rows").value=cfg.rows;$("#hideUnconfigured").checked=cfg.hideUnconfigured===true;$("#hideEmptyTiles").checked=cfg.hideEmptyTiles===true;$("#timeOffset").value=cfg.timeOffsetMinutes??-new Date().getTimezoneOffset();$("#background").value="#"+(cfg.background||"111827").replace("#","");$("#deviceTheme").value=cfg.theme||"midnight";$("#companionStatus").textContent=cfg.companionCertificate?"Secure pairing configured.":"Apply a secure pairing code to connect your PC.";updateThemeFields();render()}
@@ -442,8 +448,8 @@ function organizeTileEditor(card,openSections,mode){
  }
  const into=(id,...nodes)=>sections[id].querySelector(".macro-fields").append(...nodes);
  into("icon",card.querySelector("[data-widget-graphic]"),field("iconSource"),...fields.querySelectorAll("[data-visual]"),card.querySelector("[data-asset-library]"),field("visualFit"),card.querySelector("[data-visual-scale]"),card.querySelector("[data-icon-color]"));
- into("appearance",field("widgetTheme"),field("widgetLayout"),field("spanCols"),field("spanRows"),field("shape"),field("color"),field("widgetGradient"),card.querySelector("[data-tile-gradient]"),field("widgetAccent"),field("outline"),fields.querySelector("[data-widget-style].wide"));
- into("text",field("textColor"),field("font"),field("textSize"),field("widgetTextSize"),field("textAlign"),field("textDecoration"),field("textSpacing"));
+ into("appearance",field("widgetTheme"),field("widgetLayout"),field("spanCols"),field("spanRows"),field("shape"),field("color"),card.querySelector("[data-gradient-editor]"),field("widgetAccent"),field("outline"),fields.querySelector("[data-widget-style].wide"));
+ into("text",field("textColor"),field("font"),card.querySelector("[data-font-emphasis]"),field("textSize"),field("widgetTextSize"),field("textAlign"),field("textDecoration"),field("textSpacing"));
  into("sound",field("sound"),card.querySelector("[data-sound-upload]"));
  if(fields.children.length)throw Error("Tile editor has ungrouped fields.");
  const footer=document.createElement("div");footer.className="tile-footer";footer.append(head.querySelector("[data-delete]"));
@@ -452,7 +458,7 @@ function organizeTileEditor(card,openSections,mode){
 function render(){
  // Only the selected tile gets editing controls; cfg remains the shared draft.
  $("#screenLayout").querySelectorAll("[data-legacy-layout]").forEach(option=>option.remove());
- if(["ring","arc"].includes(cfg.screenLayout)){const option=new Option(cfg.screenLayout==="ring"?"Circular ring (existing)":"Arched ring (existing)",cfg.screenLayout);option.dataset.legacyLayout="";$("#screenLayout").append(option)}
+ if(cfg.screenLayout==="arc"){const option=new Option("Arched ring (existing)",cfg.screenLayout);option.dataset.legacyLayout="";$("#screenLayout").append(option)}
  $("#screenLayout").value=cfg.screenLayout||"grid";$("#showBattery").checked=cfg.showBattery===true;
  const root=$("#macros"),oldCard=root.querySelector(".macro");
  const openSections=oldCard&&Number(oldCard.dataset.index)===selectedTile?Array.from(oldCard.querySelectorAll(".tile-section[open]"),section=>section.dataset.section):null;
@@ -483,7 +489,8 @@ function render(){
   <div class="field"><label>Text alignment</label><select data-k="textAlign"><option value="center">Center</option><option value="left">Left</option><option value="right">Right</option></select></div>
   <div class="field"><label>Text decoration</label><select data-k="textDecoration"><option value="none">None</option><option value="underline">Underline</option><option value="strike">Strikethrough</option></select></div>
   <div class="field"><label>Letter spacing (device pixels)</label><select data-k="textSpacing"><option value="0">Normal</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
-  <div class="field" data-tile-gradient><label>Tile gradient end</label><input data-k="tileGradient" type="color" value="#${esc(m.tileGradient||m.color)}"><span class="hint">Match the tile color for a solid background. Widget gradients are configured separately.</span></div>
+  <div class="field wide" data-gradient-editor></div>
+  <div class="field wide" data-font-emphasis><label>Font style</label><div class="font-emphasis"><label><input type="checkbox" data-k="fontBold" ${m.fontBold?"checked":""}> Bold</label><label><input type="checkbox" data-k="fontItalic" ${m.fontItalic?"checked":""}> Italic</label></div><span class="hint">Applies to labels and widget text. Device fonts use synthesized weight and slant.</span></div>
   <div class="field"><label><input data-k="outline" type="checkbox" ${m.outline!==false?"checked":""}> Show outline</label><input data-k="outlineColor" type="color" value="#${esc(m.outlineColor||"A5B4FC")}"></div>
   <div class="field"><label>Button sound (device speaker)</label><select data-k="sound"><option value="none">None</option><option value="click">Click</option><option value="beep">Beep</option><option value="chime">Chime</option><option value="alert">Alert</option><option value="file">Uploaded WAV / MP3</option></select></div>
   <div class="field wide" data-sound-upload><label>Upload sound (WAV / MP3, at most 30 seconds)</label><input data-k="soundUpload" type="file" accept=".wav,.mp3,audio/wav,audio/mpeg"><span class="hint" data-sound-name>${esc(m.soundName||"Choose a file. Audio is converted in your browser and stored on SD.")}</span></div>
@@ -496,7 +503,7 @@ function render(){
   <div class="field wide" data-widget-option="clock"><label>Time format</label><input data-k="clockFormat" maxlength="96" placeholder="%H:%M"><span class="hint">Examples: %H:%M, %-I:%M %p, %H:%M:%S. Percent formats use English names and the device UTC offset.</span></div>
   <div class="field wide" data-widget-option="date"><label>Date format</label><input data-k="dateFormat" maxlength="96" placeholder="%Y-%m-%d"><span class="hint">Examples: %Y-%m-%d, %d/%m/%Y, %A, %B %-d. Use %-d for a day without a leading zero.</span></div>
   <div class="field wide" data-widget-option="datetime"><label>Date &amp; time format</label><input data-k="datetimeFormat" maxlength="96" placeholder="%Y-%m-%d%n%H:%M"><span class="hint">Example: %a, %b %-d%n%-I:%M %p. %n adds a new line; %% shows a percent sign. Also supports %F, %T, %R, %D, %r, %e, %j, %u, %w, %y, %P and %t. Unsupported directives are rejected.</span></div>
-  <div class="field wide" data-widget-option="news"><label>Headline source</label><select data-k="newsSource"><option value="rss">RSS / Atom</option><option value="hackernews">Hacker News JSON (legacy)</option><option value="jsonfeed">Custom JSON Feed (legacy)</option></select><div data-news-preset><label>News feed</label><select data-k="newsFeed">${Object.entries(newsFeeds).map(([key,feed])=>`<option value="${key}">${feed.label}</option>`).join("")}<option value="custom">Custom RSS / Atom URL</option></select></div><div data-news-url><label>Custom feed HTTPS URL</label><input data-k="newsUrl" type="url" maxlength="179" value="${esc(m.newsUrl||"")}" placeholder="https://example.com/feed.xml"></div><span class="hint">Up to three headlines, refreshed every ten minutes. RSS 2.0, RSS 1.0 and Atom are supported, including XML entities and CDATA. TLS is verified; redirects, DTDs and malformed XML are rejected. XML limit: 256 KiB; legacy JSON: 64 KiB. Providers can change or rate-limit their feeds.</span></div>
+  <div class="field wide" data-widget-option="news"><label>RSS / Atom feed</label><select data-k="newsFeed"><option value="" disabled>Choose an RSS feed to replace the saved legacy source</option>${Object.entries(newsFeeds).map(([key,feed])=>`<option value="${key}">${feed.label}</option>`).join("")}<option value="custom">Custom RSS / Atom URL</option></select><span class="hint hidden" data-news-legacy>Your saved legacy source remains active until you choose an RSS feed.</span><div data-news-url><label>Custom feed HTTPS URL</label><input data-k="newsUrl" type="url" maxlength="179" value="${esc(m.newsUrl||"")}" placeholder="https://example.com/feed.xml"></div><label>Number of headlines</label><select data-k="newsCount">${[1,2,3,4,5].map(count=>`<option value="${count}">${count}${count===3?" (default)":""}</option>`).join("")}</select><span class="hint">One to five separated headlines, refreshed every ten minutes. RSS 2.0, RSS 1.0 and Atom are supported. TLS is verified; redirects, DTDs and malformed XML are rejected. XML limit: 256 KiB. Providers can change or rate-limit their feeds.</span></div>
   <div class="field wide" data-widget-option="pc_monitor"><label>PC statistic</label><select data-k="pcStat">${Object.entries(pcStatLabels).map(([key,label])=>`<option value="${key}">${label}</option>`).join("")}</select><span class="hint">Network speed totals non-loopback interfaces. Fan speed is the fastest reported fan and requires LibreHardwareMonitor or OpenHardwareMonitor. GPU readings require supported drivers. Missing readings say Unavailable, never zero.</span></div>
   <div class="field wide" data-widget-option="now_playing"><span class="hint">Pair the Windows Companion in Settings and enable now-playing sharing in the Companion. Tap to play/pause; hold to skip to the next track. Media keys target the PC's active player. Media title and artist are shared with paired devices on your local network.</span></div>
   <div class="field" data-widget-option="pc_temperature"><label>Temperature unit</label><select data-k="temperatureUnit"><option value="C">Celsius</option><option value="F">Fahrenheit</option></select></div>
@@ -516,7 +523,6 @@ function render(){
   <div class="field"><label>Card style</label><select data-k="widgetLayout"><option value="classic">Classic</option><option value="panel">Modern</option><option value="layered">Layered</option></select><span class="hint">Layouts adapt to tile shape and size. Full-bleed GIFs cover some styling.</span></div>
   <div class="field"><label>Tile width</label><select data-k="spanCols"><option value="1">1 column</option><option value="2">2 columns</option><option value="3">3 columns</option><option value="4">4 columns</option></select><span class="hint">Enlarges right and down into empty positions. Turn off Compact configured tiles first.</span></div>
   <div class="field"><label>Tile height</label><select data-k="spanRows"><option value="1">1 row</option><option value="2">2 rows</option><option value="3">3 rows</option><option value="4">4 rows</option></select></div>
-  <div class="field" data-widget-style><label>Custom gradient end</label><input data-k="widgetGradient" type="color" value="#${esc(m.widgetGradient||m.color||"4F46E5")}"><span class="hint">Set this to the tile color for a solid background. Used with Custom theme.</span></div>
   <div class="field" data-widget-style data-widget-graphic><label>Icon / graphic</label><select data-k="widgetGraphic"><option value="text">Text only</option><option value="custom_icon">Selected icon and text</option><option value="icon">Icon badge</option><option value="analog">Live analog clock</option><option value="calendar">Calendar card</option><option value="bar">Usage bar</option><option value="ring">Usage ring</option></select><span class="hint">Choose Selected icon and text to reveal the icon controls below. Use an emoji, Font Awesome icon, image, or GIF with any widget.</span></div>
   <div class="field" data-widget-style><label>Maximum widget text size (device pixels)</label><select data-k="widgetTextSize"><option value="0">Auto</option><option value="12">12</option><option value="14">14</option><option value="16">16</option><option value="20">20</option><option value="28">28</option><option value="40">40</option></select></div>
   <div class="field" data-widget-style><label>Card accent</label><input data-k="widgetAccent" type="color" value="#${esc(m.widgetAccent||"A5B4FC")}"></div>
@@ -562,8 +568,8 @@ function render(){
   card.querySelector('[data-k="pcStat"]').value=m.pcStat||"summary";
   card.querySelector('[data-k="temperatureUnit"]').value=m.temperatureUnit||"C";
   card.querySelector('[data-k="widgetTheme"]').value=m.widgetTheme||"device";
-  card.querySelector('[data-k="newsSource"]').value=m.newsSource||"hackernews";
   card.querySelector('[data-k="newsFeed"]').value=m.newsFeed||"bbc_world";
+  card.querySelector('[data-k="newsCount"]').value=String(m.newsCount??3);
   syncNewsControls(card,m);
   card.querySelector('[data-k="widgetTheme"]').closest(".field").querySelector("label").textContent="Tile theme";
   card.querySelector('[data-k="widgetLayout"]').value=m.widgetLayout||"panel";
@@ -595,10 +601,13 @@ function render(){
      else if(m.actionMode==="wake_on_lan"){event.stopImmediatePropagation();m.actionMode="widget";m.widget=el.value;render()}
     };
     el.addEventListener("input",changeWidget);el.addEventListener("change",changeWidget)
-    const newNews=()=>{if(el.value==="news"&&m.widget!=="news"){m.newsSource="rss";m.newsFeed="bbc_world";card.querySelector('[data-k="newsSource"]').value="rss";card.querySelector('[data-k="newsFeed"]').value="bbc_world";syncNewsControls(card,m)}};
+    const newNews=()=>{if(el.value==="news"&&m.widget!=="news"){m.newsSource="rss";m.newsFeed="bbc_world";card.querySelector('[data-k="newsFeed"]').value="bbc_world";syncNewsControls(card,m)}};
     el.addEventListener("input",newNews);el.addEventListener("change",newNews)
    }
-   if(["newsSource","newsFeed"].includes(el.dataset.k))for(const event of ["input","change"])el.addEventListener(event,()=>syncNewsControls(card,{...m,[el.dataset.k]:el.value}));
+   if(el.dataset.k==="newsFeed")for(const event of ["input","change"])el.addEventListener(event,()=>{
+    if(m.newsSource!=="rss")delete m.newsUrl;
+    m.newsSource="rss";syncNewsControls(card,{...m,newsFeed:el.value})
+   });
    if(el.dataset.k==="actionMode")el.addEventListener("change",event=>{
     if(el.value==="smart_home"){event.stopImmediatePropagation();m.actionMode="home_assistant";render()}
     else if(el.value==="widget"&&m.widget==="home_state"){m.widget="clock";card.querySelector('[data-k="widget"]').value="clock"}
@@ -622,7 +631,19 @@ function render(){
    }
    if(el.dataset.k==="emojiRender")el.addEventListener("change",()=>{delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.emojiImageKey});
    if(el.type==="file"){el.addEventListener("change",()=>el.dataset.k==="soundUpload"?uploadSound(el,m):uploadMacroIcon(el,i,m));return}
-   const update=()=>{const key=el.dataset.k;if(key==="actionMode"&&el.value==="smart_home")return;if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.emojiImageKey;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="advanced"){m.url="";card.querySelector('[data-k="url"]').value=""}m[key]=key==="countdownAt"?(el.value?Math.floor(Date.parse(el.value+"T00:00:00Z")/1000)-Number($("#timeOffset").value)*60:NaN):["widgetTextSize","visualScale","textSize","textSpacing","focusMinutes","breakMinutes"].includes(key)?Number(el.value):el.type==="checkbox"?el.checked:el.type==="color"?el.value.slice(1).toUpperCase():el.value;if(key==="actionMode"&&m.actionMode==="sound")card.querySelector('[data-section="sound"]').open=true;if(!m.iconColor&&(key==="textColor"||key==="iconSource"))card.querySelector('[data-k="iconColor"]').value="#"+defaultIconColor(m);if(key==="color"&&!m.tileGradient)card.querySelector('[data-k="tileGradient"]').value="#"+m.color;if(key==="sound")card.querySelector("[data-sound-upload]").classList.toggle("hidden",el.value!=="file");if(["widgetLayout","shape","actionMode","name"].includes(key)&&!m.textAlign)card.querySelector('[data-k="textAlign"]').value=actionCard(m,Number($("#cols").value),Number($("#rows").value))?"left":"center";if(["actionMode","widget","pcStat","widgetGraphic","iconSource","stockProvider","visualFit"].includes(key)){if(!widgetGraphicAllowed(m.widgetGraphic||"text",m.widget||"clock",m.pcStat||"summary")){m.widgetGraphic="text";card.querySelector('[data-k="widgetGraphic"]').value="text"}updateModeFields(card,editorActionMode(m))}syncWidgetStyle(card,m);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()};
+   const update=()=>{
+    const key=el.dataset.k;if(key==="actionMode"&&el.value==="smart_home")return;
+    if(key==="icon"||key==="iconSource"){delete m.iconImage;delete m.iconFormat;delete m.iconSize;delete m.imagePreview;delete m.emojiImageKey;delete m.faIcon;delete m.faCode;card.querySelector("[data-fa-code]").value="";card.querySelector("[data-fa-label]").textContent="Enter a code or search. SD card required."}
+    if(key==="actionMode"&&m.actionMode==="pc_open_url"&&el.value==="advanced"){m.url="";card.querySelector('[data-k="url"]').value=""}
+    m[key]=key==="countdownAt"?(el.value?Math.floor(Date.parse(el.value+"T00:00:00Z")/1000)-Number($("#timeOffset").value)*60:NaN):["widgetTextSize","visualScale","textSize","textSpacing","focusMinutes","breakMinutes","newsCount"].includes(key)?Number(el.value):el.type==="checkbox"?el.checked:el.type==="color"?el.value.slice(1).toUpperCase():el.value;
+    if(key==="color"&&Array.isArray(m.gradientStops))m.gradientStops[0].color=m.color;
+    if(key==="actionMode"&&m.actionMode==="sound")card.querySelector('[data-section="sound"]').open=true;
+    if(!m.iconColor&&(key==="textColor"||key==="iconSource"))card.querySelector('[data-k="iconColor"]').value="#"+defaultIconColor(m);
+    if(key==="sound")card.querySelector("[data-sound-upload]").classList.toggle("hidden",el.value!=="file");
+    if(["widgetLayout","shape","actionMode","name"].includes(key)&&!m.textAlign)card.querySelector('[data-k="textAlign"]').value=actionCard(m,Number($("#cols").value),Number($("#rows").value))?"left":"center";
+    if(["actionMode","widget","pcStat","widgetGraphic","iconSource","stockProvider","visualFit"].includes(key)){if(!widgetGraphicAllowed(m.widgetGraphic||"text",m.widget||"clock",m.pcStat||"summary")){m.widgetGraphic="text";card.querySelector('[data-k="widgetGraphic"]').value="text"}updateModeFields(card,editorActionMode(m))}
+    syncWidgetStyle(card,m);card.querySelectorAll(`[data-k="${key}"]`).forEach(other=>{if(other!==el&&other.type!=="file")other.value=el.value});preview()
+   };
    el.addEventListener("input",update);el.addEventListener("change",update);
   });
   card.querySelector("[data-fa]").onclick=()=>openFaPicker(i);
@@ -658,7 +679,6 @@ function updateModeFields(card,mode){
  });
  card.querySelector('[data-k="widgetLayout"]').closest(".field").classList.toggle("hidden",!widget&&visualCover(macro));
  const showIcon=!widget||card.querySelector('[data-k="widgetGraphic"]').value==="custom_icon";
- card.querySelector("[data-tile-gradient]").classList.toggle("hidden",widget);
  card.querySelector("[data-visual-scale]").classList.toggle("hidden",widget);
  card.querySelector("[data-icon-color]").classList.toggle("hidden",!showIcon);
  card.querySelector("[data-asset-library]").classList.toggle("hidden",!showIcon||!["image","gif"].includes(source.value));
@@ -772,8 +792,45 @@ const newsFeeds={
 };
 function syncNewsControls(card,m){
  const rss=(m.newsSource||"hackernews")==="rss";
- card.querySelector("[data-news-preset]").classList.toggle("hidden",!rss);
- card.querySelector("[data-news-url]").classList.toggle("hidden",rss?(m.newsFeed||"bbc_world")!=="custom":m.newsSource!=="jsonfeed")
+ card.querySelector('[data-k="newsFeed"]').value=rss?m.newsFeed||"bbc_world":"";
+ card.querySelector("[data-news-legacy]").classList.toggle("hidden",rss);
+ card.querySelector("[data-news-url]").classList.toggle("hidden",!rss||(m.newsFeed||"bbc_world")!=="custom")
+}
+function gradientStops(m){
+ if(m.gradientStops)return structuredClone(m.gradientStops);
+ const start=m.color||"4F46E5",end=(m.actionMode==="widget"||responseTile(m)?m.widgetGradient:m.tileGradient)||start.replace(/../g,part=>Math.round(parseInt(part,16)*.9).toString(16).padStart(2,"0"));
+ return [{color:start,position:0},{color:end,position:100}]
+}
+function validGradient(m){
+ if(m.gradientDirection!==undefined&&!["horizontal","vertical","circle"].includes(m.gradientDirection))return false;
+ if(m.gradientStops===undefined)return true;
+ return Array.isArray(m.gradientStops)&&m.gradientStops.length>=2&&m.gradientStops.length<=6&&
+  m.gradientStops.every((stop,i)=>stop&&typeof stop.color==="string"&&/^[0-9A-Fa-f]{6}$/.test(stop.color)&&Number.isInteger(stop.position)&&stop.position>=0&&stop.position<=100&&(!i||stop.position>m.gradientStops[i-1].position))&&m.gradientStops[0].position===0&&m.gradientStops.at(-1).position===100
+}
+function gradientCss(m,rail=false){
+ const colors=gradientStops(m).map(stop=>`#${stop.color} ${stop.position}%`).join(",");
+ return !rail&&m.gradientDirection==="circle"?`radial-gradient(circle farthest-corner,${colors})`:`linear-gradient(${rail||m.gradientDirection==="horizontal"?"to right":"to bottom"},${colors})`
+}
+function renderGradient(card,m){
+ const root=card.querySelector("[data-gradient-editor]"),palette=tilePalette(m),disabled=!!palette,stops=palette?[{color:palette[0],position:0},{color:palette[1],position:100}]:gradientStops(m);
+ let selected=Math.min(Number(root.dataset.stop)||0,stops.length-1);
+ root.innerHTML=`<label>Custom gradient</label><div class="gradient-rail"></div><div class="gradient-tools"><input type="color" data-gradient-color aria-label="Selected gradient stop color"><input type="range" data-gradient-position aria-label="Gradient stop position"><output></output></div><div class="gradient-tools"><button type="button" data-gradient-add>Add stop</button><button type="button" data-gradient-remove>Remove stop</button><select data-gradient-direction aria-label="Gradient direction"><option value="vertical">Vertical</option><option value="horizontal">Horizontal</option><option value="circle">Circle (center outward)</option></select></div><span class="hint">Select a color marker, then adjust its color or position. Two to six stops; match their colors for a solid tile. Choose Custom tile theme to edit.</span>`;
+ const rail=root.querySelector(".gradient-rail"),color=root.querySelector("[data-gradient-color]"),position=root.querySelector("[data-gradient-position]"),direction=root.querySelector("[data-gradient-direction]");
+ rail.style.background=gradientCss({...m,gradientStops:stops},true);
+ stops.forEach((stop,i)=>{const button=document.createElement("button");button.type="button";button.style.left=stop.position+"%";button.style.background="#"+stop.color;button.disabled=disabled;button.setAttribute("aria-label",`Gradient stop ${i+1} at ${stop.position}%`);button.setAttribute("aria-pressed",String(i===selected));button.onclick=()=>{root.dataset.stop=i;renderGradient(card,m)};rail.append(button)});
+ color.value="#"+stops[selected].color;color.disabled=disabled;direction.value=m.gradientDirection||"vertical";direction.disabled=disabled;
+ position.min=selected?stops[selected-1].position+1:0;position.max=selected<stops.length-1?stops[selected+1].position-1:100;position.value=stops[selected].position;position.disabled=disabled||selected===0||selected===stops.length-1;
+ root.querySelector("output").textContent=stops[selected].position+"%";
+ const changed=()=>{m.gradientStops=stops;m.gradientDirection=direction.value;m.color=stops[0].color;syncWidgetStyle(card,m);preview()};
+ const sliding=()=>{m.gradientStops=stops;m.gradientDirection=direction.value;m.color=stops[0].color;rail.style.background=gradientCss(m,true);const marker=rail.children[selected];marker.style.left=stops[selected].position+"%";marker.style.background="#"+stops[selected].color;marker.setAttribute("aria-label",`Gradient stop ${selected+1} at ${stops[selected].position}%`);root.querySelector("output").textContent=stops[selected].position+"%";card.querySelector('[data-k="color"]').value="#"+m.color;preview()};
+ color.oninput=()=>{stops[selected].color=color.value.slice(1).toUpperCase();sliding()};
+ position.oninput=()=>{stops[selected].position=Number(position.value);sliding()};
+ color.onchange=position.onchange=changed;
+ direction.onchange=changed;
+ const add=root.querySelector("[data-gradient-add]"),remove=root.querySelector("[data-gradient-remove]");
+ add.disabled=disabled||stops.length>=6;remove.disabled=disabled||selected===0||selected===stops.length-1;
+ add.onclick=()=>{let gap=0;for(let i=1;i<stops.length-1;i++)if(stops[i+1].position-stops[i].position>stops[gap+1].position-stops[gap].position)gap=i;stops.splice(gap+1,0,{color:stops[gap].color,position:Math.round((stops[gap].position+stops[gap+1].position)/2)});root.dataset.stop=gap+1;changed()};
+ remove.onclick=()=>{stops.splice(selected,1);root.dataset.stop=selected-1;changed()}
 }
 function previewIconColor(m){return m.iconColor||tilePalette(m)?.[2]}
 const previewFonts={lobster:"Goo Script Preview",pacifico:"Goo Pacific Preview",sharetechmono:"Goo Terminal Preview",righteous:"Goo Rounded Preview",acme:"Acme Preview",bangers:"Bangers Preview",patrickhand:"Patrick Hand Preview",pressstart2p:"Press Start Preview",spacemono:"Space Mono Preview"};
@@ -784,6 +841,8 @@ document.fonts.addEventListener("loadingdone",()=>preview());
 const fontPreview={montserrat:"system-ui, sans-serif",lato:"Arial, sans-serif",cousine:"Consolas, monospace",breeserif:"Georgia, serif",abrilfatface:"Georgia, serif",anton:"Impact, sans-serif",archivoblack:"Arial Black, sans-serif",lobster:'"Goo Script Preview", cursive',pacifico:'"Goo Pacific Preview", cursive',sharetechmono:'"Goo Terminal Preview", monospace',righteous:'"Goo Rounded Preview", sans-serif',acme:'"Acme Preview", sans-serif',bangers:'"Bangers Preview", sans-serif',patrickhand:'"Patrick Hand Preview", cursive',pressstart2p:'"Press Start Preview", monospace',spacemono:'"Space Mono Preview", monospace'};
 function formatPreview(element,m,nativeWidth,size){
  element.style.fontFamily=fontPreview[m.font]||fontPreview.montserrat;
+ element.style.fontWeight=m.fontBold?"700":"400";
+ element.style.fontStyle=m.fontItalic?"italic":"normal";
  element.style.textAlign=m.textAlign||"center";
  element.style.textDecoration=m.textDecoration==="strike"?"line-through":m.textDecoration==="underline"?"underline":"none";
  element.style.letterSpacing=`calc(100cqw * ${m.textSpacing||0} / ${nativeWidth})`;
@@ -797,10 +856,10 @@ function syncWidgetStyle(card,m){
  const widget=m.actionMode==="widget",palette=tilePalette(m);
  card.querySelectorAll("[data-widget-style]").forEach(field=>field.classList.toggle("hidden",!widget&&!field.querySelector('[data-k="widgetTheme"]')&&!(responseTile(m)&&field.querySelector('[data-k="widgetTextSize"]'))));
  card.querySelector('[data-k="widgetGraphic"] option[value="text"]').textContent=m.widget==="weather"?"Automatic weather icon":"Text only";
- for(const [key,value]of [["color",palette?.[0]||m.color],["textColor",palette?.[2]||m.textColor],["outlineColor",palette?.[3]||m.outlineColor||"A5B4FC"],["widgetAccent",palette?.[3]||m.widgetAccent||"A5B4FC"],["widgetGradient",palette?.[1]||m.widgetGradient||m.color||"4F46E5"]]){
+ for(const [key,value]of [["color",palette?.[0]||m.gradientStops?.[0]?.color||m.color],["textColor",palette?.[2]||m.textColor],["outlineColor",palette?.[3]||m.outlineColor||"A5B4FC"],["widgetAccent",palette?.[3]||m.widgetAccent||"A5B4FC"]]){
   const control=card.querySelector(`[data-k="${key}"]`);control.disabled=!!palette;control.value="#"+(key==="outlineColor"&&palette?(tileTheme(m)==="material"?"CAC4D0":tileTheme(m)==="liquid_glass"?"FFFFFF":value):value)
  }
- card.querySelector('[data-k="tileGradient"]').disabled=!!palette;
+ renderGradient(card,m);
  card.querySelector('[data-k="widgetGraphic"]').querySelectorAll("option").forEach(option=>{option.hidden=option.disabled=!widgetGraphicAllowed(option.value,m.widget||"clock",m.pcStat||"summary")})
 }
 const pcKeyNames=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ",..."0123456789",...Array.from({length:24},(_,i)=>"F"+(i+1)),"ENTER","TAB","ESC","SPACE","BACKSPACE","DELETE","INSERT","HOME","END","PAGEUP","PAGEDOWN","LEFT","RIGHT","UP","DOWN","PRINTSCREEN"];
@@ -971,6 +1030,7 @@ function preview(){
     if(m.actionMode==="homekit"){const indicator=document.createElement("span");indicator.className="homekit-indicator";indicator.title="Example indicator; live state appears on GooPad";indicator.setAttribute("aria-hidden","true");b.append(indicator)}
     if(styleTheme==="material"){b.style.background="#F3EDF7";if(m.outline!==false)b.style.border="1px solid #CAC4D0"}
     if(styleTheme==="liquid_glass"){b.style.background="linear-gradient(#ffffffb3,#ffffff33)";if(m.outline!==false)b.style.border="1px solid #FFFFFF"}
+    if(!preset&&m.gradientStops)b.style.background=gradientCss(m);
    }
    cell.append(b);page.append(cell);
   }
@@ -1055,7 +1115,7 @@ function fitWidgetPreview(element,m){
  const long=m.widget==="pc_monitor"&&(m.pcStat||"summary")!=="summary"||(m.widget||"clock")==="clock"&&((m.clockFormat||"24h")==="12h"||(m.clockFormat||"").endsWith("_seconds"));
  const requested=m.widgetTextSize||(native.width<140||long&&native.width<200?14:28),scale=button.clientWidth/native.width;
  let size=requested*scale,available=button.clientHeight-16-(m.name?22:0)-(button.classList.contains("widget-panel")?20*scale:0)-(graphic?(m.widgetGraphic==="bar"?14:graphic.clientHeight+6):0);
- widgetMeasure.font=`${size}px ${getComputedStyle(element).fontFamily}`;
+ widgetMeasure.font=`${m.fontItalic?"italic ":""}${m.fontBold?"700 ":""}${size}px ${getComputedStyle(element).fontFamily}`;
  const letterSpacing=parseFloat(getComputedStyle(element).letterSpacing)||0;
  const measured=Math.max(...lines.map(line=>widgetMeasure.measureText(line).width+Math.max(0,line.length-1)*letterSpacing));
  const width=m.shape==="circle"&&graphic?Math.min(button.clientWidth-20,button.clientWidth*.75):button.clientWidth-20;
@@ -1072,6 +1132,7 @@ function updateWidgetPreview(){
   const index=Number(element.closest("[data-tile]").dataset.tile),macro=cfg.macros[index],stat=macro.pcStat||"summary";
   element.textContent=element.dataset.widget==="response"?(requestPreview[index]||"Tap to fetch"):element.dataset.widget==="pc_monitor"?(macro.temperatureUnit==="F"&&pcStatsFPreview[stat]||pcStatsPreview[stat]||(stat==="summary"?pcMonitorPreview:"PC sampling")):
    ["weather","weather_alerts","air_quality","stock","crypto","github","exchange_rate","home_state","now_playing","news"].includes(element.dataset.widget)?liveWidgetPreview[index]||"Save to load data":widgetTimeText(macro,time);
+  if(element.dataset.widget==="news")element.textContent=(element.textContent.includes("\n---\n")?element.textContent.split("\n---\n"):element.textContent.split("\n")).slice(0,macro.newsCount??3).join("\n---\n");
   element.style.setProperty("--widget-chars",Math.max(...element.textContent.split("\n").map(line=>line.length)))
   const graphic=element.closest("button").querySelector(".widget-graphic");
   if(graphic){if(macro.widgetGraphic==="custom_icon")drawWidgetIcon(graphic,macro);else graphic.innerHTML=widgetGraphicSvg(macro,time,element.textContent)}
@@ -1205,6 +1266,8 @@ function parseWebUrl(value,label){
  return parsed.href
 }
 function prepareMacroAction(m,index){
+ if(!validGradient(m))throw Error(`Button ${index+1}: use two to six ordered gradient stops, from 0% to 100%, and a supported direction.`);
+ for(const key of ["fontBold","fontItalic"])if(m[key]!==undefined&&typeof m[key]!=="boolean")throw Error(`Button ${index+1}: invalid font style.`);
  for(const [key,date] of [["clockFormat",false],["dateFormat",true],["datetimeFormat",false]]){
   if(m[key]!==undefined&&!validTimeFormat(key==="datetimeFormat"?m[key]:timeFormat(date,m[key])))throw Error(`Button ${index+1}: invalid ${key}. Use supported percent directives (maximum 96 bytes).`);
  }
@@ -1220,12 +1283,14 @@ function prepareMacroAction(m,index){
  if(m.actionMode==="widget"){
   m.widget=m.widget||"clock";m.sound="none";m.method="GET";m.action="http";m.body="";
   if(m.widget==="news"){
+   if(m.newsCount===undefined)m.newsCount=3;
+   if(!Number.isInteger(m.newsCount)||m.newsCount<1||m.newsCount>5)throw Error(`Button ${index+1}: choose one to five headlines.`);
    m.newsSource=m.newsSource||"hackernews";
    if(!["rss","hackernews","jsonfeed"].includes(m.newsSource))throw Error(`Button ${index+1}: choose a headline source.`);
    if(m.newsSource==="rss"){if(m.newsFeed===undefined)m.newsFeed="bbc_world";if(typeof m.newsFeed!=="string"||m.newsFeed!=="custom"&&!Object.hasOwn(newsFeeds,m.newsFeed))throw Error(`Button ${index+1}: choose a news feed.`)}else delete m.newsFeed;
    if(m.newsSource==="jsonfeed"||m.newsSource==="rss"&&m.newsFeed==="custom"){m.newsUrl=parseWebUrl(m.newsUrl,`Button ${index+1} news feed`);if(!m.newsUrl.startsWith("https://")||m.newsUrl.length>=180)throw Error(`Button ${index+1}: use a feed HTTPS URL under 180 characters.`)}
    else delete m.newsUrl;
-  }else{delete m.newsSource;delete m.newsFeed;delete m.newsUrl}
+  }else{delete m.newsSource;delete m.newsFeed;delete m.newsUrl;delete m.newsCount}
   if(m.widget==="alarm"){
    if(m.alarmTime===undefined)m.alarmTime="07:00";
    if(!/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(m.alarmTime))throw Error(`Button ${index+1}: choose a valid alarm time.`);
@@ -1456,8 +1521,10 @@ $("#siteTheme").onchange=()=>{const theme=$("#siteTheme").value;applySiteTheme(t
 $("#deviceTheme").onchange=()=>{
  const previous=cfg.theme==="light"?"172033":"FFFFFF",next=$("#deviceTheme").value==="light"?"172033":"FFFFFF";
  cfg.macros.forEach((macro,index)=>{if(!macro.textColor||macro.textColor===previous){macro.textColor=next;const input=macroCard(index)?.querySelector('[data-k="textColor"]');if(input)input.value="#"+next}});
- cfg.theme=$("#deviceTheme").value;updateThemeFields();cfg.background=$("#background").value.slice(1).toUpperCase();preview()
+ if(["liquid_glass","material"].includes($("#deviceTheme").value))cfg.macros.forEach(macro=>macro.widgetTheme="device");
+ cfg.theme=$("#deviceTheme").value;updateThemeFields();cfg.background=$("#background").value.slice(1).toUpperCase();render()
 };
+$("#applyDeviceTheme").onclick=()=>{$("#deviceTheme").dispatchEvent(new Event("change"));msg("Device palette applied to every tile in the draft. Save to device to apply.")};
 $("#background").oninput=()=>{cfg.background=$("#background").value.slice(1).toUpperCase();preview()};
 $("#showBattery").onchange=()=>{cfg.showBattery=$("#showBattery").checked;updateWidgetPreview()};
 $("#screenLayout").onchange=()=>{

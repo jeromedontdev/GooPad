@@ -1040,3 +1040,48 @@ not a complete historical changelog.
   approximation, not optical refraction. The previous entry's pending status
   records its state before this installation. This documentation-only
   follow-up requires no additional firmware build, flash or soak.
+
+## 2026-11-27 - Circles, consistent surfaces, gradients and typography
+
+- **Request/changes:** retain Circles alongside Arches, repair Glass GIF
+  layering and inconsistent Glass/Material application, add two-to-six-stop
+  gradient markers/sliders and horizontal/vertical/circle directions, remove
+  JSON news selections, normalize dropdown heights, separate headlines, add
+  bold/italic, and allow a selectable headline count. The count is 1-5,
+  default 3. Choosing Glass/Material or Apply to every tile resets draft
+  overrides to Device default; loading saved layouts does not rewrite them.
+  Filled GIFs/images remain above Glass frosting and below foreground text.
+  Opaque visuals still conceal the surface naturally. Font emphasis is
+  synthesized on decoded glyphs, including fallbacks and fitting metrics.
+- **Compatibility:** persisted configuration, pairing and SD font formats are
+  unchanged. Legacy JSON news sources continue working until explicitly
+  replaced with RSS. Legacy two-color gradients remain supported. Older
+  firmware ignores new stop/direction/emphasis/count fields; restore compatible
+  styling and three-headline behavior before downgrading. Native gradient
+  descriptors/font wrappers use PSRAM and outlive their LVGL objects.
+  Compile-time guards require at least six configured LVGL stops and complex
+  gradient support, preventing an old configuration from overflowing stops.
+- **Validation:** browser regression passed **7,320 checks / 2,520 layouts**,
+  including draft count preview, Apply to every tile and stable slider input.
+  Native RSS/Atom/legacy JSON, count bounds, 635-byte five-title output,
+  six/seven-stop boundaries, geometry and blur checks passed. Actual LVGL
+  font metrics/pixels/fallback/raw-buffer ownership passed. Extracted native
+  GIF layering and multi-stop directional/radial geometry, HTTP responses and
+  asset deletion passed. All four web-resource/actual-loader tests and
+  isolated release-packaging regressions passed. A wrong HTTP-harness filename
+  initially failed; the documented existing harness passed. The initial GCC
+  internal compiler crash resolved with unchanged flags, single-job retry and
+  a four-job build. An intermediate stale editor manifest failed loader
+  validation; final reconfiguration regenerated it and all loader tests passed.
+- **Build/delivery:** production ESP-IDF 6.1 reconfigure/build passed for
+  **0.7.9**, with the intended SDK configuration and diagnostics off:
+  **2,425,328 bytes**, **1,768,976 bytes / 42.18% free**. Matching editor:
+  **331,501 bytes**. Exact hashes are in the storage ledger. Source publication,
+  COM9 installation/preservation checks and five-minute soak are pending at
+  this entry; their subsequent observed results will be appended separately.
+- **Remaining:** install/verify/soak the application and matching editor on
+  reidentified COM9, then publish delivery documentation. No versioned binary
+  release is published; separate clean-source release packaging and physical
+  validation of new widgets/designs/circular hardware remain outstanding.
+  Synthetic/local tests do not establish physical GIF playback or every
+  new live layout; no user configuration fixtures were installed.

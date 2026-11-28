@@ -72,15 +72,25 @@ and columns. The exact accepted fields, defaults, combinations and bounds
 are in `validate_config()`. Empty positions are valid.
 
 `screenLayout` is `grid` (default), `arches`, or legacy `ring`/`arc`.
-Arches uses stacked bowed rows, maintaining column/row positions on partial
-pages. Legacy ring/arc rendering is unchanged and remains selectable only when
-opening that existing layout. Non-grid layouts preserve macro indices/paging,
+Circles selects `ring`; Arches uses stacked bowed rows, maintaining column/row
+positions on partial pages. Ring/arc rendering is unchanged; only `arc` requires
+opening an existing layout to select it. Non-grid layouts preserve macro indices/paging,
 keep square corners inside a circular viewport, and reject spans larger than 1x1.
 `showBattery` is boolean and defaults false; unsupported boards report
 `batteryAvailable:false` and `batteryPercent:null`, never an estimated value.
 Root and tile themes additionally accept `liquid_glass` and `material`.
 `widgetTheme:"device"` or absence inherits those new root palettes; explicit
 `custom` retains custom colors. Older root themes retain historical behavior.
+Choosing Material/Glass in the editor or using Apply to every tile explicitly
+sets all draft `widgetTheme` values to `device`; loading a saved configuration
+does not silently rewrite its overrides.
+
+`gradientStops` optionally contains two to six `{color:"RRGGBB", position:integer}`
+records, strictly increasing from 0 to 100. `gradientDirection` is `vertical`
+(default), `horizontal`, or `circle` (center outward to the farthest corner).
+Custom tiles use these stops for any action/widget; presets retain priority.
+Without stops, legacy `tileGradient`/`widgetGradient` and default shading remain
+unchanged. Endpoints cannot move; interior positions use whole percentages.
 
 For `actionMode:"advanced"`, `action:"http"` displays the bounded response
 after a GET or POST; `action:"webhook"` is send-only. Capture is limited to
@@ -108,16 +118,24 @@ without URL credentials. RSS 2.0, RSS 1.0/RDF and Atom are supported through
 Expat, with a 256 KiB response limit and nesting limit of 32. Channel/feed
 titles are ignored; CDATA, XML entities and nested Atom title text are decoded.
 DTD/external-entity processing is rejected and the complete XML document must
-be valid, even after three titles have been collected. Duplicate XML headlines
+be valid, even after the requested titles have been collected. `newsCount` is an
+integer from 1 to 5, default 3. Duplicate XML headlines
 are omitted; each title is capped at 120 UTF-8 bytes plus an ellipsis.
 Empty feeds show `No headlines`; entries without usable titles fail explicitly.
+Headlines are separated by `\n---\n`; the PSRAM live-text cache is 640 bytes per
+position, enough for five 123-byte truncated titles and four separators.
+The browser/device reading paths retain the full cache. Small tiles may need
+fewer headlines or larger spans to display all text legibly.
 
 Legacy `newsSource:"hackernews"` (also the absent-field default for old saved
 configurations) and `"jsonfeed"` retain their behavior.
+The editor no longer offers JSON source selections. A saved legacy tile shows
+an unselected RSS-feed control and a preservation hint until the user explicitly
+chooses a replacement feed; saving other edits does not change its source.
 JSON Feed requires an HTTPS `newsUrl` shorter than 180 characters and without
 URL credentials. The default source uses Algolia's front-page Hacker News
 endpoint. The background worker polls every ten minutes, with a 64 KiB response
-limit and verified TLS; redirects are not followed. It reads up to three
+limit and verified TLS; redirects are not followed. It reads the requested number of
 `items[].title` or `hits[].title` strings, validates UTF-8, flattens control
 whitespace and limits each title to 120 bytes plus an ellipsis. Empty arrays
 show `No headlines`; invalid feeds and failed requests show an error, and old
@@ -142,6 +160,11 @@ Optional tile text fields are `font` (`montserrat`, `lato`, `cousine`,
 `textSize` (12, 14, 16, 20, 28, or 40), `textAlign` (`left`, `center`,
 `right`), `textDecoration` (`none`, `underline`, `strike`), and `textSpacing`
 (integer 0–4 pixels). Widget readings use `widgetTextSize` independently.
+`fontBold` and `fontItalic` are independent optional booleans, default false.
+The device synthesizes one-pixel bold dilation and a one-in-four-pixel slant on
+decoded A8 glyphs, including fallback fonts; expanded metrics participate in
+fitting. This does not add fonts to the SD pack. Older firmware ignores these
+fields, multi-stop gradients/directions and `newsCount`.
 The optional `widgetLayout` field applies to every tile: `"classic"`,
 `"panel"` (Modern), or `"layered"`; absence defaults to Modern for compatibility,
 while newly created tiles explicitly use `"classic"`. Small or

@@ -7,6 +7,7 @@
 #include "goopad_fonts.h"
 #include "goopad_layout.h"
 #include "goopad_glass.h"
+#include "goopad_gradient.h"
 #ifdef CONFIG_GOOPAD_HOMEKIT
 #include "goopad_homekit.h"
 #endif
@@ -31,6 +32,11 @@
 #define MAX_MACROS 32
 #define PAGE_CACHE_SLOTS 3
 #define PAGE_CACHE_RESERVE (1024 * 1024)
+
+_Static_assert(LV_GRADIENT_MAX_STOPS >= GOOPAD_GRADIENT_STOPS,
+               "Set CONFIG_LV_GRADIENT_MAX_STOPS to at least 6");
+_Static_assert(LV_USE_DRAW_SW_COMPLEX_GRADIENTS,
+               "Enable CONFIG_LV_USE_DRAW_SW_COMPLEX_GRADIENTS");
 
 static const char *TAG = "goopad_ui";
 static lv_obj_t *s_screen;
@@ -109,7 +115,8 @@ static lv_obj_t *s_weather_icons[MAX_MACROS];
 static int s_weather_last[MAX_MACROS];
 static lv_point_precise_t s_widget_points[MAX_MACROS][2][2];
 static unsigned s_widget_graphic_modes[MAX_MACROS], s_widget_sizes[MAX_MACROS];
-static unsigned s_widget_fonts[MAX_MACROS], s_widget_spacing[MAX_MACROS];
+static unsigned s_widget_fonts[MAX_MACROS], s_widget_spacing[MAX_MACROS], s_widget_emphasis[MAX_MACROS];
+static lv_grad_dsc_t *s_tile_gradients;
 static unsigned s_focus_minutes[MAX_MACROS], s_break_minutes[MAX_MACROS];
 static char s_alarm_times[MAX_MACROS][6];
 static bool s_alarm_enabled[MAX_MACROS];
@@ -231,6 +238,9 @@ void goopad_ui_capture_frame(const uint8_t *frame, const lv_area_t *area, bool l
 
 static void clear_dynamic_assets(void)
 {
+    goopad_font_emphasis_clear();
+    free(s_tile_gradients);
+    s_tile_gradients = NULL;
     lv_image_cache_drop(&s_glass_image);
     free(s_glass_pixels);
     s_glass_pixels = NULL;
@@ -280,7 +290,7 @@ static void clear_dynamic_assets(void)
         s_weather_last[i] = -2;
         s_widget_hands[i][0] = s_widget_hands[i][1] = NULL;
         s_widget_graphic_modes[i] = 0;
-        s_widget_fonts[i] = s_widget_spacing[i] = 0;
+        s_widget_fonts[i] = s_widget_spacing[i] = s_widget_emphasis[i] = 0;
         s_focus_minutes[i] = 25;
         s_break_minutes[i] = 5;
         s_alarm_times[i][0] = '\0';
@@ -533,11 +543,12 @@ static void prewarm_text(const lv_font_t *font, const char *text)
 
 static void fit_widget_text(unsigned index, const char *text)
 {
-    const lv_font_t *chosen = tile_font(0, 8);
+    const lv_font_t *chosen = goopad_font_emphasis(tile_font(0, 8), s_widget_emphasis[index]);
     for (unsigned i = 0; i < goopad_font_variants(s_widget_fonts[index]); i++) {
         unsigned size;
         const lv_font_t *font = goopad_font_variant(s_widget_fonts[index], i, &size);
         if (size > s_widget_sizes[index]) continue;
+        font = goopad_font_emphasis(font, s_widget_emphasis[index]);
         lv_point_t bounds;
         lv_text_get_size(&bounds, text, font, s_widget_spacing[index], 0,
                         (s_widget_types[index] == 3 || s_widget_types[index] >= 6) ? s_widget_widths[index] : LV_COORD_MAX, LV_TEXT_FLAG_NONE);
@@ -577,6 +588,31 @@ static void format_tile_text(lv_obj_t *obj, const cJSON *macro)
                                      cJSON_IsString(decoration) && !strcmp(decoration->valuestring, "strike") ? LV_TEXT_DECOR_STRIKETHROUGH :
                                      LV_TEXT_DECOR_NONE, 0);
     lv_obj_set_style_text_letter_space(obj, cJSON_IsNumber(spacing) ? spacing->valueint : 0, 0);
+}
+
+static void custom_tile_gradient(lv_obj_t *tile, const cJSON *macro, unsigned index, int width, int height)
+{
+    goopad_gradient_t spec;
+    if (!goopad_gradient_parse(macro, &spec)) {
+        ESP_LOGE(TAG, "Invalid gradient for tile %u", index);
+        return;
+    }
+    if (!spec.count) return;
+    if (!s_tile_gradients)
+        s_tile_gradients = heap_caps_calloc(MAX_MACROS, sizeof(*s_tile_gradients), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_tile_gradients) { ESP_LOGE(TAG, "Gradient allocation failed"); return; }
+    lv_grad_dsc_t *gradient = &s_tile_gradients[index];
+    gradient->stops_count = spec.count;
+    for (unsigned i = 0; i < spec.count; i++) {
+        gradient->stops[i].color = color(spec.colors[i]);
+        gradient->stops[i].opa = LV_OPA_COVER;
+        gradient->stops[i].frac = (spec.positions[i] * 255 + 50) / 100;
+    }
+    if (spec.direction == GOOPAD_GRADIENT_CIRCLE)
+        lv_grad_radial_init(gradient, width / 2, height / 2, width, height, LV_GRAD_EXTEND_PAD);
+    else if (spec.direction == GOOPAD_GRADIENT_HORIZONTAL) lv_grad_horizontal_init(gradient);
+    else lv_grad_vertical_init(gradient);
+    lv_obj_set_style_bg_grad(tile, gradient, 0);
 }
 
 static lv_obj_t *graphic_box(lv_obj_t *parent, int w, int h, uint32_t accent)
@@ -1768,7 +1804,10 @@ static void build_grid_screen(void)
                 cJSON *text_size = cJSON_GetObjectItemCaseSensitive(macro, "textSize");
                 int family_index = cJSON_IsString(font_name) ? goopad_font_index(font_name->valuestring) : 0;
                 unsigned family = family_index >= 0 ? (unsigned)family_index : 0;
-                const lv_font_t *caption_font = tile_font(family, cJSON_IsNumber(text_size) ? text_size->valueint : 14);
+                unsigned emphasis = (cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(macro, "fontBold")) ? 1 : 0) |
+                                    (cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(macro, "fontItalic")) ? 2 : 0);
+                const lv_font_t *caption_font = goopad_font_emphasis(
+                    tile_font(family, cJSON_IsNumber(text_size) ? text_size->valueint : 14), emphasis);
                 int caption_extra = caption_font->line_height > 16 ? caption_font->line_height - 16 : 0;
                 const char *caption = cJSON_IsString(name) ? name->valuestring : "";
                 const char *glyph = cJSON_IsString(icon) ? icon->valuestring : "•";
@@ -1798,6 +1837,7 @@ static void build_grid_screen(void)
                 const goopad_widget_style_t *style = goopad_widget_style(style_name);
                 bool glass = style_name && !strcmp(style_name, "liquid_glass");
                 bool material = style_name && !strcmp(style_name, "material");
+                unsigned surface_layers = 0;
                 if (style) {
                     lv_obj_set_style_bg_color(tile, color(style->background), 0);
                     lv_obj_set_style_bg_grad_color(tile, color(style->gradient), 0);
@@ -1842,6 +1882,7 @@ static void build_grid_screen(void)
                         lv_obj_add_flag(tile, LV_OBJ_FLAG_STATE_TRICKLE);
                         lv_obj_set_scrollable(tint, false);
                         lv_obj_set_clickable(tint, false);
+                        surface_layers = 2;
                     }
                 }
                 bool is_navigation = cJSON_IsString(mode) && !strcmp(mode->valuestring, "page_navigation");
@@ -1855,6 +1896,15 @@ static void build_grid_screen(void)
                     lv_obj_set_style_bg_color(tile, color(accent_value), 0);
                     lv_obj_set_style_bg_grad_color(tile, color((unsigned)strtoul(tile_gradient->valuestring, NULL, 16)), 0);
                     lv_obj_set_style_bg_grad_dir(tile, LV_GRAD_DIR_VER, 0);
+                }
+                if (!style) {
+                    cJSON *widget_gradient = cJSON_GetObjectItemCaseSensitive(macro, "widgetGradient");
+                    if ((is_widget || is_request) && cJSON_IsString(widget_gradient)) {
+                        lv_obj_set_style_bg_color(tile, color(accent_value), 0);
+                        lv_obj_set_style_bg_grad_color(tile, color((unsigned)strtoul(widget_gradient->valuestring, NULL, 16)), 0);
+                        lv_obj_set_style_bg_grad_dir(tile, LV_GRAD_DIR_VER, 0);
+                    }
+                    custom_tile_gradient(tile, macro, index, width, height);
                 }
                 cJSON *image_format = cJSON_GetObjectItemCaseSensitive(macro, "iconFormat");
                 cJSON *gif_fit = cJSON_GetObjectItemCaseSensitive(macro, "gifFit");
@@ -2040,19 +2090,9 @@ static void build_grid_screen(void)
                     unsigned graphic_accent = cJSON_IsString(widget_accent) ?
                         (unsigned)strtoul(widget_accent->valuestring, NULL, 16) : 0xA5B4FC;
                     if (style) {
-                        lv_obj_set_style_bg_color(tile, color(style->background), 0);
-                        lv_obj_set_style_bg_grad_color(tile, color(style->gradient), 0);
-                        lv_obj_set_style_bg_grad_dir(tile, style->background == style->gradient ? LV_GRAD_DIR_NONE : LV_GRAD_DIR_VER, 0);
                         text_color = color(style->text);
                         graphic_accent = style->accent;
                         lv_obj_set_style_border_color(tile, color(material ? 0xCAC4D0 : glass ? 0xFFFFFF : style->accent), 0);
-                    } else {
-                        cJSON *gradient = cJSON_GetObjectItemCaseSensitive(macro, "widgetGradient");
-                        if (cJSON_IsString(gradient)) {
-                            lv_obj_set_style_bg_color(tile, color(accent_value), 0);
-                            lv_obj_set_style_bg_grad_color(tile, color((unsigned)strtoul(gradient->valuestring, NULL, 16)), 0);
-                            lv_obj_set_style_bg_grad_dir(tile, LV_GRAD_DIR_VER, 0);
-                        }
                     }
                     if (caption_rail)
                         lv_obj_set_style_bg_color(caption_rail,
@@ -2106,6 +2146,7 @@ static void build_grid_screen(void)
                     cJSON *widget_size = cJSON_GetObjectItemCaseSensitive(macro, "widgetTextSize");
                     cJSON *spacing = cJSON_GetObjectItemCaseSensitive(macro, "textSpacing");
                     s_widget_fonts[index] = family;
+                    s_widget_emphasis[index] = emphasis;
                     s_widget_spacing[index] = cJSON_IsNumber(spacing) ? spacing->valueint : 0;
                     s_widget_sizes[index] = cJSON_IsNumber(widget_size) && widget_size->valueint ? (unsigned)widget_size->valueint :
                         width < 140 || ((long_clock || long_stat) && width < 200) ? 14 : 28;
@@ -2190,7 +2231,7 @@ static void build_grid_screen(void)
                                 lv_image_set_scale(gif, scale);
                                 lv_obj_align(gif, fill ? LV_ALIGN_CENTER : widget_icon ? LV_ALIGN_TOP_MID : LV_ALIGN_CENTER, 0,
                                              fill ? 0 : widget_icon ? goopad_widget_image_top(widget_icon_y, icon_size, h) : icon_y);
-                                if (fill) lv_obj_move_background(gif);
+                                if (fill) lv_obj_move_to_index(gif, surface_layers);
                                 if (action_card)
                                     lv_obj_align(gif, LV_ALIGN_TOP_LEFT, 12 + (icon_size - w) / 2, 12 + (icon_size - h) / 2);
                                 s_gif_objects[index] = gif;
@@ -2244,7 +2285,7 @@ static void build_grid_screen(void)
                                          cover ? placement.y : widget_icon ? goopad_widget_image_top(widget_icon_y, icon_size, side) : icon_y);
                             if (cover) {
                                 lv_obj_set_style_border_post(tile, true, 0);
-                                lv_obj_move_background(image_obj);
+                                lv_obj_move_to_index(image_obj, surface_layers);
                             }
                             if (action_card)
                                 lv_obj_align(image_obj, LV_ALIGN_TOP_LEFT, 12 + (icon_size - side) / 2, 12 + (icon_size - side) / 2);
@@ -2285,7 +2326,7 @@ static void build_grid_screen(void)
                     lv_obj_set_style_transform_scale_y(symbol, scale, 0);
                     lv_obj_align(symbol, cover ? LV_ALIGN_CENTER : widget_icon ? LV_ALIGN_TOP_MID : LV_ALIGN_CENTER, 0,
                                  cover ? 0 : widget_icon ? widget_icon_y + (icon_size - lv_obj_get_height(symbol)) / 2 : icon_y);
-                    if (cover) lv_obj_move_background(symbol);
+                    if (cover) lv_obj_move_to_index(symbol, surface_layers);
                     if (action_card)
                         lv_obj_align(symbol, LV_ALIGN_TOP_LEFT, 12 + (icon_size - lv_obj_get_width(symbol)) / 2,
                                      12 + (icon_size - lv_obj_get_height(symbol)) / 2);

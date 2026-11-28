@@ -66,6 +66,8 @@ CONFIG_LV_FONT_MONTSERRAT_16=y
 CONFIG_LV_FONT_MONTSERRAT_20=y
 CONFIG_LV_FONT_MONTSERRAT_28=y
 CONFIG_LV_FONT_MONTSERRAT_40=y
+CONFIG_LV_GRADIENT_MAX_STOPS=6
+CONFIG_LV_USE_DRAW_SW_COMPLEX_GRADIENTS=y
 
 # LVGL's custom allocator prefers PSRAM even for small draw tasks, preserving
 # internal heap for Wi-Fi and DMA. Its fallback uses the normal allocator.

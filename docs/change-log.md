@@ -1574,3 +1574,20 @@ not a complete historical changelog.
   unexplained. Device soak deferrals and the lack of independent physical
   pixel observation are recorded above. The published package does not
   install itself onto an existing Companion.
+
+## 2026-11-28 - Contributor sidebar correction and GET test
+
+- **Attribution correction:** the earlier conclusion checked the contributor
+  API, not the repository sidebar. The actual sidebars still show `jerome` on
+  GooPad and the hardware-test repository, and `jerom` on Spidarium. The
+  rewritten default-branch commit identities and contributor APIs resolve to
+  the intended account, but that does not establish that the sidebar has
+  refreshed. GitHub Support's contact page requires sign-in; requesting a
+  sidebar data refresh remains outstanding.
+- **Device:** an explicitly requested persistent GET test tile was added
+  without replacing existing tiles. Its HTTPS action completed successfully
+  and the device reported response text; physical pixels were not independently
+  observed. An encrypted pre-change configuration backup was retained locally.
+  No firmware or Companion change, flash, build or binary release was made.
+- **SSH:** no ESP32 SSH client was implemented. The documented alternative is
+  an explicitly configured, fixed OpenSSH action on the Windows Companion.

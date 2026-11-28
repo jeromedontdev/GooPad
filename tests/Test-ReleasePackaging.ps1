@@ -27,8 +27,10 @@ try {
     $workspace = Join-Path $fixture "workspace"
     $build = Join-Path $fixture "external-build"
     New-Item -ItemType Directory -Force -Path (Join-Path $workspace "tools"),
-        (Join-Path $build "bootloader"), (Join-Path $build "partition_table") | Out-Null
+        (Join-Path $build "bootloader"), (Join-Path $build "partition_table"),
+        (Join-Path $workspace "main\fonts") | Out-Null
     Copy-Item (Join-Path $root "tools\make_release.ps1") (Join-Path $workspace "tools\make_release.ps1")
+    Copy-Item (Join-Path $root "main\fonts\NOTICE.txt") (Join-Path $workspace "main\fonts\NOTICE.txt")
     Set-Content (Join-Path $workspace "CMakeLists.txt") 'set(PROJECT_VER "99.8.7")'
     Set-Content (Join-Path $workspace "sdkconfig") 'CONFIG_ESPTOOLPY_FLASHMODE="qio"'
     foreach ($name in @("bootloader\bootloader.bin", "partition_table\partition-table.bin",
@@ -50,6 +52,10 @@ try {
     $ota = Join-Path $workspace "dist\GooPad-ota-99.8.7.bin"
     if ((Get-FileHash $ota).Hash -ne (Get-FileHash (Join-Path $build "GooPad.bin")).Hash) {
         throw "OTA package changed application bytes"
+    }
+    if ((Get-FileHash (Join-Path $workspace "dist\GooPad-99.8.7-NOTICE.txt")).Hash -ne
+        (Get-FileHash (Join-Path $workspace "main\fonts\NOTICE.txt")).Hash) {
+        throw "Firmware packaging omitted or changed dependency notices"
     }
     Set-Content $description '{"project_name":"GooPad","project_version":"99.8.6"}'
     Expect-Failure { & $packager -SkipBuild -BuildDir $build } "does not match"

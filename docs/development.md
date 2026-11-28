@@ -97,8 +97,11 @@ first-flash image and an app-only OTA binary:
 The script's `-Port` option writes the merged image at flash offset 0. It is
 not the normal update procedure. It reads resolved flash parameters from the
 selected build's `flasher_args.json` and rejects a different project/version;
-the workspace's local `sdkconfig` is not used for packaging. Commit
-`dependencies.lock` and build releases from a clean checkout with a fresh
+the workspace's local `sdkconfig` is not used for packaging.
+The packager also produces `GooPad-<version>-NOTICE.txt`; distribute it with
+the firmware. The existing embedded `/font-licenses` notice resource includes
+the Expat MIT license as well as font licenses.
+Commit `dependencies.lock` and build releases from a clean checkout with a fresh
 configuration seeded by `sdkconfig.defaults`. Record the source commit, SDK
 revision, tool versions and production diagnostic flags with the artifacts.
 Review version, image contents,
@@ -136,12 +139,19 @@ and verify the actual listening process path, not just the default location.
 
 ## Tests
 
-* **Time, headlines and radial geometry:** after IDF has installed cJSON:
+* **Time, headlines, glass blur and radial geometry:** after IDF has installed
+  cJSON and Expat, configure Expat once to generate a **host** configuration:
 
   ```powershell
   zig cc -Wall -Wextra -Werror -I main main\goopad_time.c tests\test_time.c -o build\test_time.exe
   .\build\test_time.exe
-  zig cc -Wall -Wextra -Werror -I main -I managed_components\espressif__cjson\cJSON main\goopad_news.c managed_components\espressif__cjson\cJSON\cJSON.c tests\test_news_layout.c -o build\test_news_layout.exe
+  cmake -S managed_components\espressif__expat\expat\expat -B build\host-expat -G Ninja -DCMAKE_C_COMPILER=zig -DCMAKE_C_COMPILER_ARG1=cc -DEXPAT_SHARED_LIBS=OFF -DEXPAT_BUILD_TOOLS=OFF -DEXPAT_BUILD_EXAMPLES=OFF -DEXPAT_BUILD_TESTS=OFF -DEXPAT_BUILD_DOCS=OFF -DEXPAT_ENABLE_INSTALL=OFF
+  $xml = 'managed_components\espressif__expat\expat\expat\lib'
+  zig cc -Wall -Wextra -Werror -DXML_STATIC '-DXML_DTD=' -DXML_GE=1 `
+    -I main -I managed_components\espressif__cjson\cJSON -I $xml -I build\host-expat `
+    main\goopad_news.c main\goopad_glass.c managed_components\espressif__cjson\cJSON\cJSON.c `
+    "$xml\xmlparse.c" "$xml\xmlrole.c" "$xml\xmltok.c" "$xml\xcs.c" "$xml\random_rand_s.c" `
+    tests\test_news_layout.c -o build\test_news_layout.exe
   .\build\test_news_layout.exe
   node tests\test_request_response.js
   node tests\test_asset_deletion.js
@@ -153,7 +163,11 @@ and verify the actual listening process path, not just the default location.
   non-overlap and square-corner circle bounds, not merely viewport containment.
   Editor tests cover the corresponding controls and previews. None substitutes
   for live HTTPS, physical touch/rendering or the five-minute device soak.
-  News uses JSON Feed/Algolia JSON, not RSS/Atom; battery-percentage validation
+  This Windows host command compiles Expat directly, matching the generated
+  host features rather than reusing the ESP target configuration or archiver.
+  `test_news_layout.exe --feed` accepts an XML feed on stdin and prints only
+  byte count, validity and headline count; use it to verify preset responses
+  without copying headline content into reports. Battery-percentage validation
   needs a supported telemetry backend, which the current Guition lacks.
 
 Run the smallest relevant tests first, then hardware validation when behavior

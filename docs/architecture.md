@@ -39,8 +39,9 @@ service running on the ESP32.
 | Firmware service | [`main/goopad.c`](../main/goopad.c) | Configuration validation/persistence, Wi-Fi events, HTTPS handlers, action dispatch, OTA, status and widget workers. |
 | Daily alarms | [`main/goopad_alarm.c`](../main/goopad_alarm.c), [`main/goopad.c`](../main/goopad.c) | Validate saved schedules and check them in a worker independent of UI refresh and connectivity; deduplication is in RAM. |
 | Background network reads | [`main/goopad_network.c`](../main/goopad_network.c) | Bounded streaming HTTPS requests that yield to manual actions. |
-| Time and headlines | [`main/goopad_time.c`](../main/goopad_time.c), [`main/goopad_news.c`](../main/goopad_news.c) | Bounded percent formatting with legacy presets; UTF-8-validated JSON headline aggregation. |
-| Layout geometry | [`main/goopad_layout.h`](../main/goopad_layout.h) | Grid/span validation and shared ring/arch positions; editor geometry mirrors this helper. |
+| Time and headlines | [`main/goopad_time.c`](../main/goopad_time.c), [`main/goopad_news.c`](../main/goopad_news.c) | Bounded percent formatting, RSS/RDF/Atom through Expat, and legacy JSON headline aggregation. |
+| Glass backdrop | [`main/goopad_glass.c`](../main/goopad_glass.c), [`main/goopad_ui.c`](../main/goopad_ui.c) | Shared downsampled/blurred RGB565 backdrop, pastel scene and scene-aligned clipped tile surfaces. |
+| Layout geometry | [`main/goopad_layout.h`](../main/goopad_layout.h) | Grid/span validation, stacked Arches and legacy ring/arc positions; editor geometry mirrors these helpers. |
 | Touch UI | [`main/goopad_ui.c`](../main/goopad_ui.c) | Setup, keyboard, tile layout, swipe and info menu, LVGL widget rendering, action callbacks. |
 | Shared interface | [`main/app.h`](../main/app.h) | Driver interfaces, application state, UI/service functions and widget interfaces. It still includes scaffolding-era declarations; inclusion is not proof a module is built. |
 | Hardware | [`main/board.h`](../main/board.h), `board.c`, `hw_display.c`, `hw_touch.c`, `hw_wifi.c`, `hw_sdcard.c`, `hw_audio.c`, `hw_gpio.c` in [`main/`](../main/) | Pin map, power caps, panel and touch, networking, SD and audio. The authoritative build list is [`main/CMakeLists.txt`](../main/CMakeLists.txt). |
@@ -95,7 +96,16 @@ build directory matches the current source, SDK or configuration.
 
 Time format strings belong to the UI snapshot, not the temporary parsed JSON.
 Headlines run in the existing background-priority serialized network worker;
-their response buffer is capped at 64 KiB and freed after aggregation.
+their PSRAM response buffer is capped at 256 KiB for XML or 64 KiB for legacy
+JSON and freed after aggregation. Expat's parser and working state use a PSRAM
+allocation suite; DTD/external entities and nesting over 32 are rejected.
+Glass uses one 120x120 RGB565 backdrop (28,800 bytes), shared by every tile;
+custom backgrounds temporarily require another 28,800 bytes for a separable
+seven-tap blur after 4x4 downsampling. Buffers/cache entries are freed only after
+their LVGL objects are deleted. Allocation failure is logged and displays
+`Glass unavailable`. The native surface is scene-aligned at rest, not a
+real-time optical refraction simulation. About and the visual picker share
+the same RGB565/RGB565A8/GIF thumbnail loader and explicit HTTP/image errors.
 Live strings and request-result caches are PSRAM-backed and allocated before
 workers/server startup. The optional battery label consumes existing board
 telemetry only; it does not introduce gauge detection or speculative wiring.

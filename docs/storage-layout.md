@@ -59,6 +59,26 @@ memory and physical-validation limits. No binary release is published.
 Time-format storage and response/headline caches add runtime memory use;
 app-slot headroom is not a measured free-PSRAM budget.
 
+## 0.7.8 display/RSS development build (2026-11-27)
+
+The corrected thumbnails, centered stacked Arches, Material containers, frosted
+Glass and RSS/RDF/Atom build is **2,419,600 bytes**, leaving **1,774,704 bytes /
+42.31% free** in the unchanged 4 MiB slot. SHA-256:
+`173bf33e31eef903ef2ccf0e6d1f762003e1409f752382fbdb605259043880fc`.
+The matching editor is `web-bb90c1f9f5e9.gwp`, **322,258 bytes**, SHA-256
+`bb90c1f9f5e99aad393b30b400530f89ad56fc54afbfabbf9566943bb451d18b`.
+Production ESP-IDF 6.1 settings retain the custom LVGL allocator, compressed
+fonts, HomeKit/NVS block device and TLS performance/session options; hardware
+AES and render/capacity diagnostics remain disabled. The user's root local
+SDK configuration is unchanged.
+
+Glass adds one shared **28,800-byte PSRAM** backdrop, not one buffer per tile.
+Custom-background blurring temporarily adds another 28,800 bytes. RSS/Atom
+responses can use 256 KiB plus Expat's PSRAM working allocations; legacy JSON
+retains its 64 KiB cap. These are runtime allocations, not app-slot costs.
+Installation/soak status is recorded in the change log; this development build
+is not a published binary release.
+
 ## Companion-only 0.7.4 release
 
 The [0.7.4 release](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.4)

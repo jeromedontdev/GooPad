@@ -7,3 +7,4 @@ dependencies:
   espressif/esp_lvgl_port: "^2.4.0"
   espressif/esp_lcd_touch_gt911: "^1.1.0"
   espressif/cjson: "^1.7.19"
+  espressif/expat: "^2.9.0"

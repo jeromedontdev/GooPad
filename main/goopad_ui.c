@@ -6,6 +6,7 @@
 #endif
 #include "goopad_fonts.h"
 #include "goopad_layout.h"
+#include "goopad_glass.h"
 #ifdef CONFIG_GOOPAD_HOMEKIT
 #include "goopad_homekit.h"
 #endif
@@ -86,6 +87,8 @@ static uint8_t *s_icon_buffers[MAX_MACROS];
 static lv_image_dsc_t s_icon_images[MAX_MACROS];
 static uint8_t *s_background_pixels;
 static lv_image_dsc_t s_background_image;
+static uint16_t *s_glass_pixels;
+static lv_image_dsc_t s_glass_image;
 static uint8_t *s_gif_buffers[MAX_MACROS];
 static lv_image_dsc_t s_gif_images[MAX_MACROS];
 static lv_obj_t *s_gif_objects[MAX_MACROS];
@@ -228,6 +231,10 @@ void goopad_ui_capture_frame(const uint8_t *frame, const lv_area_t *area, bool l
 
 static void clear_dynamic_assets(void)
 {
+    lv_image_cache_drop(&s_glass_image);
+    free(s_glass_pixels);
+    s_glass_pixels = NULL;
+    memset(&s_glass_image, 0, sizeof(s_glass_image));
     s_battery_label = NULL;
     /* Called after LVGL objects are deleted; discard their pointers and free
      * separately owned GIF buffers before rebuilding the screen. */
@@ -1484,7 +1491,7 @@ static void build_grid_screen(void)
     cJSON *device_theme = root ? cJSON_GetObjectItemCaseSensitive(root, "theme") : NULL;
     const char *theme_name = cJSON_IsString(device_theme)
                                  ? device_theme->valuestring : "midnight";
-    bool light_theme = !strcmp(theme_name, "light") || !strcmp(theme_name, "material");
+    bool light_theme = !strcmp(theme_name, "light") || !strcmp(theme_name, "material") || !strcmp(theme_name, "liquid_glass");
     s_page_dot_active = light_theme ? 0x334155 : 0xB7C9EE;
     s_page_dot_inactive = light_theme ? 0x94A3B8 : 0x64748B;
     unsigned theme_background = 0x111827;
@@ -1496,8 +1503,8 @@ static void build_grid_screen(void)
         accent_color = 0x6EE7B7;
         theme_background = 0x10251D;
     } else if (!strcmp(theme_name, "liquid_glass")) {
-        accent_color = 0xB8D8FF;
-        theme_background = 0x14283F;
+        accent_color = 0x7086A3;
+        theme_background = 0xDDEBF6;
     } else if (!strcmp(theme_name, "material")) {
         accent_color = 0x6750A4;
         theme_background = 0xFFFBFE;
@@ -1563,6 +1570,42 @@ static void build_grid_screen(void)
         s_background_pixels = NULL;
     }
 
+    bool glass_scene = !strcmp(theme_name, "liquid_glass");
+    bool needs_glass = glass_scene;
+    for (int i = 0; i < cJSON_GetArraySize(macros); i++) {
+        cJSON *preset = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(macros, i), "widgetTheme");
+        if (cJSON_IsString(preset) && !strcmp(preset->valuestring, "liquid_glass")) needs_glass = true;
+    }
+    if (needs_glass) {
+        size_t size = GOOPAD_GLASS_SIDE * GOOPAD_GLASS_SIDE * sizeof(uint16_t);
+        s_glass_pixels = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        uint16_t *scratch = image_background ? heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+        if (!s_glass_pixels || (image_background && !scratch)) {
+            ESP_LOGE(TAG, "Glass backdrop allocation failed");
+            free(s_glass_pixels); s_glass_pixels = NULL;
+            lv_obj_t *error = label(s_screen, "Glass unavailable", 14, color(0xB91C1C));
+            lv_obj_align(error, LV_ALIGN_TOP_LEFT, 6, 18);
+        } else {
+            goopad_glass_fill(s_glass_pixels, image_background ? (const uint16_t *)s_background_pixels : NULL,
+                              background, glass_scene);
+            if (image_background) goopad_glass_blur(s_glass_pixels, scratch);
+            s_glass_image = (lv_image_dsc_t) {
+                .header = {.magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_RGB565,
+                           .w = GOOPAD_GLASS_SIDE, .h = GOOPAD_GLASS_SIDE, .stride = GOOPAD_GLASS_SIDE * 2},
+                .data_size = size, .data = (const uint8_t *)s_glass_pixels,
+            };
+            if (glass_scene) {
+                lv_obj_t *image = lv_image_create(s_screen);
+                lv_image_set_src(image, &s_glass_image);
+                int extent = lv_obj_get_width(s_screen) > lv_obj_get_height(s_screen) ?
+                             lv_obj_get_width(s_screen) : lv_obj_get_height(s_screen);
+                lv_image_set_scale(image, (extent * 256 + GOOPAD_GLASS_SIDE - 1) / GOOPAD_GLASS_SIDE);
+                lv_obj_center(image);
+                lv_obj_set_clickable(image, false);
+            }
+        }
+        free(scratch);
+    }
     int screen_width = lv_obj_get_width(s_screen);
     int screen_height = lv_obj_get_height(s_screen);
     if (screen_width <= 0 || screen_height <= 0) {
@@ -1592,6 +1635,7 @@ static void build_grid_screen(void)
     cJSON *screen_layout = cJSON_GetObjectItemCaseSensitive(root, "screenLayout");
     bool radial = cJSON_IsString(screen_layout) && strcmp(screen_layout->valuestring, "grid");
     bool arched = radial && !strcmp(screen_layout->valuestring, "arc");
+    bool arches = radial && !strcmp(screen_layout->valuestring, "arches");
     if (cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "showBattery"))) {
         s_battery_label = label(s_screen, "Battery unavailable", 14, light_theme ? color(0x172033) : lv_color_white());
         lv_obj_align(s_battery_label, LV_ALIGN_TOP_MID, 0, 18);
@@ -1676,7 +1720,8 @@ static void build_grid_screen(void)
             int x = tile_padding + column * (cell_width + tile_gap);
             int y = tile_padding + row * (cell_height + tile_gap);
             if (radial) {
-                goopad_orbit_t orbit = goopad_orbit_position(screen_width, page_height, per_page, slot, arched);
+                goopad_orbit_t orbit = arches ? goopad_arches_position(screen_width, page_height, cols, rows, slot) :
+                    goopad_orbit_position(screen_width, page_height, per_page, slot, arched);
                 x = orbit.x; y = orbit.y; width = height = orbit.side;
             }
             cJSON *shape = macro
@@ -1761,10 +1806,43 @@ static void build_grid_screen(void)
                     if (!cJSON_IsString(icon_color)) icon_tint = text_color;
                 }
                 if (glass || material) {
-                    lv_obj_set_style_bg_opa(tile, glass ? LV_OPA_80 : LV_OPA_COVER, 0);
-                    lv_obj_set_style_shadow_width(tile, 6, 0);
-                    lv_obj_set_style_shadow_opa(tile, LV_OPA_20, 0);
+                    lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
+                    lv_obj_set_style_shadow_width(tile, glass ? 12 : 4, 0);
+                    lv_obj_set_style_shadow_color(tile, color(glass ? 0x526A8C : 0x1D1B20), 0);
+                    lv_obj_set_style_shadow_opa(tile, LV_OPA_10, 0);
                     lv_obj_set_style_shadow_ofs_y(tile, 2, 0);
+                    lv_obj_set_style_bg_grad_dir(tile, LV_GRAD_DIR_NONE, 0);
+                    lv_obj_set_style_border_color(tile, color(material ? 0xCAC4D0 : 0xFFFFFF), 0);
+                    lv_obj_set_style_border_width(tile, cJSON_IsFalse(outline) ? 0 : 1, 0);
+                    lv_obj_set_style_bg_color(tile, lv_color_mix(color(style->accent), color(style->background), LV_OPA_10), LV_STATE_PRESSED);
+                    if (glass && s_glass_pixels) {
+                        lv_obj_set_style_bg_opa(tile, LV_OPA_TRANSP, 0);
+                        lv_obj_set_style_border_post(tile, true, 0);
+                        int extent = screen_width > screen_height ? screen_width : screen_height;
+                        lv_obj_t *frost = lv_image_create(tile);
+                        lv_image_set_src(frost, &s_glass_image);
+                        lv_image_set_pivot(frost, 0, 0);
+                        int scale = (extent * 256 + GOOPAD_GLASS_SIDE - 1) / GOOPAD_GLASS_SIDE;
+                        lv_image_set_scale(frost, scale);
+                        int scene_size = GOOPAD_GLASS_SIDE * scale / 256;
+                        lv_obj_set_pos(frost, (screen_width - scene_size) / 2 - x,
+                                       (screen_height - scene_size) / 2 - page_top - y);
+                        lv_obj_set_clickable(frost, false);
+                        lv_obj_t *tint = lv_obj_create(tile);
+                        lv_obj_remove_style_all(tint);
+                        lv_obj_set_size(tint, width, height);
+                        lv_obj_set_style_bg_color(tint, lv_color_white(), 0);
+                        lv_obj_set_style_bg_grad_color(tint, lv_color_white(), 0);
+                        lv_obj_set_style_bg_grad_dir(tint, LV_GRAD_DIR_VER, 0);
+                        lv_obj_set_style_bg_opa(tint, LV_OPA_COVER, 0);
+                        lv_obj_set_style_bg_main_opa(tint, LV_OPA_70, 0);
+                        lv_obj_set_style_bg_grad_opa(tint, LV_OPA_20, 0);
+                        lv_obj_set_style_bg_main_opa(tint, LV_OPA_90, LV_STATE_PRESSED);
+                        lv_obj_set_style_bg_grad_opa(tint, LV_OPA_50, LV_STATE_PRESSED);
+                        lv_obj_add_flag(tile, LV_OBJ_FLAG_STATE_TRICKLE);
+                        lv_obj_set_scrollable(tint, false);
+                        lv_obj_set_clickable(tint, false);
+                    }
                 }
                 bool is_navigation = cJSON_IsString(mode) && !strcmp(mode->valuestring, "page_navigation");
 #ifdef CONFIG_GOOPAD_HOMEKIT
@@ -1788,7 +1866,7 @@ static void build_grid_screen(void)
                              !strcmp(visual_fit->valuestring, "cover") :
                              !is_widget && cJSON_IsString(image_format) && !strcmp(image_format->valuestring, "gif") &&
                              cJSON_IsString(gif_fit) && !strcmp(gif_fit->valuestring, "cover"));
-                if (!classic && !layered && !cover) {
+                if (!classic && !layered && !cover && !glass && !material) {
                     lv_obj_t *rule = lv_obj_create(tile);
                     lv_obj_set_size(rule, width / 3, 3);
                     lv_obj_align(rule, LV_ALIGN_TOP_MID, 0, 6);
@@ -1967,7 +2045,7 @@ static void build_grid_screen(void)
                         lv_obj_set_style_bg_grad_dir(tile, style->background == style->gradient ? LV_GRAD_DIR_NONE : LV_GRAD_DIR_VER, 0);
                         text_color = color(style->text);
                         graphic_accent = style->accent;
-                        lv_obj_set_style_border_color(tile, color(style->accent), 0);
+                        lv_obj_set_style_border_color(tile, color(material ? 0xCAC4D0 : glass ? 0xFFFFFF : style->accent), 0);
                     } else {
                         cJSON *gradient = cJSON_GetObjectItemCaseSensitive(macro, "widgetGradient");
                         if (cJSON_IsString(gradient)) {

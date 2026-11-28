@@ -119,26 +119,36 @@ validate HTTPS certificates.
 
 ### New display options (0.7.7 development source)
 
-- **About → Saved images** lists uploaded icons, GIFs and screen backgrounds
+- **About → Saved images** shows thumbnails of uploaded icons, GIFs and screen backgrounds
   and deletes unused files. Images referenced by the saved layout or current
   editor draft are protected. This is not a general SD-card file browser.
 - Every tile's **Appearance** section offers preset themes and **Custom**.
   Layered centers its inset surface/visual; Modern has an accent and, where
   space allows, a heading/card layout. Full-cover visuals retain priority.
-  **Liquid glass** uses translucent gradients/highlights, not real blur;
-  **Material** uses flat tonal surfaces. **Device default** inherits these
+  **Liquid glass** uses frosted backdrops, translucent surfaces and luminous edges;
+  the browser uses real backdrop blur, while the device shares a small blurred
+  background rather than simulating optical refraction. A soft colored scene
+  accompanies the device theme; glass tiles also frost custom image backgrounds.
+  **Material** uses flat Material 3 tonal containers, restrained elevation,
+  subtle outlines and a primary-colored pressed state, without Modern's decorative
+  accent strip. **Device default** inherits these
   new device palettes without changing historical palettes on older themes.
 - **Widgets → Clock → Date & time** combines both readings. Clock, Date and
   Date & time accept percent formats: `%H:%M`, `%-I:%M %p`, or
   `%a %b %-d%n%H:%M`. `%n` starts a new line; `%%` shows a percent sign.
   English names and the configured fixed UTC offset apply. Existing saved
   format presets remain supported. See [supported directives](docs/api.md).
-- **Widgets → News → Headlines** displays up to three Hacker News headlines
-  or titles from a custom HTTPS JSON Feed, refreshed every ten minutes.
-  RSS/Atom XML is not supported. Provider/network errors are shown explicitly.
-- **Layout settings → Screen layout** offers Grid, Circular ring and Arched
-  ring. Ring layouts keep existing tile indices/pages but use smaller,
-  non-overlapping square cells; use fewer rows/columns for larger targets.
+- **Widgets → News → Headlines** reads RSS/Atom and offers BBC World/Technology,
+  NPR, The Guardian, NYTimes, Ars Technica, The Verge and Hacker News presets,
+  plus a custom HTTPS feed URL. It displays up to three titles every ten minutes.
+  XML feeds are limited to 256 KiB; DTDs, redirects and malformed feeds are
+  rejected. Existing JSON Feed/Hacker News JSON configurations remain supported.
+  Provider/network errors are shown explicitly; feed availability can change.
+- **Layout settings → Screen layout** offers Grid and **Arches**: distinct
+  stacked upward-curved rows inside a circular viewport, not a single ring.
+  Existing ring configurations retain their original rendering and appear as an
+  existing-layout option until explicitly changed. Indices/pages are preserved;
+  use fewer rows/columns for larger targets.
   Enlarged tiles require Grid. Physical circular-screen operation is unverified.
 - **Show battery indicator** is off by default. It displays a percentage only
   when the board supplies valid telemetry. This Guition board has no readable

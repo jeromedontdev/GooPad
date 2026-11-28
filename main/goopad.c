@@ -257,8 +257,8 @@ const goopad_widget_style_t *goopad_widget_style(const char *key)
         {0x424242, 0x151515, 0xFAFAFA, 0xD4D4D4},
         {0x621E45, 0x30192F, 0xFFF1F5, 0xFB8BB4},
         {0xDDEEFF, 0xB5D2F2, 0x1A3657, 0x3569AB},
-        {0x43546E, 0x27354F, 0xF8FAFF, 0xB8D8FF},
-        {0xE8DEF8, 0xE8DEF8, 0x1D192B, 0x6750A4},
+        {0xEEF3FA, 0xEEF3FA, 0x1F2937, 0x7086A3},
+        {0xF3EDF7, 0xF3EDF7, 0x1D1B20, 0x6750A4},
     };
     for (unsigned i = 0; key && i < sizeof(keys) / sizeof(keys[0]); i++)
         if (!strcmp(key, keys[i])) return &styles[i];
@@ -1374,7 +1374,7 @@ static bool validate_config(const char *json)
                  (!battery || cJSON_IsBool(battery)) &&
                  (!screen_layout || (cJSON_IsString(screen_layout) &&
                      (!strcmp(screen_layout->valuestring, "grid") || !strcmp(screen_layout->valuestring, "ring") ||
-                      !strcmp(screen_layout->valuestring, "arc")))) &&
+                      !strcmp(screen_layout->valuestring, "arc") || !strcmp(screen_layout->valuestring, "arches")))) &&
                  (!pages || (cJSON_IsNumber(pages) && pages->valuedouble == pages->valueint &&
                              pages->valueint >= 1 &&
                              pages->valueint <= (MAX_MACROS + cols->valueint * rows->valueint - 1) / (cols->valueint * rows->valueint) &&
@@ -1441,6 +1441,7 @@ static bool validate_config(const char *json)
         cJSON *datetime_format = cJSON_GetObjectItemCaseSensitive(item, "datetimeFormat");
         cJSON *news_source = cJSON_GetObjectItemCaseSensitive(item, "newsSource");
         cJSON *news_url = cJSON_GetObjectItemCaseSensitive(item, "newsUrl");
+        cJSON *news_feed = cJSON_GetObjectItemCaseSensitive(item, "newsFeed");
         cJSON *pc_stat = cJSON_GetObjectItemCaseSensitive(item, "pcStat");
         cJSON *temperature_unit = cJSON_GetObjectItemCaseSensitive(item, "temperatureUnit");
         cJSON *widget_theme = cJSON_GetObjectItemCaseSensitive(item, "widgetTheme");
@@ -1491,7 +1492,10 @@ static bool validate_config(const char *json)
                 (!datetime_format || (cJSON_IsString(datetime_format) &&
                                       goopad_time_format_valid(datetime_format->valuestring))) &&
                 (!news_source || (cJSON_IsString(news_source) &&
-                    (!strcmp(news_source->valuestring, "hackernews") || !strcmp(news_source->valuestring, "jsonfeed")))) &&
+                    (!strcmp(news_source->valuestring, "hackernews") || !strcmp(news_source->valuestring, "jsonfeed") ||
+                     !strcmp(news_source->valuestring, "rss")))) &&
+                (!news_feed || (cJSON_IsString(news_feed) &&
+                    (goopad_news_feed_url(news_feed->valuestring) || !strcmp(news_feed->valuestring, "custom")))) &&
                 (!news_url || (cJSON_IsString(news_url) && valid_url(news_url->valuestring) &&
                                !strncmp(news_url->valuestring, "https://", 8))) &&
                 (!pc_stat || (cJSON_IsString(pc_stat) && goopad_pc_stat_index(pc_stat->valuestring) >= 0)) &&
@@ -1617,7 +1621,9 @@ static bool validate_config(const char *json)
                               !strcmp(widget->valuestring, "home_state") || !strcmp(widget->valuestring, "now_playing")))) &&
                 (!(cJSON_IsString(widget) && !strcmp(widget->valuestring, "countdown")) || countdown_at) &&
                 (!(cJSON_IsString(widget) && !strcmp(widget->valuestring, "news") &&
-                   cJSON_IsString(news_source) && !strcmp(news_source->valuestring, "jsonfeed")) || news_url) &&
+                   cJSON_IsString(news_source) && (!strcmp(news_source->valuestring, "jsonfeed") ||
+                   (!strcmp(news_source->valuestring, "rss") && cJSON_IsString(news_feed) &&
+                    !strcmp(news_feed->valuestring, "custom")))) || news_url) &&
                 (!(cJSON_IsString(widget) && !strcmp(widget->valuestring, "weather")) || (latitude && longitude)) &&
                 (!(cJSON_IsString(widget) && !strcmp(widget->valuestring, "air_quality")) || (latitude && longitude)) &&
                 (!(cJSON_IsString(widget) && !strcmp(widget->valuestring, "weather_alerts")) || (latitude && longitude)) &&
@@ -3208,6 +3214,7 @@ static void live_widget_task(void *arg)
             cJSON *home_token = item ? cJSON_GetObjectItemCaseSensitive(item, "homeToken") : NULL;
             bool home_state = !strcmp(kind, "home_state");
             bool news = !strcmp(kind, "news");
+            bool rss = false;
             if (!strcmp(kind, "weather")) {
                 cJSON *lat = cJSON_GetObjectItemCaseSensitive(item, "weatherLatitude");
                 cJSON *lon = cJSON_GetObjectItemCaseSensitive(item, "weatherLongitude");
@@ -3260,7 +3267,13 @@ static void live_widget_task(void *arg)
             } else if (news) {
                 cJSON *source = cJSON_GetObjectItemCaseSensitive(item, "newsSource");
                 cJSON *feed = cJSON_GetObjectItemCaseSensitive(item, "newsUrl");
-                if (cJSON_IsString(source) && !strcmp(source->valuestring, "jsonfeed")) {
+                cJSON *preset = cJSON_GetObjectItemCaseSensitive(item, "newsFeed");
+                rss = cJSON_IsString(source) && !strcmp(source->valuestring, "rss");
+                const char *feed_key = cJSON_IsString(preset) ? preset->valuestring : "bbc_world";
+                if (rss && strcmp(feed_key, "custom")) {
+                    const char *feed_url = goopad_news_feed_url(feed_key);
+                    if (feed_url) strlcpy(url, feed_url, sizeof(url));
+                } else if (rss || (cJSON_IsString(source) && !strcmp(source->valuestring, "jsonfeed"))) {
                     if (cJSON_IsString(feed) && valid_url(feed->valuestring) && !strncmp(feed->valuestring, "https://", 8))
                         strlcpy(url, feed->valuestring, sizeof(url));
                 } else strcpy(url, "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=5");
@@ -3272,8 +3285,8 @@ static void live_widget_task(void *arg)
                 interval = 1800;
             }
             char identity[384];
-            snprintf(identity, sizeof(identity), "%s|%s", url,
-                     finnhub && valid_finnhub_key(finnhub_key) ? finnhub_key->valuestring : "");
+            snprintf(identity, sizeof(identity), "%s|%s%s", url,
+                     finnhub && valid_finnhub_key(finnhub_key) ? finnhub_key->valuestring : "", rss ? "|rss" : "");
             if (home_state && valid_home_token(home_token)) {
                 unsigned char digest[32];
                 size_t digest_len = 0;
@@ -3340,7 +3353,7 @@ static void live_widget_task(void *arg)
             client_tls(&config, NULL);
             esp_http_client_handle_t client = esp_http_client_init(&config);
             esp_err_t setup = client ? ESP_OK : ESP_ERR_NO_MEM;
-            if (setup == ESP_OK && (!strcmp(kind, "github") || !strcmp(kind, "weather_alerts")))
+            if (setup == ESP_OK && (news || !strcmp(kind, "github") || !strcmp(kind, "weather_alerts")))
                 setup = esp_http_client_set_header(client, "User-Agent", "GooPad (https://github.com/jeromedontdev/GooPad)");
             if (setup == ESP_OK && finnhub)
                 setup = esp_http_client_set_header(client, "X-Finnhub-Token", finnhub_key->valuestring);
@@ -3353,12 +3366,13 @@ static void live_widget_task(void *arg)
             int status = 0;
             bool alerts = !strcmp(kind, "weather_alerts");
             bool large_response = alerts || news;
-            char *alert_data = large_response ? heap_caps_malloc(65537, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+            size_t response_limit = rss ? GOOPAD_NEWS_XML_BYTES : large_response ? 65536 : 4096;
+            char *alert_data = large_response ? heap_caps_malloc(response_limit + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
             if (large_response && !alert_data && setup == ESP_OK) setup = ESP_ERR_NO_MEM;
             char *response = large_response ? alert_data : data;
             /* Media wins admission, not cancellation of an admitted request:
              * a 500 ms poll must not repeatedly restart a slower TLS handshake. */
-            esp_err_t result = setup == ESP_OK ? goopad_network_background_get(client, response, large_response ? 65536 : 4096, 10000, !finnhub && !home_state && !news,
+            esp_err_t result = setup == ESP_OK ? goopad_network_background_get(client, response, response_limit, 10000, !finnhub && !home_state && !news,
                 network_priority_pending, &status, &preempted) : setup;
             if (client) esp_http_client_cleanup(client);
             network_end();
@@ -3368,12 +3382,14 @@ static void live_widget_task(void *arg)
                 retry_soon = true;
                 continue;
             }
-            cJSON *payload = result == ESP_OK && status == 200 ? cJSON_Parse(response) : NULL;
-            free(alert_data);
             char text[384] = "Data unavailable";
+            bool rss_valid = rss && result == ESP_OK && status == 200 &&
+                             goopad_news_xml_text(response, strlen(response), text, sizeof(text));
+            cJSON *payload = !rss && result == ESP_OK && status == 200 ? cJSON_Parse(response) : NULL;
+            free(alert_data);
             bool weather_valid = false;
             if (news) {
-                if (payload && goopad_news_text(payload, text, sizeof(text))) news_updated[i] = now;
+                if (rss_valid || (payload && goopad_news_text(payload, text, sizeof(text)))) news_updated[i] = now;
                 else {
                     strcpy(text, status == 429 ? "News provider limit" : "News unavailable");
                     ESP_LOGW(TAG, "News widget %u unavailable (HTTP %d)", i + 1, status);

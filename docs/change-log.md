@@ -947,3 +947,55 @@ not a complete historical changelog.
   documentation update. No versioned binary release is claimed: circular
   hardware and all newly configured widgets have not been physically exercised,
   and release packaging requires a separate clean-source build.
+
+## 2026-11-27 - Thumbnail previews, centered Arches, design themes and RSS
+
+- **Request:** show identifiable saved-image thumbnails, replace the two similar
+  new-layout choices with Arches, improve Material/Liquid Glass fidelity, and
+  provide RSS news with popular presets.
+- **Changes:** About and the visual picker share RGB565/RGB565A8/GIF decoding,
+  including 480-pixel background thumbnails and explicit load errors. Arches
+  stacks bowed rows, centered to within one pixel, with tested square-corner
+  circular bounds and separation. Material uses flat Material 3 tonal
+  containers, subtle outlines/elevation and pressed state layers, without the
+  Modern strip. Glass uses real browser backdrop blur and one shared native
+  120x120 RGB565 frosted backdrop; custom backgrounds are downsampled and
+  blurred, while the root Glass palette supplies a soft pastel scene.
+- **News:** maintained Espressif Expat parses complete RSS 2.0, RSS 1.0/RDF and
+  Atom documents, including CDATA/entities/nested title text. DTD/external
+  entities, malformed XML, nesting over 32 and responses above 256 KiB are
+  rejected. Eight HTTPS presets cover BBC World/Technology, NPR, Guardian,
+  NYTimes, Ars Technica, The Verge and Hacker News, plus custom URLs. Legacy
+  JSON sources retain their 64 KiB limit. Expat/font notices are embedded and
+  included by firmware packaging.
+- **Compatibility/recovery:** existing ring/arc and JSON configurations are
+  retained. New editor news tiles explicitly default to RSS/BBC World; old
+  absent-source news records retain Hacker News JSON. Arches/RSS fields must
+  be removed or a compatible configuration restored before downgrading.
+  Existing Material/Glass selections intentionally receive corrected styling.
+  No live configuration fixtures, saved-action triggers or file deletions were
+  used. Root local SDK configuration and partition layout are unchanged.
+- **Validation:** the documented Zig native command passed JSON/RSS/Atom,
+  exact XML byte/depth limits, malformed tails, DTD/entity rejection, UTF-8
+  truncation, centered/non-overlapping circular geometry and actual blur
+  regressions. Browser tests passed **7,296 checks across 2,520 layouts**;
+  local Material/Arches and Liquid Glass previews were visually inspected.
+  All eight live HTTPS responses parsed with three titles, spanning
+  **14,506–155,348 bytes** in the host stdin probe. Actual HTTP-response and
+  asset-deletion C harnesses passed. All four web-resource tests and
+  `tests/Test-ReleasePackaging.ps1` passed. Early host archive/stale-manifest
+  checks failed; direct host Expat compilation and resource regeneration
+  resolved them before the final passing runs.
+- **Build/delivery:** ESP-IDF 6.1 production `reconfigure build` passed for
+  **0.7.8**: **2,419,600 bytes**, **1,774,704 bytes / 42.31% free** in the
+  4 MiB slot. Matching editor: **322,258 bytes**; exact digests are in the
+  storage ledger. Existing FreeRTOS/LVGL warnings remain. COM9 diagnostics,
+  validated active 0.7.7 image and partition layout were reverified; an
+  app-only recovery copy matched the known SHA-256. Source commit/push and
+  pinned application-only installation/soak follow this entry.
+- **Remaining/limits:** native Glass approximates frosting, not real-time
+  optical refraction. Physical circular hardware and newly configured RSS
+  widgets/designs have not been exercised by replacing the user's settings.
+  Device installation/soak are pending at this entry. No versioned binary
+  release is claimed; separate clean-source packaging/physical validation
+  remains required. Companion code, packaging and installation are unaffected.

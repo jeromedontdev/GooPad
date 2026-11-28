@@ -32,7 +32,7 @@ encrypted HAP on TCP port 80, **not** a plaintext editor.
 | `GET /api/config` | Complete saved JSON, including potentially sensitive configuration. `Cache-Control: no-store`. |
 | `POST /api/config` | Complete JSON, max 12,000 bytes. Validate, commit to NVS, update RAM; returns `{"ok":true}` or also `"restarting":true` for changed HomeKit topology. HTTP 500 can mean a config was saved but restart scheduling failed; inspect the response rather than retrying blindly. |
 | `GET /api/status` | Runtime connection, installed `firmwareVersion`, render counts, audio, last action, cached PC stats and live-widget strings. `requestResults` contains per-macro cached response text; `batteryAvailable` and nullable `batteryPercent` expose validated board telemetry. `lastAction` is the latest tracked HTTP action, not a universal completion record for every tile type. |
-| `GET /font-licenses` | Public copyright notices and SIL Open Font License for the bundled font subsets. |
+| `GET /font-licenses` | Public bundled-font notices/SIL Open Font License and Expat XML parser MIT notice. |
 | `GET /api/diagnostics` | Authenticated, no-store report of numeric reset, memory and bounded event records. No configuration, URLs, credentials, SSIDs, location or widget data are included. Events are `[uptimeSeconds,event,result,detail]`; event types are boot (1), network deferred (2), macro result (3), widget request result (4), Wi-Fi disconnect (5), macro latency in milliseconds from queueing to result (6), and serial PC test latency (7; result is HTTP status or negative ESP error). Uptime resets at each boot; RTC-retained records can span soft resets but not power loss. |
 | `POST /api/trigger` | `{"index":0}` uses the **saved**, zero-based macro index and performs the real action. Network and wake actions use a FIFO with one running and up to four waiting; HTTP 429 means the queue is full or unavailable. Acceptance is not action completion. |
 | `POST /api/wifi/join` | `{"ssid":"...","password":"..."}` validates input and starts a connection attempt; an HTTP success is not proof the join succeeded. |
@@ -71,9 +71,11 @@ and visibility settings, optional Companion pairing fields, time offset, and a
 and columns. The exact accepted fields, defaults, combinations and bounds
 are in `validate_config()`. Empty positions are valid.
 
-`screenLayout` is `grid` (default), `ring` or `arc`. Non-grid layouts use the
-same rows/columns, original macro indices and paging, with uniformly sized
-cells inside a circular viewport. They reject spans larger than 1x1.
+`screenLayout` is `grid` (default), `arches`, or legacy `ring`/`arc`.
+Arches uses stacked bowed rows, maintaining column/row positions on partial
+pages. Legacy ring/arc rendering is unchanged and remains selectable only when
+opening that existing layout. Non-grid layouts preserve macro indices/paging,
+keep square corners inside a circular viewport, and reject spans larger than 1x1.
 `showBattery` is boolean and defaults false; unsupported boards report
 `batteryAvailable:false` and `batteryPercent:null`, never an estimated value.
 Root and tile themes additionally accept `liquid_glass` and `material`.
@@ -98,7 +100,20 @@ applies, not daylight-saving timezone rules. Unsupported directives such as
 `%z`, control characters other than newline/tab, invalid UTF-8 and overlong
 formats are rejected.
 
-`widget:"news"` accepts `newsSource:"hackernews"` (default) or `"jsonfeed"`.
+New editor news tiles use `widget:"news", newsSource:"rss"` and
+`newsFeed:"bbc_world"` (default). Preset IDs are `bbc_world`, `bbc_tech`,
+`npr`, `guardian`, `nytimes`, `ars`, `verge` and `hackernews`.
+`newsFeed:"custom"` requires an HTTPS `newsUrl` shorter than 180 characters
+without URL credentials. RSS 2.0, RSS 1.0/RDF and Atom are supported through
+Expat, with a 256 KiB response limit and nesting limit of 32. Channel/feed
+titles are ignored; CDATA, XML entities and nested Atom title text are decoded.
+DTD/external-entity processing is rejected and the complete XML document must
+be valid, even after three titles have been collected. Duplicate XML headlines
+are omitted; each title is capped at 120 UTF-8 bytes plus an ellipsis.
+Empty feeds show `No headlines`; entries without usable titles fail explicitly.
+
+Legacy `newsSource:"hackernews"` (also the absent-field default for old saved
+configurations) and `"jsonfeed"` retain their behavior.
 JSON Feed requires an HTTPS `newsUrl` shorter than 180 characters and without
 URL credentials. The default source uses Algolia's front-page Hacker News
 endpoint. The background worker polls every ten minutes, with a 64 KiB response
@@ -106,7 +121,8 @@ limit and verified TLS; redirects are not followed. It reads up to three
 `items[].title` or `hits[].title` strings, validates UTF-8, flattens control
 whitespace and limits each title to 120 bytes plus an ellipsis. Empty arrays
 show `No headlines`; invalid feeds and failed requests show an error, and old
-results become stale. RSS/Atom XML and clickable article navigation are absent.
+results become stale. The same refresh/TLS/error rules apply to RSS/Atom;
+clickable article navigation is absent.
 New widget/theme/layout/percent-format values are not downgrade-compatible:
 remove them or restore a compatible configuration before installing older firmware.
 

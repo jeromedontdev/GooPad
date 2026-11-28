@@ -31,6 +31,30 @@ static inline int goopad_grid_limit(int extent, int reserved, int minimum)
     return count > 4 ? 4 : count;
 }
 
+static inline goopad_orbit_t goopad_arches_position(int width, int height, int cols, int rows, int slot)
+{
+    double extent = (width < height ? width : height) - 20;
+    double radius = extent / 2;
+    double mean_square = (1.0 - 1.0 / (cols * cols)) / 3;
+    double side = fmin(96, fmin(extent * .8 / cols - 8, extent * .6 / rows - 8));
+    // Stacked bowed rows; bound every square corner, not only the centers.
+    for (int row = 0; row < rows; row++) for (int col = 0; col < cols; col++) {
+        double u = (2.0 * col + 1) / cols - 1;
+        double x = fabs(u * extent * .4);
+        double y = fabs(((2.0 * row + 1) / rows - 1) * extent * .3 + extent * .18 * (u * u - mean_square));
+        double sum = x + y;
+        side = fmin(side, sqrt(sum * sum + 2 * (radius * radius - x * x - y * y)) - sum);
+    }
+    int size = (int)floor(side) - 2;
+    if (size < 1) size = 1;
+    double u = (2.0 * (slot % cols) + 1) / cols - 1;
+    double v = (2.0 * (slot / cols) + 1) / rows - 1;
+    return (goopad_orbit_t) {
+        (int)round(width / 2.0 + u * extent * .4 - size / 2.0),
+        (int)round(height / 2.0 + v * extent * .3 + extent * .18 * (u * u - mean_square) - size / 2.0), size
+    };
+}
+
 static inline bool goopad_layout_area(int cols, int rows, int index, int span_cols, int span_rows,
                                       uint32_t *area)
 {

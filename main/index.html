@@ -69,8 +69,9 @@ footer{padding:20px 26px 32px}a{color:var(--accent)}body.light a{color:#175fb8}
 .preview button.action-card>.ico,.preview button.action-card>img,.preview button.action-card>.icon-mask{position:absolute;left:var(--card-inset);top:var(--card-inset);width:var(--card-icon);height:var(--card-icon)}.preview button.action-card>.ico{display:grid;place-items:center;font-size:var(--card-icon);line-height:1}.preview button.action-card>small{position:absolute;left:var(--card-inset);bottom:var(--card-bottom);width:calc(100% - 2 * var(--card-inset))!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .preview .modern-accent{position:absolute;top:var(--accent-top);left:33.333%;width:33.333%;height:var(--accent-height);border-radius:4px;background:var(--widget-accent);pointer-events:none}
 .preview-page.radial{display:block;position:relative}.preview-page.radial>.preview-cell{position:absolute}
-.preview button.liquid-glass{box-shadow:inset 0 1px 0 #ffffff66,0 2px 6px #0003}
-.preview button.material{box-shadow:0 2px 6px #0003}
+.preview button.liquid-glass{backdrop-filter:blur(12px) saturate(1.25);-webkit-backdrop-filter:blur(12px) saturate(1.25);box-shadow:inset 0 1px 1px #ffffffe0,inset 0 -1px 1px #ffffff66,0 4px 12px #526a8c26}
+.preview button.material{box-shadow:0 2px 4px #1d1b201a}
+.preview button.material:active{background:#e5dced!important}.preview button.liquid-glass:active{background:linear-gradient(#ffffffe6,#ffffff80)!important}
 .preview button.action-medallion>.ico,.preview button.action-medallion>img,.preview button.action-medallion>.icon-mask{position:absolute;left:50%;top:var(--visual-center);width:var(--visual-size);height:var(--visual-size);transform:translate(-50%,-50%)!important;display:grid;place-items:center;font-size:var(--visual-size);line-height:1}
 .preview button.caption-rail>small{position:absolute;bottom:var(--caption-bottom);left:8px;width:calc(100% - 16px)!important}
 .preview button.widget-surface>.widget,.preview button.widget-surface>.widget-graphic{transform:translateY(var(--surface-offset))}
@@ -89,7 +90,7 @@ footer{padding:20px 26px 32px}a{color:var(--accent)}body.light a{color:#175fb8}
 <div class="field"><label>Columns</label><select id="cols"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field"><label>Rows per page</label><select id="rows"><option>2</option><option selected>3</option><option>4</option></select></div>
 <div class="field"><label for="deviceTheme">Device theme</label><select id="deviceTheme"><option value="midnight">Midnight</option><option value="ocean">Ocean</option><option value="forest">Forest</option><option value="light">Light</option><option value="slate">Slate</option><option value="violet">Violet</option><option value="ember">Ember</option><option value="berry">Berry</option><option value="teal">Teal</option><option value="black">Black</option><option value="custom">Custom</option></select></div>
-<div class="field"><label for="screenLayout">Screen layout</label><select id="screenLayout"><option value="grid">Grid (default)</option><option value="ring">Circular ring</option><option value="arc">Arched ring</option></select><span class="hint">Ring layouts keep the same page positions and use smaller tiles. Enlarged tiles require Grid. Fewer rows/columns make larger ring icons.</span></div>
+<div class="field"><label for="screenLayout">Screen layout</label><select id="screenLayout"><option value="grid">Grid (default)</option><option value="arches">Arches</option></select><span class="hint">Arches stacks upward-curved rows inside a circular viewport. Fewer rows/columns make larger icons. Enlarged tiles require Grid. Existing ring layouts are retained until you explicitly choose another layout.</span></div>
 <div class="field"><label><input id="showBattery" type="checkbox"> Show battery indicator</label><span class="hint">Off by default. Requires readable battery telemetry; this Guition board cannot report a battery percentage.</span></div>
 <div class="field" id="customBackground"><label for="background">Custom background</label><input id="background" type="color" value="#111827"></div>
 <div id="backgroundUploadField" class="field wide hidden"><label for="backgroundUpload">Background image (SD card required, up to 15 MB)</label><input id="backgroundUpload" type="file" accept="image/*"><p class="hint">Images are center-cropped to fill the 480×480 screen. Transparent areas use your background color.</p><img id="backgroundSample" class="background-sample hidden" alt="Custom background"><span id="backgroundStatus" class="hint" role="status"></span><button id="removeBackground" type="button">Remove image</button></div>
@@ -163,7 +164,7 @@ function scrollToTile(index){
  updatePreviewDots()
 }
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-const themeBackgrounds={midnight:"111827",ocean:"0B1B2A",forest:"10251D",light:"F1F5F9",slate:"202B3A",violet:"241938",ember:"2F1B1A",berry:"301729",teal:"102F31",black:"000000",liquid_glass:"14283F",material:"FFFBFE"};
+const themeBackgrounds={midnight:"111827",ocean:"0B1B2A",forest:"10251D",light:"F1F5F9",slate:"202B3A",violet:"241938",ember:"2F1B1A",berry:"301729",teal:"102F31",black:"000000",liquid_glass:"DDEBF6",material:"FFFBFE"};
 const themeAccents={ocean:"67E8F9",forest:"6EE7B7",light:"334155",slate:"CBD5E1",violet:"D8B4FE",ember:"FDBA74",berry:"FDA4C4",teal:"5EEAD4",black:"E2E8F0"};
 function updateThemeFields(){const custom=$("#deviceTheme").value==="custom";$("#customBackground").classList.toggle("hidden",!custom);$("#backgroundUploadField").classList.toggle("hidden",!custom);$("#background").disabled=!custom;if(!custom)$("#background").value="#"+themeBackgrounds[$("#deviceTheme").value]}
 $("#deviceTheme").insertAdjacentHTML("beforeend",'<option value="liquid_glass">Liquid glass</option><option value="material">Material</option>');
@@ -308,7 +309,7 @@ async function uploadGif(file,index,macro){
   const canonical=canonicalGif(data);
   const key=await stageIconAsset("image/gif",data,canonical,"gif",160);
   macro.iconImage=key;macro.iconFormat="gif";macro.iconSize=160;macro.iconSource="gif";prunePendingIconAssets();
-  macro.imagePreview="data:image/gif;base64,"+btoa(Array.from(data,byte=>String.fromCharCode(byte)).join(""));delete macro.faIcon;delete macro.faCode;
+  macro.imagePreview=gifPreview(data);delete macro.faIcon;delete macro.faCode;
   render();uploadMessage(index,"GIF ready. Save to upload it to SD (maximum 10 fps).");return true
  }catch(error){uploadMessage(index,"GIF preparation failed: "+error.message,true);return false}
  finally{pendingUploads--}
@@ -450,6 +451,8 @@ function organizeTileEditor(card,openSections,mode){
 }
 function render(){
  // Only the selected tile gets editing controls; cfg remains the shared draft.
+ $("#screenLayout").querySelectorAll("[data-legacy-layout]").forEach(option=>option.remove());
+ if(["ring","arc"].includes(cfg.screenLayout)){const option=new Option(cfg.screenLayout==="ring"?"Circular ring (existing)":"Arched ring (existing)",cfg.screenLayout);option.dataset.legacyLayout="";$("#screenLayout").append(option)}
  $("#screenLayout").value=cfg.screenLayout||"grid";$("#showBattery").checked=cfg.showBattery===true;
  const root=$("#macros"),oldCard=root.querySelector(".macro");
  const openSections=oldCard&&Number(oldCard.dataset.index)===selectedTile?Array.from(oldCard.querySelectorAll(".tile-section[open]"),section=>section.dataset.section):null;
@@ -493,7 +496,7 @@ function render(){
   <div class="field wide" data-widget-option="clock"><label>Time format</label><input data-k="clockFormat" maxlength="96" placeholder="%H:%M"><span class="hint">Examples: %H:%M, %-I:%M %p, %H:%M:%S. Percent formats use English names and the device UTC offset.</span></div>
   <div class="field wide" data-widget-option="date"><label>Date format</label><input data-k="dateFormat" maxlength="96" placeholder="%Y-%m-%d"><span class="hint">Examples: %Y-%m-%d, %d/%m/%Y, %A, %B %-d. Use %-d for a day without a leading zero.</span></div>
   <div class="field wide" data-widget-option="datetime"><label>Date &amp; time format</label><input data-k="datetimeFormat" maxlength="96" placeholder="%Y-%m-%d%n%H:%M"><span class="hint">Example: %a, %b %-d%n%-I:%M %p. %n adds a new line; %% shows a percent sign. Also supports %F, %T, %R, %D, %r, %e, %j, %u, %w, %y, %P and %t. Unsupported directives are rejected.</span></div>
-  <div class="field wide" data-widget-option="news"><label>Headline source</label><select data-k="newsSource"><option value="hackernews">Hacker News (technology)</option><option value="jsonfeed">Custom JSON Feed</option></select><label>JSON Feed HTTPS URL (custom source only)</label><input data-k="newsUrl" type="url" maxlength="179" value="${esc(m.newsUrl||"")}" placeholder="https://example.com/feed.json"><span class="hint">Shows up to three headlines; refreshes every ten minutes. Custom feeds need JSON Feed items with title fields, not RSS/Atom XML. HTTPS certificates are verified; redirects, feeds over 64 KiB and malformed responses are rejected. No API key is required for Hacker News.</span></div>
+  <div class="field wide" data-widget-option="news"><label>Headline source</label><select data-k="newsSource"><option value="rss">RSS / Atom</option><option value="hackernews">Hacker News JSON (legacy)</option><option value="jsonfeed">Custom JSON Feed (legacy)</option></select><div data-news-preset><label>News feed</label><select data-k="newsFeed">${Object.entries(newsFeeds).map(([key,feed])=>`<option value="${key}">${feed.label}</option>`).join("")}<option value="custom">Custom RSS / Atom URL</option></select></div><div data-news-url><label>Custom feed HTTPS URL</label><input data-k="newsUrl" type="url" maxlength="179" value="${esc(m.newsUrl||"")}" placeholder="https://example.com/feed.xml"></div><span class="hint">Up to three headlines, refreshed every ten minutes. RSS 2.0, RSS 1.0 and Atom are supported, including XML entities and CDATA. TLS is verified; redirects, DTDs and malformed XML are rejected. XML limit: 256 KiB; legacy JSON: 64 KiB. Providers can change or rate-limit their feeds.</span></div>
   <div class="field wide" data-widget-option="pc_monitor"><label>PC statistic</label><select data-k="pcStat">${Object.entries(pcStatLabels).map(([key,label])=>`<option value="${key}">${label}</option>`).join("")}</select><span class="hint">Network speed totals non-loopback interfaces. Fan speed is the fastest reported fan and requires LibreHardwareMonitor or OpenHardwareMonitor. GPU readings require supported drivers. Missing readings say Unavailable, never zero.</span></div>
   <div class="field wide" data-widget-option="now_playing"><span class="hint">Pair the Windows Companion in Settings and enable now-playing sharing in the Companion. Tap to play/pause; hold to skip to the next track. Media keys target the PC's active player. Media title and artist are shared with paired devices on your local network.</span></div>
   <div class="field" data-widget-option="pc_temperature"><label>Temperature unit</label><select data-k="temperatureUnit"><option value="C">Celsius</option><option value="F">Fahrenheit</option></select></div>
@@ -560,6 +563,8 @@ function render(){
   card.querySelector('[data-k="temperatureUnit"]').value=m.temperatureUnit||"C";
   card.querySelector('[data-k="widgetTheme"]').value=m.widgetTheme||"device";
   card.querySelector('[data-k="newsSource"]').value=m.newsSource||"hackernews";
+  card.querySelector('[data-k="newsFeed"]').value=m.newsFeed||"bbc_world";
+  syncNewsControls(card,m);
   card.querySelector('[data-k="widgetTheme"]').closest(".field").querySelector("label").textContent="Tile theme";
   card.querySelector('[data-k="widgetLayout"]').value=m.widgetLayout||"panel";
   card.querySelector('[data-k="spanCols"]').value=String(m.spanCols||1);
@@ -590,7 +595,10 @@ function render(){
      else if(m.actionMode==="wake_on_lan"){event.stopImmediatePropagation();m.actionMode="widget";m.widget=el.value;render()}
     };
     el.addEventListener("input",changeWidget);el.addEventListener("change",changeWidget)
+    const newNews=()=>{if(el.value==="news"&&m.widget!=="news"){m.newsSource="rss";m.newsFeed="bbc_world";card.querySelector('[data-k="newsSource"]').value="rss";card.querySelector('[data-k="newsFeed"]').value="bbc_world";syncNewsControls(card,m)}};
+    el.addEventListener("input",newNews);el.addEventListener("change",newNews)
    }
+   if(["newsSource","newsFeed"].includes(el.dataset.k))for(const event of ["input","change"])el.addEventListener(event,()=>syncNewsControls(card,{...m,[el.dataset.k]:el.value}));
    if(el.dataset.k==="actionMode")el.addEventListener("change",event=>{
     if(el.value==="smart_home"){event.stopImmediatePropagation();m.actionMode="home_assistant";render()}
     else if(el.value==="widget"&&m.widget==="home_state"){m.widget="clock";card.querySelector('[data-k="widget"]').value="clock"}
@@ -670,6 +678,14 @@ function updateModeFields(card,mode){
  })
  syncWidgetStyle(card,cfg.macros[Number(card.dataset.index)])
 }
+function gifPreview(data){return "data:image/gif;base64,"+btoa(Array.from(data,byte=>String.fromCharCode(byte)).join(""))}
+async function savedAssetPreview(asset){
+ const url="/api/icon?key="+encodeURIComponent(asset.key)+"&format="+asset.format+"&size="+asset.size;
+ const response=await fetch(url,{cache:"force-cache"});
+ if(!response.ok)throw Error("Saved image returned HTTP "+response.status);
+ const data=new Uint8Array(await response.arrayBuffer());
+ return asset.format==="gif"?gifPreview(data):rawPixelPreview(data,asset.size,asset.format==="rgb565a8")
+}
 async function showSavedAssets(card,macro,offset){
  const result=card.querySelector("[data-assets-results]"),status=card.querySelector("[data-assets-status]");
  const prev=card.querySelector("[data-assets-prev]"),next=card.querySelector("[data-assets-next]");
@@ -682,15 +698,10 @@ async function showSavedAssets(card,macro,offset){
   status.textContent=data.assets.length?"Select a visual to reuse it without uploading.":"No saved visuals.";
   for(const asset of data.assets){
    if(!/^i[0-9a-f]{16}$/.test(asset.key)||!["gif","rgb565","rgb565a8"].includes(asset.format)||![32,160].includes(asset.size))throw Error("Invalid asset entry.");
-   const url="/api/icon?key="+encodeURIComponent(asset.key)+"&format="+asset.format+"&size="+asset.size;
    const button=document.createElement("button"),image=document.createElement("img");
    button.type="button";button.title=asset.format==="gif"?"Saved GIF":"Saved image";image.alt=button.title;image.width=image.height=48;image.style.objectFit="contain";
    button.append(image);result.append(button);
-   let preview=url;
-   if(asset.format!=="gif"){
-    const response=await fetch(url,{cache:"force-cache"});if(!response.ok)throw Error(await response.text());
-    preview=rawPixelPreview(new Uint8Array(await response.arrayBuffer()),asset.size,asset.format==="rgb565a8")
-   }
+   const preview=await savedAssetPreview(asset);
    image.onerror=()=>{status.textContent="Could not load a saved visual.";status.classList.add("error")};
    image.src=preview;
    button.onclick=()=>{Object.assign(macro,{iconImage:asset.key,iconSize:asset.size,iconSource:asset.format==="gif"?"gif":"image",imagePreview:preview});if(asset.format==="rgb565")delete macro.iconFormat;else macro.iconFormat=asset.format;delete macro.faIcon;delete macro.faCode;delete macro.emojiImageKey;prunePendingIconAssets();render();uploadMessage(Number(card.dataset.index),"Saved visual selected. Save to apply it.")}
@@ -709,8 +720,10 @@ async function showImageFiles(offset=0){
   status.textContent=data.assets.length?"Only unused images can be deleted.":"No saved images.";
   for(const asset of data.assets){
    if(!/^i[0-9a-f]{16}$/.test(asset.key)||!["gif","rgb565","rgb565a8"].includes(asset.format)||![32,160,480].includes(asset.size))throw Error("Invalid asset entry.");
-   const row=document.createElement("div"),name=document.createElement("span"),remove=document.createElement("button");
+   const row=document.createElement("div"),name=document.createElement("span"),remove=document.createElement("button"),image=document.createElement("img");
    row.className="toolbar";name.textContent=`${asset.size===480?"Background":asset.format==="gif"?"GIF":"Image"} ${asset.key} (${asset.size} px)`;
+   image.alt=asset.size===480?"Saved background thumbnail":asset.format==="gif"?"Saved GIF thumbnail":"Saved image thumbnail";
+   image.width=image.height=64;image.style.objectFit="contain";image.style.background="#80808033";image.style.borderRadius="8px";
    remove.type="button";remove.className="danger";remove.textContent="Delete";
    const used=()=>cfg.backgroundImage===asset.key||cfg.macros.some(m=>m.iconImage===asset.key);
    remove.disabled=used();remove.title=remove.disabled?"Used by the current draft. Clear the reference and save first.":"Delete this saved image";
@@ -722,7 +735,9 @@ async function showImageFiles(offset=0){
     try{await api("/api/icon?key="+encodeURIComponent(asset.key),{method:"DELETE"});await showImageFiles(offset)}
     catch(error){status.textContent="Could not delete image: "+error.message;status.classList.add("error");remove.disabled=false}
    };
-   row.append(name,remove);list.append(row)
+   row.append(image,name,remove);list.append(row);
+   image.onerror=()=>{status.textContent="Could not load a saved image thumbnail.";status.classList.add("error")};
+   image.src=await savedAssetPreview(asset)
   }
  }catch(error){status.textContent="Could not load saved images: "+error.message;status.classList.add("error")}
 }
@@ -741,10 +756,25 @@ const widgetThemes={
  lime:["253C20","112417","F2FCE8","A3E635"],plum:["4C2850","21172E","FFF1FF","E9A8F0"],
  copper:["5B3426","291C19","FFF2E5","F4B183"],mono:["424242","151515","FAFAFA","D4D4D4"],
  berry:["621E45","30192F","FFF1F5","FB8BB4"],sky:["DDEEFF","B5D2F2","1A3657","3569AB"],
- liquid_glass:["43546E","27354F","F8FAFF","B8D8FF"],material:["E8DEF8","E8DEF8","1D192B","6750A4"]
+ liquid_glass:["EEF3FA","EEF3FA","1F2937","7086A3"],material:["F3EDF7","F3EDF7","1D1B20","6750A4"]
 };
 function tileTheme(m){return m.widgetTheme&&m.widgetTheme!=="device"?m.widgetTheme:["liquid_glass","material"].includes(cfg.theme)?cfg.theme:"custom"}
 function tilePalette(m){return widgetThemes[tileTheme(m)]}
+const newsFeeds={
+ bbc_world:{label:"BBC - World",url:"https://feeds.bbci.co.uk/news/world/rss.xml"},
+ bbc_tech:{label:"BBC - Technology",url:"https://feeds.bbci.co.uk/news/technology/rss.xml"},
+ npr:{label:"NPR - News",url:"https://feeds.npr.org/1001/rss.xml"},
+ guardian:{label:"The Guardian - World",url:"https://www.theguardian.com/world/rss"},
+ nytimes:{label:"The New York Times",url:"https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"},
+ ars:{label:"Ars Technica",url:"https://feeds.arstechnica.com/arstechnica/index"},
+ verge:{label:"The Verge",url:"https://www.theverge.com/rss/index.xml"},
+ hackernews:{label:"Hacker News - RSS",url:"https://hnrss.org/frontpage"}
+};
+function syncNewsControls(card,m){
+ const rss=(m.newsSource||"hackernews")==="rss";
+ card.querySelector("[data-news-preset]").classList.toggle("hidden",!rss);
+ card.querySelector("[data-news-url]").classList.toggle("hidden",rss?(m.newsFeed||"bbc_world")!=="custom":m.newsSource!=="jsonfeed")
+}
 function previewIconColor(m){return m.iconColor||tilePalette(m)?.[2]}
 const previewFonts={lobster:"Goo Script Preview",pacifico:"Goo Pacific Preview",sharetechmono:"Goo Terminal Preview",righteous:"Goo Rounded Preview",acme:"Acme Preview",bangers:"Bangers Preview",patrickhand:"Patrick Hand Preview",pressstart2p:"Press Start Preview",spacemono:"Space Mono Preview"};
 const previewFontStyles=document.createElement("style");
@@ -768,7 +798,7 @@ function syncWidgetStyle(card,m){
  card.querySelectorAll("[data-widget-style]").forEach(field=>field.classList.toggle("hidden",!widget&&!field.querySelector('[data-k="widgetTheme"]')&&!(responseTile(m)&&field.querySelector('[data-k="widgetTextSize"]'))));
  card.querySelector('[data-k="widgetGraphic"] option[value="text"]').textContent=m.widget==="weather"?"Automatic weather icon":"Text only";
  for(const [key,value]of [["color",palette?.[0]||m.color],["textColor",palette?.[2]||m.textColor],["outlineColor",palette?.[3]||m.outlineColor||"A5B4FC"],["widgetAccent",palette?.[3]||m.widgetAccent||"A5B4FC"],["widgetGradient",palette?.[1]||m.widgetGradient||m.color||"4F46E5"]]){
-  const control=card.querySelector(`[data-k="${key}"]`);control.disabled=!!palette;control.value="#"+value
+  const control=card.querySelector(`[data-k="${key}"]`);control.disabled=!!palette;control.value="#"+(key==="outlineColor"&&palette?(tileTheme(m)==="material"?"CAC4D0":tileTheme(m)==="liquid_glass"?"FFFFFF":value):value)
  }
  card.querySelector('[data-k="tileGradient"]').disabled=!!palette;
  card.querySelector('[data-k="widgetGraphic"]').querySelectorAll("option").forEach(option=>{option.hidden=option.disabled=!widgetGraphicAllowed(option.value,m.widget||"clock",m.pcStat||"summary")})
@@ -880,7 +910,8 @@ function defaultIconColor(m){return m.iconSource==="fontawesome"?"FFFFFF":m.text
 function preview(){
  // Compact layouts display a filtered list but retain the original macro index.
  $("#count").textContent=`(${cfg.macros.filter(macroConfigured).length}/32 configured)`;
- const p=$("#preview"),dots=$("#previewDots"),previousPage=currentPreviewPage();p.replaceChildren();dots.replaceChildren();p.style.background="#"+(themeBackgrounds[cfg.theme]||cfg.background||"111827");
+ const p=$("#preview"),dots=$("#previewDots"),previousPage=currentPreviewPage();p.replaceChildren();dots.replaceChildren();p.style.background="#"+(themeBackgrounds[cfg.theme]||cfg.background||"111827");p.style.backgroundImage="none";
+ if(cfg.theme==="liquid_glass"){const extent=Math.max(deviceDisplay.width,deviceDisplay.height),height=deviceDisplay.height-84;p.style.backgroundImage="radial-gradient(circle at 22% 25%,#779fec,transparent 48%),radial-gradient(circle at 87% 68%,#b68de2,transparent 58%),radial-gradient(circle at 22% 90%,#72d6de,transparent 48%)";p.style.backgroundSize=`${extent/deviceDisplay.width*100}% ${extent/height*100}%`;p.style.backgroundPosition=`center ${((extent-deviceDisplay.height)/2+48)/(extent-height)*100}%`}
  if(cfg.theme==="custom"&&cfg.backgroundPreview){p.style.backgroundImage=`url("${cfg.backgroundPreview}")`;p.style.backgroundSize="100% auto";p.style.backgroundPosition="center 57.1429%"}
  const cols=Number($("#cols").value)||3,rows=Number($("#rows").value)||3,cap=cols*rows,hide=$("#hideUnconfigured").checked;
  const macros=cfg.macros.map((macro,index)=>({macro,index})).filter(({macro})=>!hide||macroConfigured(macro)),count=hide?Math.max(1,Math.ceil(macros.length/cap)):storedPageCount(cap);
@@ -895,7 +926,7 @@ function preview(){
    for(let y=0;y<spanRows;y++)for(let x=0;x<spanCols;x++)if(x||y)covered.add(position+y*cols+x);
    const cell=document.createElement("div"),b=document.createElement("button");cell.className="preview-cell";
    cell.style.gridColumn=`${slot%cols+1} / span ${spanCols}`;cell.style.gridRow=`${Math.floor(slot/cols)+1} / span ${spanRows}`;
-   if(cfg.screenLayout&&cfg.screenLayout!=="grid"){const orbit=orbitPosition(deviceDisplay.width,deviceDisplay.height-84,cap,slot,cfg.screenLayout==="arc");cell.style.left=orbit.x/deviceDisplay.width*100+"%";cell.style.top=orbit.y/(deviceDisplay.height-84)*100+"%";cell.style.width=orbit.side/deviceDisplay.width*100+"%";cell.style.height=orbit.side/(deviceDisplay.height-84)*100+"%"}
+   if(cfg.screenLayout&&cfg.screenLayout!=="grid"){const orbit=cfg.screenLayout==="arches"?archesPosition(deviceDisplay.width,deviceDisplay.height-84,cols,rows,slot):orbitPosition(deviceDisplay.width,deviceDisplay.height-84,cap,slot,cfg.screenLayout==="arc");cell.style.left=orbit.x/deviceDisplay.width*100+"%";cell.style.top=orbit.y/(deviceDisplay.height-84)*100+"%";cell.style.width=orbit.side/deviceDisplay.width*100+"%";cell.style.height=orbit.side/(deviceDisplay.height-84)*100+"%"}
    b.dataset.shape=m?.shape||"rounded";b.style.border=m?.outline===false?"0":"2px solid #"+(m?.outlineColor||themeAccents[cfg.theme]||"A5B4FC");
    b.type="button";b.dataset.tile=index;b.setAttribute("aria-label",m?.name||m?.widget||"Edit tile");b.setAttribute("aria-pressed",String(index===selectedTile));b.disabled=index>=32;b.draggable=index<32;b.onclick=()=>selectTile(index);
    const cover=visualCover(m);b.classList.toggle("visual-cover",cover);
@@ -905,9 +936,9 @@ function preview(){
     b.style.background=m.actionMode!=="widget"&&m.tileGradient?`linear-gradient(#${m.color||"4F46E5"},#${m.tileGradient})`:m.widgetLayout==="layered"?`linear-gradient(color-mix(in srgb,#${m.color||"4F46E5"} 90%,white),color-mix(in srgb,#${m.color||"4F46E5"} 80%,black))`:`linear-gradient(#${m.color||"4F46E5"},color-mix(in srgb,#${m.color||"4F46E5"} 90%,black))`;b.style.color="#"+(m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"));b.classList.toggle("image-only",!m.name);
     const preset=tilePalette(m),styleTheme=tileTheme(m);
     if(preset){b.style.background=`linear-gradient(#${preset[0]},#${preset[1]})`;b.style.color="#"+preset[2];if(m.outline!==false)b.style.borderColor="#"+preset[3]}
-    if(styleTheme==="liquid_glass"){b.classList.add("liquid-glass");b.style.background=`linear-gradient(#${preset[0]}cc,#${preset[1]}cc)`}
+    if(styleTheme==="liquid_glass")b.classList.add("liquid-glass");
     if(styleTheme==="material")b.classList.add("material");
-    if(m.widgetLayout!=="classic"&&m.widgetLayout!=="layered"&&!cover){const d=widgetDimensions(m,cols,rows),unit=value=>`calc(100cqw * ${value} / ${d.width})`,accent=document.createElement("span");accent.className="modern-accent";accent.setAttribute("aria-hidden","true");b.style.setProperty("--accent-top",unit(6));b.style.setProperty("--accent-height",unit(3));b.style.setProperty("--widget-accent","#"+(preset?.[3]||m.widgetAccent||m.textColor||"FFFFFF"));b.append(accent)}
+    if(m.widgetLayout!=="classic"&&m.widgetLayout!=="layered"&&!cover&&!["material","liquid_glass"].includes(styleTheme)){const d=widgetDimensions(m,cols,rows),unit=value=>`calc(100cqw * ${value} / ${d.width})`,accent=document.createElement("span");accent.className="modern-accent";accent.setAttribute("aria-hidden","true");b.style.setProperty("--accent-top",unit(6));b.style.setProperty("--accent-height",unit(3));b.style.setProperty("--widget-accent","#"+(preset?.[3]||m.widgetAccent||m.textColor||"FFFFFF"));b.append(accent)}
     if(actionCard(m,cols,rows)){const d=widgetDimensions(m,cols,rows),unit=value=>`calc(100cqw * ${value} / ${d.width})`;b.classList.add("action-card");b.style.setProperty("--card-inset",unit(12));b.style.setProperty("--card-bottom",unit(10));b.style.setProperty("--card-icon",unit(Math.max(16,Math.min(Math.floor(Math.min(d.width,d.height)*42/100),d.height-28-Math.ceil((m.textSize||14)*1.3)))))}
     if(m.widgetLayout==="layered"&&m.actionMode!=="widget"&&!responseTile(m)&&!cover){const d=widgetDimensions(m,cols,rows),fontHeight=Math.ceil((m.textSize||14)*1.3),extra=Math.max(0,fontHeight-16),base=Math.min(d.width,d.height)-(m.name?32+extra:20),icon=Math.max(16,Math.floor(base*(m.visualScale||100)/100)),size=Math.min(icon+12,d.width-16,d.height-16),fg=parseInt(preset?.[2]||m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"),16),brightness=((fg>>16)*3+((fg>>8)&255)*6+(fg&255))/10,unit=value=>`calc(100cqw * ${value} / ${d.width})`;if(size>=24){b.classList.add("action-medallion");b.style.setProperty("--medallion-size",unit(size));b.style.setProperty("--visual-center",`calc(50% + 100cqw * ${m.name?-10-extra/2:0} / ${d.width})`);b.style.setProperty("--visual-size",unit(icon));b.style.setProperty("--medallion-color",brightness<128?"#0003":"#fff3")}}
     if(cover){
@@ -931,7 +962,6 @@ function preview(){
      if(responseTile(m)&&panel)b.querySelector(".widget-heading").textContent="RESPONSE";
      else if(m.widget==="datetime"&&panel)b.querySelector(".widget-heading").textContent="DATE & TIME"
      else if(m.widget==="news"&&panel)b.querySelector(".widget-heading").textContent="NEWS";
-     if(styleTheme==="liquid_glass")b.style.background=`linear-gradient(#${preset[0]}cc,#${preset[1]}cc)`
     }
     else if(cover){}
     else if(m.imagePreview&&m.faIcon&&previewIconColor(m)){const icon=document.createElement("span");icon.className="icon-mask";icon.style.setProperty("--icon-image",`url("${m.imagePreview}")`);icon.style.setProperty("--icon-color","#"+previewIconColor(m));icon.style.transform=`scale(${(m.visualScale||100)/100})`;b.append(icon)}
@@ -939,6 +969,8 @@ function preview(){
     else{const icon=document.createElement("span");icon.className="ico";icon.textContent=m.iconSource!=="emoji"&&m.iconSource?m.iconImage?"…":"":m.icon||"";if(m.iconColor)icon.style.color="#"+m.iconColor;icon.style.transform=`scale(${(m.visualScale||100)/100})`;b.append(icon)}
     if(m.name){const d=widgetDimensions(m,cols,rows),fontHeight=Math.ceil((m.textSize||14)*1.3),fg=tilePalette(m)?.[2]||m.textColor||(cfg.theme==="light"?"172033":"FFFFFF"),rgb=parseInt(fg,16),brightness=((rgb>>16)*3+((rgb>>8)&255)*6+(rgb&255))/10;if(m.widgetLayout==="layered"&&!cover&&d.height>=fontHeight+32){b.classList.add("caption-rail");b.style.setProperty("--rail-height",`calc(100cqw * ${fontHeight+20} / ${d.width})`);b.style.setProperty("--caption-bottom",`calc(100cqw * 10 / ${d.width})`);b.style.setProperty("--rail-color",brightness<128?"#fff3":"#0003")}const name=document.createElement("small");name.textContent=m.name;name.style.width="100%";formatPreview(name,m,d.width,m.textSize||14);if(b.classList.contains("action-card")&&!m.textAlign)name.style.textAlign="left";b.append(name)}
     if(m.actionMode==="homekit"){const indicator=document.createElement("span");indicator.className="homekit-indicator";indicator.title="Example indicator; live state appears on GooPad";indicator.setAttribute("aria-hidden","true");b.append(indicator)}
+    if(styleTheme==="material"){b.style.background="#F3EDF7";if(m.outline!==false)b.style.border="1px solid #CAC4D0"}
+    if(styleTheme==="liquid_glass"){b.style.background="linear-gradient(#ffffffb3,#ffffff33)";if(m.outline!==false)b.style.border="1px solid #FFFFFF"}
    }
    cell.append(b);page.append(cell);
   }
@@ -976,12 +1008,20 @@ function orbitPosition(width,height,count,slot,arc){
  return {x:Math.round(width/2+Math.cos(angle)*radius-side/2),y:Math.round(height/2+Math.sin(angle)*radius-side/2),side}
 }
 function widgetDimensions(m,cols,rows){
- if(cfg.screenLayout&&cfg.screenLayout!=="grid"){const {side}=orbitPosition(deviceDisplay.width,deviceDisplay.height-84,cols*rows,0,cfg.screenLayout==="arc");return {width:side,height:side}}
+ if(cfg.screenLayout&&cfg.screenLayout!=="grid"){const {side}=cfg.screenLayout==="arches"?archesPosition(deviceDisplay.width,deviceDisplay.height-84,cols,rows,0):orbitPosition(deviceDisplay.width,deviceDisplay.height-84,cols*rows,0,cfg.screenLayout==="arc");return {width:side,height:side}}
  const spanCols=m.spanCols||1,spanRows=m.spanRows||1;
  let width=Math.floor((deviceDisplay.width-20-(cols-1)*8)/cols)*spanCols+8*(spanCols-1),height=Math.floor((deviceDisplay.height-104-(rows-1)*8)/rows)*spanRows+8*(spanRows-1);
  if(m.shape==="circle")width=height=Math.min(width,height);
  if(m.shape==="pill")height=Math.floor(height*3/4);
  return {width,height}
+}
+function archesPosition(width,height,cols,rows,slot){
+ const extent=Math.min(width,height)-20,radius=extent/2,meanSquare=(1-1/(cols*cols))/3;
+ let side=Math.min(96,extent*.8/cols-8,extent*.6/rows-8);
+ for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){const u=(2*col+1)/cols-1,x=Math.abs(u*extent*.4),y=Math.abs(((2*row+1)/rows-1)*extent*.3+extent*.18*(u*u-meanSquare)),sum=x+y;side=Math.min(side,Math.sqrt(sum*sum+2*(radius*radius-x*x-y*y))-sum)}
+ side=Math.max(1,Math.floor(side)-2);
+ const u=(2*(slot%cols)+1)/cols-1,v=(2*Math.floor(slot/cols)+1)/rows-1;
+ return {x:Math.round(width/2+u*extent*.4-side/2),y:Math.round(height/2+v*extent*.3+extent*.18*(u*u-meanSquare)-side/2),side}
 }
 function widgetGraphicSvg(m,time,text){
  if(m.widget==="weather"){
@@ -1181,10 +1221,11 @@ function prepareMacroAction(m,index){
   m.widget=m.widget||"clock";m.sound="none";m.method="GET";m.action="http";m.body="";
   if(m.widget==="news"){
    m.newsSource=m.newsSource||"hackernews";
-   if(!["hackernews","jsonfeed"].includes(m.newsSource))throw Error(`Button ${index+1}: choose a headline source.`);
-   if(m.newsSource==="jsonfeed"){m.newsUrl=parseWebUrl(m.newsUrl,`Button ${index+1} news feed`);if(!m.newsUrl.startsWith("https://")||m.newsUrl.length>=180)throw Error(`Button ${index+1}: use a JSON Feed HTTPS URL under 180 characters.`)}
+   if(!["rss","hackernews","jsonfeed"].includes(m.newsSource))throw Error(`Button ${index+1}: choose a headline source.`);
+   if(m.newsSource==="rss"){if(m.newsFeed===undefined)m.newsFeed="bbc_world";if(typeof m.newsFeed!=="string"||m.newsFeed!=="custom"&&!Object.hasOwn(newsFeeds,m.newsFeed))throw Error(`Button ${index+1}: choose a news feed.`)}else delete m.newsFeed;
+   if(m.newsSource==="jsonfeed"||m.newsSource==="rss"&&m.newsFeed==="custom"){m.newsUrl=parseWebUrl(m.newsUrl,`Button ${index+1} news feed`);if(!m.newsUrl.startsWith("https://")||m.newsUrl.length>=180)throw Error(`Button ${index+1}: use a feed HTTPS URL under 180 characters.`)}
    else delete m.newsUrl;
-  }else{delete m.newsSource;delete m.newsUrl}
+  }else{delete m.newsSource;delete m.newsFeed;delete m.newsUrl}
   if(m.widget==="alarm"){
    if(m.alarmTime===undefined)m.alarmTime="07:00";
    if(!/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(m.alarmTime))throw Error(`Button ${index+1}: choose a valid alarm time.`);

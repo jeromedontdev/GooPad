@@ -32,6 +32,7 @@ set(goopad_sources
         "goopad_alarm.c"
         "goopad_time.c"
         "goopad_news.c"
+        "goopad_glass.c"
         "goopad_market.c"
         "goopad_ui.c"
         "goopad_fonts.c"
@@ -109,6 +110,7 @@ idf_component_register(
         app_update
         mbedtls
         esp_partition
+        espressif__expat
         ${homekit_requirements}
 )
 

@@ -43,27 +43,56 @@ globalThis.runGooPadEditorTests = async function () {
   document.querySelector("#showBattery").checked=true;document.querySelector("#showBattery").dispatchEvent(new Event("change"));
   batteryPreview=null;updateWidgetPreview();check(document.querySelector("#previewBattery").textContent==="Battery unavailable","Unsupported telemetry never invents a percentage");
   batteryPreview=65;updateWidgetPreview();check(document.querySelector("#previewBattery").textContent==="Battery 65%","Available battery percentage is displayed");
-  for(const layout of ["ring","arc"]){
+  check(!document.querySelector('#screenLayout option[value="ring"]')&&!document.querySelector('#screenLayout option[value="arc"]'),"New layouts offer Arches rather than the two similar rings");
+  for(const layout of ["arches","ring","arc"]){
+   if(layout!=="arches"){cfg.screenLayout=layout;render()}
    const control=document.querySelector("#screenLayout");control.value=layout;control.dispatchEvent(new Event("change"));
    check(cfg.screenLayout===layout&&document.querySelector(".preview-page.radial")&&document.querySelector('[data-k="spanCols"]').disabled,"Ring layout is previewed and disables enlargement: "+layout);
    const tiles=[...document.querySelectorAll(".preview-cell")].map(cell=>cell.getBoundingClientRect());
    for(let i=0;i<tiles.length;i++)for(let j=0;j<i;j++)check(tiles[i].right<=tiles[j].left+.1||tiles[j].right<=tiles[i].left+.1||tiles[i].bottom<=tiles[j].top+.1||tiles[j].bottom<=tiles[i].top+.1,"Ring tiles do not overlap");
   }
   document.querySelector("#screenLayout").value="grid";document.querySelector("#screenLayout").dispatchEvent(new Event("change"));
-  change("spanCols","2");document.querySelector("#screenLayout").value="arc";document.querySelector("#screenLayout").dispatchEvent(new Event("change"));
+  change("spanCols","2");document.querySelector("#screenLayout").value="arches";document.querySelector("#screenLayout").dispatchEvent(new Event("change"));
   check(cfg.screenLayout==="grid"&&document.querySelector("#screenLayout").value==="grid","Ring selection refuses existing enlarged tiles without changing them");
   change("spanCols","1");
+  cfg.macros[0].outline=true;
   for(const theme of ["liquid_glass","material"]){
    document.querySelector("#deviceTheme").value=theme;document.querySelector("#deviceTheme").dispatchEvent(new Event("change"));
    check(document.querySelector('[data-tile="0"]').classList.contains(theme==="liquid_glass"?"liquid-glass":"material"),"New device theme styles default tiles: "+theme);
   }
-  check(previewIconColor({widgetTheme:"device"})==="1D192B"&&previewIconColor({widgetTheme:"device",iconColor:"ABCDEF"})==="ABCDEF","Font Awesome preview inherits preset text color but preserves explicit tint");
+  check(previewIconColor({widgetTheme:"device"})==="1D1B20"&&previewIconColor({widgetTheme:"device",iconColor:"ABCDEF"})==="ABCDEF","Font Awesome preview inherits preset text color but preserves explicit tint");
+  const materialTile=document.querySelector('[data-tile="0"]');
+  check(materialTile.style.backgroundColor==="rgb(243, 237, 247)"&&getComputedStyle(materialTile).backgroundImage==="none"&&!materialTile.querySelector(".modern-accent")&&materialTile.style.borderColor==="rgb(202, 196, 208)","Material uses flat tonal containers and subtle outlines without decorative strips");
+  document.querySelector("#deviceTheme").value="liquid_glass";document.querySelector("#deviceTheme").dispatchEvent(new Event("change"));
+  check(getComputedStyle(document.querySelector('[data-tile="0"]')).backdropFilter.includes("blur")&&document.querySelector("#preview").style.backgroundImage.includes("radial-gradient"),"Liquid glass blurs a soft colored backdrop");
+  document.querySelector("#deviceTheme").value="material";document.querySelector("#deviceTheme").dispatchEvent(new Event("change"));
+  check(document.querySelector("#preview").style.backgroundImage==="none","Switching themes clears the previous glass/image backdrop");
+  for(const width of [240,360,480])for(const cols of [2,3,4])for(const rows of [2,3,4]){
+   const height=width-84,radius=height/2-10,tiles=[];
+   for(let slot=0;slot<cols*rows;slot++){
+    const tile=archesPosition(width,height,cols,rows,slot);
+    for(const x of [0,1])for(const y of [0,1])check((tile.x+x*tile.side-width/2)**2+(tile.y+y*tile.side-height/2)**2<=radius**2,"Arches square corners fit inside the circular viewport");
+    for(const other of tiles)check(tile.x+tile.side+6<=other.x||other.x+other.side+6<=tile.x||tile.y+tile.side+6<=other.y||other.y+other.side+6<=tile.y,"Arches tiles retain separation");
+    tiles.push(tile)
+   }
+   if(cols>=3)check(tiles[1].y<tiles[0].y,"Arches visibly bows each row upwards instead of distributing a single ring")
+   check(Math.abs(tiles.reduce((sum,tile)=>sum+tile.y+tile.side/2,0)/tiles.length-height/2)<=1,"Arches stays centered rather than drifting upwards");
+  }
   reset({pageCount:1,macros:[{...make(0),widgetLayout:"layered",widgetGraphic:"text"}]});
   const layeredWidget=document.querySelector('[data-tile="0"]'),surface=getComputedStyle(layeredWidget,"::after"),widgetBounds=layeredWidget.querySelector(".widget").getBoundingClientRect();
   const surfaceCenter=layeredWidget.getBoundingClientRect().top+layeredWidget.clientTop+parseFloat(surface.top)+parseFloat(surface.height)/2;
   check(Math.abs((widgetBounds.top+widgetBounds.bottom)/2-surfaceCenter)<2,"Layered widget text centers in its inset surface above the caption");
   selectTile(0);
-  change("widget","news");change("newsSource","jsonfeed");change("newsUrl","https://example.com/feed.json");
+  change("widget","news");
+  check(cfg.macros[0].newsSource==="rss"&&cfg.macros[0].newsFeed==="bbc_world"&&!document.querySelector("[data-news-preset]").classList.contains("hidden"),"New news widgets default to RSS and expose popular presets");
+  for(const key of Object.keys(newsFeeds)){change("newsFeed",key);prepareMacroAction(cfg.macros[0],0);render();check(cfg.macros[0].newsFeed===key&&document.querySelector('[data-k="newsFeed"]').value===key&&!cfg.macros[0].newsUrl,"RSS preset survives saving and reopening: "+key)}
+  change("newsFeed","custom");change("newsUrl","https://example.com/feed.xml");prepareMacroAction(cfg.macros[0],0);
+  check(cfg.macros[0].newsUrl==="https://example.com/feed.xml"&&!document.querySelector("[data-news-url]").classList.contains("hidden"),"Custom RSS enables its HTTPS URL");
+  for(const bad of [{newsFeed:"unknown"},{newsFeed:"constructor"},{newsFeed:null},{newsFeed:"custom",newsUrl:"http://example.com/feed.xml"},{newsFeed:"custom",newsUrl:""}]){
+   let rejected=false;try{prepareMacroAction({...cfg.macros[0],...bad},0)}catch{rejected=true}
+   check(rejected,"RSS rejects invalid preset identities and missing/unverified custom URLs")
+  }
+  change("newsSource","jsonfeed");change("newsUrl","https://example.com/feed.json");
   prepareMacroAction(cfg.macros[0],0);render();
   check(cfg.macros[0].newsUrl==="https://example.com/feed.json"&&document.querySelector('[data-k="newsSource"]').value==="jsonfeed","Custom headline source survives saving and reopening");
   let invalidFeed=false;try{prepareMacroAction({...cfg.macros[0],newsUrl:"http://example.com/feed.json"},0)}catch{invalidFeed=true}
@@ -101,10 +130,15 @@ globalThis.runGooPadEditorTests = async function () {
   globalThis.confirm=()=>true;
   globalThis.fetch=async(url,options={})=>{
    if(url==="/api/saved-icons?offset=0&backgrounds=1")return new Response(JSON.stringify({assets:[{key:fileKey,format:"rgb565a8",size:160},{key:backgroundKey,format:"rgb565",size:480},{key:unusedKey,format:"gif",size:160}],next:24}));
+   if(url===`/api/icon?key=${fileKey}&format=rgb565a8&size=160`)return new Response(new Uint8Array(160*160*3));
+   if(url===`/api/icon?key=${backgroundKey}&format=rgb565&size=480`)return new Response(new Uint8Array(480*480*2));
+   if(url===`/api/icon?key=${unusedKey}&format=gif&size=160`)return new Response(Uint8Array.from(atob("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"),ch=>ch.charCodeAt(0)));
    if(options.method==="DELETE"){deletedFile=url;return new Response(failDelete?"Icon is still used by the layout":"{}",{status:failDelete?409:200})}
    throw Error("Unexpected file manager request "+url);
   };
   await showImageFiles();
+  check([...document.querySelectorAll("#filesList img")].length===3&&document.querySelector("#filesList img").src.startsWith("data:image/png"),"About displays decoded image, background and GIF thumbnails");
+  check([...document.querySelectorAll("#filesList img")][1].src.startsWith("data:image/png")&&[...document.querySelectorAll("#filesList img")][2].src.startsWith("data:image/gif"),"Background pixels and original animated GIF use the shared thumbnail loader");
   const deleteButtons=()=>[...document.querySelectorAll("#filesList button")];
   check(deleteButtons()[0].disabled&&deleteButtons()[1].disabled&&!deleteButtons()[2].disabled,"File manager protects draft images and backgrounds");
   check(!document.querySelector("#filesNext").classList.contains("hidden"),"File manager exposes pagination");
@@ -647,6 +681,7 @@ globalThis.runGooPadEditorTests = async function () {
   check(emojiUploads===beforeBackground+1&&configPosts===4,"Background uploads on Save");
   globalThis.fetch=async url=>{
    if(String(url).startsWith("/api/saved-icons"))return new Response(JSON.stringify({assets:[{key:stagedKey,format:"gif",size:160}],next:null}),{status:200});
+   if(url===`/api/icon?key=${stagedKey}&format=gif&size=160`)return new Response(gifBytes,{status:200});
    throw Error("Unexpected request "+url)
   };
   cfg.macros[0].iconSource="image";selectTile(0);

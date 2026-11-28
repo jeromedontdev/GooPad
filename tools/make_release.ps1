@@ -40,8 +40,9 @@ $bootloader = Join-Path $build "bootloader\bootloader.bin"
 $partitions = Join-Path $build "partition_table\partition-table.bin"
 $otaData = Join-Path $build "ota_data_initial.bin"
 $app = Join-Path $build "GooPad.bin"
+$notices = Join-Path $root "main\fonts\NOTICE.txt"
 
-foreach ($f in @($bootloader, $partitions, $otaData, $app)) {
+foreach ($f in @($bootloader, $partitions, $otaData, $app, $notices)) {
     if (-not (Test-Path $f)) { throw "Missing build artifact: $f" }
 }
 
@@ -81,6 +82,7 @@ esptool --chip esp32s3 merge-bin `
 if ($LASTEXITCODE -ne 0) { throw "merge-bin failed" }
 
 Copy-Item -Force $app $otaOut
+Copy-Item -Force $notices (Join-Path $dist "GooPad-$version-NOTICE.txt")
 $size = (Get-Item $out).Length
 Write-Host ""
 Write-Host "Created $out ($([math]::Round($size/1KB)) KB)"

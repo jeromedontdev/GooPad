@@ -1358,3 +1358,13 @@ not a complete historical changelog.
 - **Remaining:** rebuild the changed editor/manifest from committed source,
   install only after checking its app image and matching resource, and repeat
   preservation checks and the five-minute device soak. No binary was released.
+
+## 2026-11-28 - Coordinating release versions
+
+- **Request/changes:** align the Companion version with firmware 0.7.13 for
+  the shared latest-release updater. This is a version-only change; older
+  updaters expect an installer named for the release tag. Pairing and settings
+  are unchanged.
+- **Remaining:** build and test the matching Companion package and installer,
+  exercise the frozen older-updater/restart chain, and validate the clean
+  firmware build and device soak before publishing any release.

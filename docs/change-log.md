@@ -1634,3 +1634,25 @@ not a complete historical changelog.
   configuration or release changes were made for this refresh.
 - **Remaining:** the hardware-test contributor count remains inconsistent
   with its two displayed accounts; GitHub controls that cached count.
+
+## 2026-11-28 - Local attribution reconciliation
+
+- **Request and changes:** reconcile the local GooPad, hardware-test and
+  Spidarium repositories with the corrected GitHub attribution. The latter
+  two now use the same repository-local Git identity as GooPad. The clean
+  hardware-test checkout's branch, remote-tracking ref and release tag were
+  updated to their verified rewritten counterparts without changing files.
+  GooPad already had the corrected branch; its missing `v0.7.13` tag was
+  fetched from the product remote.
+- **Validation:** the hardware-test old and new branch and tag trees matched
+  before the atomic ref update; its clean status and branch and tag IDs were
+  checked against the remote afterward. GooPad's branch and all 24 product
+  tags matched the product remote after fetching the missing tag. All three
+  effective Git identities matched. No device, firmware, Companion or
+  release changes were made.
+- **Remaining:** Spidarium's local branch still points to the original
+  history. Git cannot read its objects or fully inspect its worktree because
+  OneDrive reports that the cloud file provider is not running. Restore
+  OneDrive access and hydrate the repository, inspect its worktree and refs,
+  then reconcile only verified matching refs using the retained rewrite map.
+  No Spidarium files or refs were overwritten.

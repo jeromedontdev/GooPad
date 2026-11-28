@@ -1211,3 +1211,29 @@ not a complete historical changelog.
 - **Delivery/remaining:** device installation, read-only soak, source push and
   any binary release are pending at this entry. No live configuration fixtures
   or physical rendering comparisons were used.
+
+## 2026-11-28 - 0.7.11 installation interrupted verification
+
+- **Delivery:** source commit `cc1bcc42183ecf85c8a2676606efda7e01b313a1`
+  was pushed to the GooPad product remote; GitHub attributed both its author
+  and committer to the authenticated product account. Reidentified COM9 and
+  verified its chip, partition table, validated selector and exact 0.7.10
+  active and 0.7.9 recovery images. The app-only OTA and matching editor upload
+  succeeded. Immediately after OTA, pinned HTTPS reported 0.7.11, the served
+  editor matched source, and the saved configuration matched its pre-update
+  hash. The subsequent flash inspection verified the new app and preceding
+  recovery image.
+- **Unresolved preservation check:** after initialization the logical primary
+  NVS comparison reported a difference. The helper stopped before comparing
+  HomeKit records or starting the soak. It did not persist private snapshots,
+  so the pre-update NVS comparison cannot be repeated from those snapshots and
+  the differing record and cause are unknown. Do not assume either data loss
+  or benign changes; configuration was only verified immediately after OTA.
+  Further device writes, release publication and a success claim are blocked
+  pending investigation. No five-minute soak or physical preview comparison was
+  completed for 0.7.11.
+- **Attribution/remaining:** future commits use the corrected repository-local
+  identity, as verified on GitHub. Previously published commits remain linked
+  to the other account. Changing them requires a coordinated rewrite of shared
+  history, including consideration of branches, tags and downstream clones; no
+  history was rewritten or force-pushed. No 0.7.11 binary release was published.

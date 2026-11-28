@@ -150,7 +150,10 @@ bytes / 42.18% free** in a 4 MiB app slot. SHA-256:
 `d30cd7827caddc36bdaa63e995c78954e4f3e8469694b75ba13f3bccbc590366`.
 Its matching `web-d149ada81c45.gwp` editor archive is **336,765 bytes**,
 SHA-256 `d149ada81c45c4ab98af2bc8330e1c3072f503222b805df507c2faca9bb82fe9`.
-See the change log for deployment and publication status.
+The app and editor were installed on COM9 with 0.7.10 retained for recovery,
+but a later primary NVS comparison reported a difference and the verification
+was stopped. See the change log before any further device operation; no
+versioned binary release is published.
 
 ## Companion-only 0.7.4 release
 

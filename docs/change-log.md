@@ -1270,3 +1270,24 @@ not a complete historical changelog.
   remain blocked by the unexplained 0.7.11 primary-NVS difference recorded
   above; the missing pre-update snapshot prevents identifying that change.
   Investigate preservation before another deployment or binary publication.
+
+## 2026-11-28 - Hardware-test attribution follow-up
+
+- **Request/changes:** the user still saw the other account as a contributor.
+  The separate hardware-test repository had six commits with the same incorrect
+  author and committer email; the earlier product-only rewrite had missed it.
+  Rewrote its own six-commit history, `main`, and lightweight `v1.0.0` tag,
+  without pushing the GooPad history to that repository.
+- **Validation:** verified every tree, parent relationship, message and date
+  before an atomic, lease-protected push. GitHub's commit API identifies all six
+  rewritten authors as the product account; the release record and asset
+  identity, size and digest remained unchanged. The contributor API initially
+  still listed the old account after the push. GitHub says contributor displays
+  can take about 24 hours to refresh after a rewrite.
+- **Compatibility/delivery:** hardware-test clones must reconcile the rewritten
+  history and tag. Its pre-rewrite mirror and commit map remain in the session
+  archive. No firmware or device changes were made in this follow-up.
+- **Remaining:** recheck the hardware-test contributor listing after the cache
+  refresh and contact GitHub Support if it remains incorrect. The built 0.7.12
+  editor is still not installed: the prior unexplained primary-NVS difference
+  and missing pre-update snapshot continue to block a safe device update.

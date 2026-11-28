@@ -43,6 +43,11 @@ The matching editor pack is `web-d0ea1b93c60a.gwp` (350,510 bytes, SHA-256
 App-slot headroom is not runtime memory. See the [change log](change-log.md)
 for deployment and validation status.
 
+The subsequent production reconfigure/build from committed source `94c9346`
+has the same size, headroom and matching editor pack. Its firmware SHA-256 is
+`8e0d5256d7481761a132fcda6ffd416c0442d7cc2111a5ed3d8288225594489a`;
+this is the image installed on the device, not the earlier worktree image.
+
 ## What the 31 KiB warning means
 
 The tested Guition has **16 MiB flash**, but each firmware image must fit in

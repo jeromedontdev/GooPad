@@ -1451,3 +1451,43 @@ not a complete historical changelog.
   do not replace the live configuration with a fixture without explicit
   permission. Verify device preservation and soak before any release, and
   recheck Spidarium's contributor list after GitHub's cache refresh.
+
+## 2026-11-28 - 0.7.14 device validation blocked
+
+- **Build and Companion:** the ESP-IDF 6.1 production reconfigure/build from
+  committed source `94c9346` passed, using the same resolved SDK configuration
+  as 0.7.13. The installed image and editor-pack digests and app-slot headroom
+  are in the [storage ledger](storage-layout.md). The 0.7.14 Companion package,
+  ZIP and installer were built; source hashes and ZIP CRC passed. Its isolated
+  frozen older-updater/installer/restart test passed 61 samples in 300.05
+  seconds with zero errors and preserved test settings and identity. Defender
+  scanned the package, ZIP and installer with no new detections.
+- **Device:** app-only OTA installed 0.7.14 on the verified COM9 board; the
+  active image and 0.7.13 recovery image matched their verified binaries.
+  Pinned HTTPS served the matching editor and the configuration matched its
+  pre-update baseline immediately after installation. No NVS, SD or OTA
+  metadata partition was intentionally wiped. The preservation guard confirmed
+  storage ownership and expected HomeKit firmware-revision and configuration-
+  counter changes, but reported a difference in other protected records.
+  The helper did not retain the before/after snapshots after exiting, so the
+  changed record and pairing preservation cannot be established; the primary
+  NVS comparison was not reached. Do not treat this check as passed.
+- **Soak:** a subsequent 300.177-second read-only pinned HTTPS soak collected
+  23 samples, with no reboots but one widget-result error: HTTP 200 with
+  `ESP_ERR_INVALID_SIZE`. It also recorded 47 warnings: one low-memory
+  threshold, ten network memory-admission deferrals and 36 PC network-lock
+  deferrals. Internal free memory reached 22,607 bytes and PSRAM 3,091,748
+  bytes; after startup PSRAM was approximately 3.4 MB. Configuration remained
+  unchanged during this soak. A later read-only status inspection observed the
+  configured news widget reporting `News unavailable`; diagnostics do not
+  identify the widget associated with the earlier size error, so their
+  connection is unconfirmed.
+- **Remaining/publication:** no 0.7.14 release was published. Investigate the
+  protected-record difference and the news/response-size failure before
+  release; repeat preservation verification and the soak after any fix. The
+  physical GET tile and multi-source rotation are still unverified: testing
+  with a fixture needs explicit permission to alter the live configuration.
+  Spidarium's rewritten commit API resolves to the correct account, but its
+  contributor listing still shows `jerom`; allow cache refresh and contact
+  GitHub Support if it persists. Existing clones must reconcile rewritten
+  history, including the historical signature loss noted above.

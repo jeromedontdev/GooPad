@@ -1153,3 +1153,32 @@ not a complete historical changelog.
   versioned binary release is published. Physical screen fit and the installed
   Companion update remain to be verified; do not overwrite existing user
   settings or pairing. See the storage ledger for build hashes.
+
+## 2026-11-28 - 0.7.10 COM9 installation and assessed soak
+
+- **Delivery:** source commit `443c56cb693bdd56d9cce7d4d309c671008808c3`
+  was pushed to the GooPad product remote. Reidentified COM9 and verified its
+  chip, live partition table, validated selector and exact 0.7.9 active and
+  0.7.8 recovery images. Updated only the app and matching editor resource.
+  Verified 0.7.10 in `ota_1` and exact 0.7.9 recovery in `ota_0`. Pinned HTTPS,
+  configuration, primary NVS, SD mount and HomeKit pairing/ownership remained
+  intact; the HomeKit version and configuration counter advanced as expected.
+  Private snapshots were kept in memory.
+- **Soak:** the preserved configuration completed a 300.367-second read-only
+  certificate-pinned soak: 20 samples, zero errors and zero reboots. Its 44
+  warnings comprised one startup internal-memory threshold warning, 17
+  low-memory network-admission deferrals (four widget, thirteen PC) and 26 PC
+  shared-network-lock timeouts. These are the same diagnostic classes observed
+  on 0.7.9, not foreground request failures. Companion data was unavailable
+  in the initial boot sample and available in the remaining 19; no widget was
+  observed deferred. After the first two startup samples, internal free ranged
+  from 35,575 to 41,415 bytes, the largest block stayed at 7,936 bytes and
+  free PSRAM ranged from 3,369,380 to 3,421,616 bytes. The sample window does
+  not establish long-term memory behavior; monitor if live data lags.
+- **Remaining:** the actual physical display text fit was not visually checked.
+  The isolated frozen Companion upgrade passed, but the existing running user
+  Companion was not replaced or interrupted in the shared environment. No
+  0.7.10 binary release was published: a release still needs a clean-checkout
+  build from a fresh configuration seeded by the defaults, matching package
+  provenance and review of release assets/digests. Preserve user settings and
+  pairing when completing the real Companion installation.

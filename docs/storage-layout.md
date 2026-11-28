@@ -138,8 +138,10 @@ The editor and touchscreen wording build is **2,425,328 bytes**, leaving
 The matching editor `web-638980b80cea.gwp` is **329,963 bytes**, SHA-256
 `638980b80cea68c99af7eb3c768f9bf1d5e88f210794305883f9bb4cbd6e758b`.
 The production ESP-IDF 6.1 build used the preceding HomeKit, PSRAM, TLS
-and gradient configuration; see the change log for deployment and release
-status. These are development artifacts, not a published binary release.
+and gradient configuration. It is installed in `ota_1` on the verified COM9
+device, with the exact preceding 0.7.9 app retained in `ota_0` as recovery.
+See the change log for verification and remaining release work. These are
+development artifacts, not a published binary release.
 
 ## Companion-only 0.7.4 release
 

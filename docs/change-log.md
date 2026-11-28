@@ -911,3 +911,39 @@ not a complete historical changelog.
   and app-only firmware, test actual changed behavior, soak five minutes, then
   prepare a clean-source release. Companion is unchanged; no Companion
   installer build/install is required for this firmware/editor-only change.
+
+## 2026-11-27 - COM9 application-only 0.7.7 installation
+
+- **Request:** flash the new firmware; the user corrected COM4 to COM9.
+- **Preflight:** read-only serial diagnostics identified GooPad. ESP32-S3,
+  the live 16 MiB layout and validated OTA selectors were verified, then both
+  app slots were compared by flash MD5 with known SHA-256-verified 0.7.6
+  images. The current image was retained as recovery. The device's stored
+  TLS identity and credentials established certificate-pinned HTTPS; private
+  pre-update NVS/ownership/config/pairing snapshots stayed local.
+- **Installation:** installed the verified 0.7.7 app into the inactive slot
+  through application-only OTA, then installed its matching immutable SD web
+  archive. No full flash, erase, configuration fixtures or saved action
+  triggers were used; old SD resources remain available for recovery.
+- **Verification:** pinned HTTPS reports 0.7.7 and the new request/battery
+  status fields; the served editor matches source. Config is unchanged.
+  Active-image/recovery and logical NVS/pairing comparisons completed before
+  the read-only soak, allowing only the expected HomeKit firmware revision
+  and one configuration-counter increment (plus reboot advertisement state).
+- **Soak:** `tests/Test-GooPadSoak.ps1 -DurationSeconds 300` completed 300.069
+  seconds with 21 samples, zero errors/request failures and zero reboots.
+  Its 28 warnings were seven early low-memory background deferrals and 21 PC
+  network-lock timeout deferrals, not failed foreground requests. These use
+  the existing admission/backpressure guards; timeout deferrals were also
+  observed before deployment. Internal free memory rose from 25,347 to
+  38,147 bytes; the largest block stayed at least 15,360 bytes. After startup,
+  PSRAM ranged from 3,457,884 to 3,543,936 bytes and ended at 3,486,576,
+  without a sustained downward trend. PC snapshots were available in 20/21
+  samples, after the initial startup sample. Config remained unchanged after
+  observation. Private flash/NVS snapshots were removed after verification.
+- **Delivery/publication:** 0.7.7 is verified active in `ota_0`; the exact
+  preceding 0.7.6 image remains in `ota_1` for recovery. Source is published
+  on product `main`; the deployment/soak record is included in the scoped
+  documentation update. No versioned binary release is claimed: circular
+  hardware and all newly configured widgets have not been physically exercised,
+  and release packaging requires a separate clean-source build.

@@ -35,7 +35,7 @@ not soaked again at the user's request. This image is published in
 [v0.7.6](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.6).
 See the [change log](change-log.md) for deployment and validation status.
 
-## 0.7.7 development build (2026-11-27, not installed)
+## 0.7.7 development build (2026-11-27)
 
 The tile/widget additions build is **2,326,784 bytes**, leaving
 **1,867,520 bytes / 44.53% free** in the unchanged 4 MiB app slot.
@@ -49,8 +49,13 @@ archive is `web-25b659fcb2c2.gwp` (315,446 bytes).
 This measures the development worktree, not a released clean-source artifact.
 An earlier local-config build accidentally used the C-library LVGL allocator;
 the final measurement above is the corrected fresh-defaults build.
-No live partition, active/recovery image, physical behavior or five-minute
-soak was verified for 0.7.7. No firmware or SD pack was installed or published.
+The subsequent COM9 application-only installation verified the live partition
+table, active/recovery images, pinned HTTPS and preserved configuration/pairing,
+and installed the matching editor archive. The image is active in `ota_0`,
+with the preceding 0.7.6 image retained in `ota_1`. A five-minute read-only
+soak completed with zero errors/reboots and background-deferral warnings.
+See the [change log](change-log.md) for warning assessment, measured runtime
+memory and physical-validation limits. No binary release is published.
 Time-format storage and response/headline caches add runtime memory use;
 app-slot headroom is not a measured free-PSRAM budget.
 

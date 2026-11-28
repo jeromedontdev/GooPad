@@ -145,9 +145,11 @@ validate HTTPS certificates.
   battery gauge and shows **Battery unavailable**; hardware/backend support
   is required for an actual reading.
 
-These additions are source/build-validated, not yet device-installed or
-published as a binary release. Install the matching SD editor pack with a
-future validated application-only update. Before downgrading, remove new
+The development image and matching SD editor are installed on the verified
+Guition on COM9; they are not published as a versioned binary release.
+Circular-screen hardware and every newly configured widget have not been
+physically exercised. Firmware updates require the matching SD editor pack.
+Before downgrading, remove new
 widgets/themes/layouts and restore legacy time presets or a compatible backup;
 older firmware does not accept the new configuration values.
 

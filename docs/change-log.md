@@ -1402,3 +1402,12 @@ not a complete historical changelog.
   the correct account, while the contributor API still lists the other account.
   Recheck after GitHub's documented cache refresh; contact GitHub Support if
   it remains incorrect.
+
+## 2026-11-28 - 0.7.13 publication
+
+- **Delivery:** published [v0.7.13](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.13)
+  as the latest product release, with its tag at build source commit `316d6a0`.
+  Downloaded all eight published assets and verified their SHA-256 digests
+  against the validated local files; the GitHub asset digests also matched.
+  The installation, soak findings and remaining limitations are recorded above.
+  Companion packages are unsigned.

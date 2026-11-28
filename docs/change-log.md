@@ -1264,8 +1264,9 @@ not a complete historical changelog.
   passed. ESP-IDF 6.1 production `reconfigure build` passed; image version,
   app-slot headroom and matching web manifest are recorded in the storage ledger.
 - **Delivery/remaining:** rewritten history and tags are on the product remote;
-  the source change is for commit and push. The 0.7.12 image is not installed
-  or released. Device writes, HomeKit verification and a five-minute device soak
+  source commit `dffad986e743531bc723292e951efec0cfcf152b` was pushed there.
+  The 0.7.12 image is not installed or released. Device writes, HomeKit
+  verification and a five-minute device soak
   remain blocked by the unexplained 0.7.11 primary-NVS difference recorded
   above; the missing pre-update snapshot prevents identifying that change.
   Investigate preservation before another deployment or binary publication.

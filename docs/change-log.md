@@ -1603,3 +1603,11 @@ not a complete historical changelog.
   immediately afterward. No rename was attempted on the other repositories.
   A GitHub Support request remains outstanding; no sidebar fix is claimed.
   No firmware, configuration, build, flash or binary release was changed.
+
+## 2026-11-28 - Contributor sidebar support request
+
+- **Support:** GitHub Support became accessible and a request covering the
+  incorrect sidebar entries on all three repositories was submitted. The
+  support portal confirmed the request and lists it as open. The sidebar
+  correction remains pending GitHub's response; the earlier sign-in blocker
+  is no longer current. No firmware or binary release was changed.

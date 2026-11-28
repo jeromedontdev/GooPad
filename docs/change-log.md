@@ -896,11 +896,13 @@ not a complete historical changelog.
   allocator disabled; it was replaced for this build with a separate fresh
   default-seeded config, leaving the user's local config intact. Final app:
   2,326,784 bytes; 1,867,520 bytes free in its 4 MiB slot. Final editor pack
-  `web-25b659fcb2c2.gwp` matches source. Existing FreeRTOS/LVGL deprecation
+  `web-25b659fcb2c2.gwp` matches source. The actual ESP32-S3 image reports
+  0.7.7/IDF 6.1 with a valid checksum and validation hash. Existing FreeRTOS/LVGL deprecation
   warnings remain; no new source warning was introduced. See the
   [storage ledger](storage-layout.md) for the measured image digest.
-- **Deployment/soak/publication:** source is ready for scoped commit/push to
-  the GooPad product remote. Board identity, certificate-pinned HTTPS
+- **Deployment/soak/publication:** source commit `9e3b3d4` was pushed to
+  GooPad product `main` and verified against the remote branch. Board identity,
+  certificate-pinned HTTPS
   credentials and a valid live recovery slot were not established; visible
   USB-serial adapters alone are insufficient. No serial reset, firmware/SD
   installation, physical behavior test or five-minute device soak occurred.

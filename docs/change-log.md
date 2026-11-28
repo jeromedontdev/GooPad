@@ -1085,3 +1085,43 @@ not a complete historical changelog.
   validation of new widgets/designs/circular hardware remain outstanding.
   Synthetic/local tests do not establish physical GIF playback or every
   new live layout; no user configuration fixtures were installed.
+
+## 2026-11-27 - 0.7.9 COM9 installation and assessed soak
+
+- **Delivery:** source commit
+  `a831845fddc9593b2d346323852e336e5f552c30` was pushed to the verified
+  GooPad product remote. Reidentified COM9 as the CH340-connected ESP32-S3,
+  checked the live partition table and validated OTA selector, and verified
+  exact active 0.7.8/recovery 0.7.7 images before installation. Only the
+  application and matching web resource were updated. Verified 0.7.9 active
+  in `ota_0`, with exact preceding 0.7.8 retained in `ota_1`, comparing
+  device-side MD5 with SHA-256-verified images. The served editor matches the
+  committed source. Pinned HTTPS, saved configuration, primary NVS, TLS
+  identity, SD mount, and logical HomeKit pairing/ownership records remained
+  intact. HomeKit firmware revision advanced 0.7.8 to 0.7.9 with exactly one
+  configuration-counter increment; only expected reboot advertisement state
+  is excluded from logical comparisons. Private snapshots stayed in memory.
+- **Soak:** the normal preserved configuration passed a **300.139-second**
+  certificate-pinned, read-only soak: **24 samples, zero errors, zero reboots,
+  34 warnings**. There was one startup internal-memory warning, 15 network
+  admission `ESP_ERR_NO_MEM` deferrals (three widget, twelve PC), and eighteen
+  PC `ESP_ERR_TIMEOUT` shared-network-lock deferrals. These are the same
+  diagnosed warning classes as 0.7.8, not request failures or new error types.
+  Cached Companion data was available in all 24 samples; no widget was
+  observed deferred. SD Unicode/styled resources remained available and
+  their metadata/bitmap caches stayed within the soak's checked budgets.
+- **Memory assessment:** internal free rose from **17,379** to **37,915 bytes**
+  (a brief later low was 35,527); the largest block rose from **7,680** to
+  **15,360 bytes** after startup and stayed there. Initial PSRAM fell from
+  **4,254,652** to **3,456,768 bytes**; after 30 seconds the range was
+  **3,380,052-3,425,204**, ending at **3,380,052 bytes** without a sustained
+  downward trend. This is five-minute evidence, not proof of long-term leak
+  freedom. No live fixtures, saved actions or config replacements were used.
+- **Publication/remaining:** installed application/editor and source push are
+  verified. No versioned 0.7.9 binary release is published; clean-source
+  release packaging and physical validation of new widgets/designs/circular
+  hardware remain outstanding. Actual GIF playback/new emphasis/gradient
+  pixels on a newly configured physical tile were not exercised; native
+  composition/geometry/glyph and browser regressions supply the current
+  evidence. Native Glass remains a frosting approximation. This subsequent
+  documentation-only record needs no additional build, flash or soak.

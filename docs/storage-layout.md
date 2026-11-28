@@ -118,6 +118,18 @@ These are runtime costs, not storage or app-slot headroom. No SD font pack
 changes are required. Installation/soak and publication status are recorded
 in the change log; this is not a published binary release.
 
+Subsequent certificate-pinned application-only COM9 deployment verified
+0.7.9 active in `ota_0`, with exact 0.7.8 retained in `ota_1` and the matching
+editor installed. Source commit
+`a831845fddc9593b2d346323852e336e5f552c30` is pushed to the product remote.
+Configuration, primary NVS, TLS identity and HomeKit pairing were preserved.
+The 300.139-second read-only soak collected 24 samples with zero errors/reboots
+and 34 assessed startup/background-deferral warnings. Internal free memory
+rose from 17,379 to 37,915 bytes; the largest block rose from 7,680 to 15,360.
+After 30 seconds, PSRAM ranged 3,380,052-3,425,204 bytes, without a sustained
+decline; the final sample was 3,380,052 bytes. These are bounds on the preserved
+configuration, not a measured budget for every new gradient/emphasis layout.
+
 ## Companion-only 0.7.4 release
 
 The [0.7.4 release](https://github.com/jeromedontdev/GooPad/releases/tag/v0.7.4)

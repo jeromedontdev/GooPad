@@ -31,6 +31,12 @@ globalThis.runGooPadEditorTests = async function () {
   check(document.querySelector("#firmwareVersion").textContent==="Installed firmware: unavailable","About reports an unavailable version instead of a stale value");
   reset({pageCount:1,macros:[emptyMacro()]});selectTile(0);
   const choice=(key,value)=>document.querySelector(`select[data-choice-enhanced="${key}"]`).nextElementSibling.querySelector(`input[value="${value}"]`);
+  check(document.querySelector("#cols").hidden&&document.querySelector("#screenLayout").hidden&&document.querySelector("#siteTheme").hidden,"Layout and website theme use native choice groups");
+  choice("siteTheme","ocean").click();
+  check(document.body.dataset.siteTheme==="ocean"&&localStorage.getItem("goopad-site-theme")==="ocean","Website theme choice retains browser persistence");
+  choice("cols","2").click();
+  check(cfg.cols===2&&choice("cols","2").checked,"Column choice updates the layout draft");
+  choice("cols","3").click();
   check(document.querySelector('[data-k="actionMode"]').hidden&&!choice("actionMode","advanced").checked,"Empty tiles present unselected action cards rather than a dropdown");
   choice("actionMode","advanced").click();
   check(cfg.macros[0].actionMode==="advanced"&&cfg.macros[0].action==="http"&&choice("actionMode","advanced").checked,"Action card initializes the existing request defaults");
@@ -38,8 +44,14 @@ globalThis.runGooPadEditorTests = async function () {
   check(cfg.macros[0].action==="webhook"&&cfg.macros[0].method==="GET","Request choices preserve the underlying saved values");
   choice("actionMode","smart_home").focus();choice("actionMode","smart_home").click();
   check(cfg.macros[0].actionMode==="home_assistant"&&document.activeElement===choice("actionMode","smart_home"),"Focus survives the Smart Home editor rebuild");
+  choice("homeOperation","turn_off").click();
+  check(cfg.macros[0].homeOperation==="turn_off","Home Assistant action choice updates the existing value");
   choice("actionMode","widget").click();choice("widgetCategory","news").click();
   check(cfg.macros[0].widget==="news"&&cfg.macros[0].newsFeed==="bbc_world"&&choice("widget","news").checked,"Widget category choices update the dependent widget and its defaults");
+  choice("newsCount","5").click();
+  check(cfg.macros[0].newsCount===5&&choice("newsCount","5").checked,"Headline count choice is saved as a number");
+  choice("widgetCategory","market").click();choice("widget","stock").click();choice("stockProvider","alphavantage").click();
+  check(cfg.macros[0].stockProvider==="alphavantage"&&!document.querySelector('[data-stock-provider="alphavantage"]').classList.contains("hidden"),"Stock provider choice reveals its matching settings");
   choice("widgetCategory","clock").click();choice("widget","datetime").click();
   check(cfg.macros[0].widget==="datetime"&&!document.querySelector('[data-widget-option="datetime"]').classList.contains("hidden"),"Widget choice reveals its matching settings");
   document.querySelector('[data-section="icon"]').open=true;choice("widgetGraphic","custom_icon").click();choice("iconSource","gif").click();
@@ -52,6 +64,7 @@ globalThis.runGooPadEditorTests = async function () {
   check(choice("actionMode","page_navigation").checked,"Existing navigation actions remain selectable and visible");
   setDeviceDisplay({screenWidth:240,screenHeight:240,maxCols:3,maxRows:2});
   check([...document.querySelector('#rows').options].find(option=>option.value==="4").disabled,"Small screens disable excessively dense grids");
+  check(choice("rows","4").disabled&&choice("cols","4").disabled,"Unsupported grid choices are visible but disabled");
   const small=widgetDimensions({shape:"rounded"},3,2);
   check(small.width===68&&small.height===64,"Preview geometry follows the attached display rather than 480x480");
   check(document.querySelector("#preview").style.aspectRatio==="240 / 156","Preview aspect ratio follows the available viewport");
@@ -59,6 +72,7 @@ globalThis.runGooPadEditorTests = async function () {
   check(invalidDisplay,"Partial display capabilities are rejected rather than silently replaced");
   setDeviceDisplay({});
   check(![...document.querySelector('#rows').options].find(option=>option.value==="4").disabled,"Legacy firmware retains 480x480 grid support");
+  check(!choice("rows","4").disabled&&!choice("cols","4").disabled,"Grid choices re-enable when display capabilities change");
   reset({cols:3,rows:2,pageCount:1,macros:[{...make(0),spanCols:2},emptyMacro(),make(2)]});
   const pageBounds=document.querySelector(".preview-page").getBoundingClientRect();
   check(pageBounds.width>0&&pageBounds.height>0,"Grid preview is laid out before checking geometry");
@@ -78,6 +92,7 @@ globalThis.runGooPadEditorTests = async function () {
    if(layout!=="arches"){cfg.screenLayout=layout;render()}
    const control=document.querySelector("#screenLayout");control.value=layout;control.dispatchEvent(new Event("change"));
    check(cfg.screenLayout===layout&&document.querySelector(".preview-page.radial")&&document.querySelector('[data-k="spanCols"]').disabled,"Ring layout is previewed and disables enlargement: "+layout);
+   check(choice("screenLayout",layout).checked&&choice("spanCols","2").disabled,"Layout and disabled width choices track radial layout: "+layout);
    const round=widgetDimensions({shape:"rounded"},3,3),pill=widgetDimensions({shape:"pill"},3,3);
    check(pill.width===round.width&&pill.height===Math.floor(round.height*3/4),"Radial pill content uses the device's reduced tile height: "+layout);
    const tiles=[...document.querySelectorAll(".preview-cell")].map(cell=>cell.getBoundingClientRect());
@@ -86,6 +101,10 @@ globalThis.runGooPadEditorTests = async function () {
   document.querySelector("#screenLayout").value="grid";document.querySelector("#screenLayout").dispatchEvent(new Event("change"));
   change("spanCols","2");document.querySelector("#screenLayout").value="arches";document.querySelector("#screenLayout").dispatchEvent(new Event("change"));
   check(cfg.screenLayout==="grid"&&document.querySelector("#screenLayout").value==="grid","Ring selection refuses existing enlarged tiles without changing them");
+  choice("screenLayout","arches").click();
+  check(cfg.screenLayout==="grid"&&choice("screenLayout","grid").checked,"Rejected layout choice restores the selected radio");
+  choice("spanCols","4").click();
+  check(cfg.macros[0].spanCols===2&&choice("spanCols","2").checked,"Rejected tile width restores its selected radio");
   change("spanCols","1");
   change("widgetTheme","custom");
   const gradientRoot=()=>document.querySelector("[data-gradient-editor]");
@@ -108,6 +127,8 @@ globalThis.runGooPadEditorTests = async function () {
    check(rejected,"Malformed gradient is rejected before saving")
   }
   for(const key of ["fontBold","fontItalic"]){const control=document.querySelector(`[data-k="${key}"]`);control.checked=true;control.dispatchEvent(new Event("change"))}
+  choice("textDecoration","underline").click();choice("textSpacing","2").click();
+  check(cfg.macros[0].textDecoration==="underline"&&cfg.macros[0].textSpacing===2,"Text choice groups preserve saved value types");
   check([...document.querySelectorAll('[data-tile="0"] small,[data-tile="0"] .widget')].every(text=>getComputedStyle(text).fontWeight==="700"&&getComputedStyle(text).fontStyle==="italic"),"Bold and italic apply to caption and widget readings");
   const emphasisCopy=structuredClone(cfg.macros[0]);prepareMacroAction(emphasisCopy,0);check(emphasisCopy.fontBold&&emphasisCopy.fontItalic,"Font emphasis survives serialization");
   for(const section of document.querySelectorAll(".tile-section"))section.open=true;
@@ -462,7 +483,7 @@ globalThis.runGooPadEditorTests = async function () {
   check(!document.querySelector(".layout-settings").open && !!document.querySelector(".layout-settings #cols"),"Layout settings start collapsed without removing controls");
   check(!!document.querySelector(".layout-settings #deviceTheme")&&!!document.querySelector(".layout-settings #backgroundUpload")&&!document.querySelector("#settingsView #deviceTheme"),"Device themes and custom backgrounds are in Layout settings");
   document.querySelector(".layout-settings summary").click();
-  check(document.querySelector(".layout-settings").open && document.querySelector("#cols").checkVisibility(),"Layout settings can be opened");
+  check(document.querySelector(".layout-settings").open && choice("cols","3").checkVisibility(),"Layout settings can be opened");
   document.querySelector(".layout-settings summary").click();
   for (const page of [0,1,2]) {
    reset({}); scrollPreviewPage(page); document.querySelector("#addPage").click();

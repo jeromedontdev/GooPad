@@ -72,8 +72,9 @@ but the browser preview is an approximation: fonts, live data, animations,
 glass effects and hardware rendering can differ from the physical screen.
 New empty tiles show a **Choose an action** prompt until a type is selected.
 Action cards and compact choices replace common dropdowns; use Tab and arrow
-keys to navigate them. Longer lists, such as fonts and tile themes, remain
-dropdowns. Action settings appear first; expand **Icon & Graphic**, **Appearance**, **Text**,
+keys to navigate them. Layout, website theme, tile size and other short
+settings also use choice groups. Longer lists, such as fonts, feeds and tile
+themes, remain native dropdowns. Action settings appear first; expand **Icon & Graphic**, **Appearance**, **Text**,
 or **Sound** for the remaining controls. Only that tile's controls are shown. You can configure
 positions in any order. **Button Label** is optional on-screen text; tiles have
 no separate editor name.

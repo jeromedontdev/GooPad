@@ -1291,3 +1291,47 @@ not a complete historical changelog.
   refresh and contact GitHub Support if it remains incorrect. The built 0.7.12
   editor is still not installed: the prior unexplained primary-NVS difference
   and missing pre-update snapshot continue to block a safe device update.
+
+## 2026-11-28 - 0.7.12 installation and initial soak
+
+- **Request/deployment:** following explicit user acceptance of the previously
+  explained preservation risk, installed 0.7.12 app-only on the verified COM9
+  ESP32-S3 and uploaded its matching editor. Pinned HTTPS served the expected
+  firmware and editor; 0.7.11 remained the verified recovery image. The primary
+  NVS logical records, configuration and protected HomeKit records were
+  unchanged apart from the expected HomeKit firmware-version transition.
+  The earlier 0.7.11 NVS difference remains unexplained.
+- **Soak:** the 300.221-second read-only soak collected 20 samples, no reboots,
+  13 warnings and one widget request timeout (ESP_ERR_TIMEOUT, HTTP status 0)
+  at device uptime about 45 seconds. The diagnostic does not identify the
+  provider or cause; low-memory and network-admission warnings occurred during
+  startup. Internal free memory ranged down to 17,191 bytes and PSRAM to
+  3,281,644 bytes. This soak did **not** pass; repeat and investigate rather
+  than treating a responsive website as proof of healthy widget requests.
+  No 0.7.12 binary release was published.
+
+## 2026-11-28 - Further editor control refinement
+
+- **Request/changes:** replace more remaining dropdowns with native radio
+  choices for layout, website theme, tile dimensions, and short tile settings.
+  Restyle remaining long native selectors and workspace buttons; keep the
+  actual selects and their configuration values as the backing controls.
+  Display-dependent disabled options, rejected layout changes, legacy layouts
+  and conditional controls retain their existing behavior.
+- **Compatibility:** no configuration migration. Firmware 0.7.13 requires its
+  matching editor pack; downgrading requires the prior firmware and resource.
+  No storage or recovery partition changes.
+- **Validation:** the local synthetic browser suite passed 7,363 checks across
+  2,520 layouts; native keyboard navigation and focus after editor rebuild
+  passed. Ninety responsive cases across five widths, six website themes and
+  three views had no document or control overflow. Four web-resource tests,
+  including the actual C loader/HTTP handlers, passed after regeneration of
+  the manifest; an earlier run against the stale manifest failed as expected.
+  The production ESP-IDF 6.1 reconfigure/build passed; image and resource hashes
+  and app-slot headroom are in the storage ledger.
+- **Delivery/remaining:** this is a worktree build, not installed or released.
+  Repeat the 0.7.12 device soak and investigate its widget timeout before
+  installing the new app. Verify preservation and a new five-minute soak before
+  any release. The hardware-test contributor API still showed the former
+  account on this recheck; allow the documented cache refresh and follow up
+  with GitHub Support if it persists.

@@ -278,9 +278,11 @@ depends on the board:
   runner, disable the `updateWidgetPreview` and `refreshMonitorPreview`
   background intervals before loading the page so periodic requests do not
   race the suite's fetch mocks. Leave gesture/debounce timeouts enabled.
-  Common tile selectors use native radio groups backed by the existing select
-  values. Exercise keyboard focus, conditional choices and legacy tiles in
-  addition to the suite when changing those controls.
+  Common tile, layout and website-theme selectors use native radio groups
+  backed by existing select values; longer lists remain native selects.
+  Exercise keyboard focus, disabled display limits, rejected choices,
+  conditional choices and legacy tiles in addition to the suite when changing
+  those controls.
   Run `node tests/test_gif_normalization.js` with Zig installed to compare
   the editor's GIF normalization against the compiled firmware routine.
   Run `zig cc -Wall -Wextra -Werror -I main -I managed_components\espressif__cjson\cJSON main\goopad_companion.c managed_components\espressif__cjson\cJSON\cJSON.c tests\test_companion_config.c -o build\test_companion_config.exe`

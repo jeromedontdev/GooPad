@@ -119,6 +119,14 @@ footer{max-width:1440px;padding:0 32px 32px;line-height:1.7}
 @media(max-width:940px){.studio{grid-template-columns:1fr}.stage{position:static}.device-frame{max-width:540px}.about{grid-template-columns:1fr}.about #companionHelp,.about section:last-child{grid-column:auto}}
 @media(max-width:720px){header{padding:0 18px}.header-inner{min-height:0;padding:16px 0;gap:12px;flex-wrap:wrap}.header-inner .tabs{order:3;width:100%;margin:2px 0 0;justify-content:stretch}.tabs button{flex:1;text-align:center}.header-inner .pill{max-width:55%}main{padding:0 16px 48px}.workspace-heading{padding:30px 0 22px}.workspace-note{display:none}.panel{padding:20px;border-radius:17px}#settingsView,#aboutView{padding-top:24px}footer{padding:0 16px 24px}}
 @media(max-width:420px){.tag{display:none}.header-inner .pill{flex:1 1 0;min-width:0;max-width:none;font-size:11px;text-align:center}.stage-heading{align-items:flex-start}.stage-heading .hint{white-space:normal;text-align:right}.device-frame{padding:9px;border-radius:18px}.section-hint{display:none}}
+/* Controls outside the device preview share the workspace's visual language. */
+select:not([hidden]){appearance:none;cursor:pointer;padding-right:36px;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+select:not([hidden]):hover{border-color:var(--accent)}select:not([hidden]):disabled{opacity:.55;cursor:not-allowed}
+.tile-action button:not(.picker button),.tile-footer button,.tile-section button:not(.gradient-rail button):not(.picker button),.layout-settings button,.stage>button,#settingsView button,#aboutView button,#faClose{border-radius:999px;padding:10px 17px;background:var(--button);border-color:transparent}
+.tile-action button:not(.picker button):hover,.tile-footer button:hover,.tile-section button:not(.gradient-rail button):not(.picker button):hover,.layout-settings button:hover,.stage>button:hover,#settingsView button:hover,#aboutView button:hover,#faClose:hover{background:color-mix(in srgb,var(--accent) 15%,var(--button));border-color:var(--accent)}
+.stage>button.primary,#settingsView button.primary{background:var(--primary);border-color:var(--primary-border);color:#fff}
+.preview-controls button{border-radius:50%;width:42px;height:42px;padding:0;background:var(--button);border-color:transparent}
+.tile-footer button.danger{background:transparent;border-color:var(--line)}
 </style>
 </head>
 <body>
@@ -154,7 +162,7 @@ footer{max-width:1440px;padding:0 32px 32px;line-height:1.7}
 </div><button id="saveSettings" class="primary" type="button">Save Settings</button>
 <h2 style="margin-top:24px">Apple Home</h2><p class="hint">Save an Apple Home switch tile first. Then open pairing below and add GooPad in the Apple Home app using More options and the setup code. Create Home automations to control your lights or other accessories. Adding or renaming switches restarts GooPad.</p><button id="homekitCheck" type="button">Check Bridge</button> <button id="homekitPair" type="button">Open Pairing for 5 Minutes</button><p id="homekitStatus" class="hint" role="status"></p><p class="hint">Keep the setup code private. HomeKit pairing keys are stored on the device; without flash encryption, someone with physical flash access can read them.</p>
 <h2 style="margin-top:24px">Windows Companion</h2><p class="hint">Run Companion and choose <strong>Copy Secure Pairing</strong>, then paste the code below. <a href="#companionHelp" id="pairingHelp">Show setup help</a>.</p><div class="field"><label for="companionPairing">Secure Pairing Code (keep private)</label><input id="companionPairing" type="password" autocomplete="off" maxlength="4000" placeholder="Paste the secure pairing code here"><button id="applyPairing" type="button">Apply Secure Pairing</button></div><button id="checkCompanion" type="button" style="margin-top:12px">Check HTTPS Connection / Last Result</button><p id="companionStatus" class="hint" role="status"></p><p class="hint">Save Settings saves this pairing for all PC macros. GooPad verifies this specific Companion certificate and never falls back to HTTP. Only copy pairing directly from your own PC.</p></section>
-<aside class="side"><section class="panel"><h2>Website Appearance</h2><p class="hint">Change the editor colors independently of the device. This preference is saved in this browser.</p><label for="siteTheme">Website Theme</label><select id="siteTheme"><option value="dark">Midnight</option><option value="light">Light</option><option value="ocean">Ocean</option><option value="forest">Forest</option><option value="violet">Violet</option><option value="ember">Ember</option></select><p id="siteThemeStatus" class="hint" role="status"></p></section>
+<aside class="side"><section class="panel"><h2>Website Appearance</h2><p class="hint">Change the editor colors independently of the device. This preference is saved in this browser.</p><div class="field"><label for="siteTheme">Website Theme</label><select id="siteTheme"><option value="dark">Midnight</option><option value="light">Light</option><option value="ocean">Ocean</option><option value="forest">Forest</option><option value="violet">Violet</option><option value="ember">Ember</option></select></div><p id="siteThemeStatus" class="hint" role="status"></p></section>
 <section class="panel"><h2>Backup</h2><p class="hint">Save or restore the configuration on the SD card. Images, sounds, Wi-Fi credentials and Apple Home pairing are not included. Backups can contain secrets.</p><div class="toolbar"><button id="backup" type="button">Backup to SD</button><button id="restore" type="button">Restore from SD</button></div><p id="backupStatus" class="hint" role="status" aria-live="polite"></p></section>
 <section class="panel"><h2>Firmware</h2><p class="hint">Check for an update or upload an application firmware image. To install from SD, use Settings on the GooPad screen.</p><div class="toolbar"><button id="otaGithub" type="button">Check for Update</button><button id="otaPick" type="button">Upload Firmware</button></div><input id="firmware" type="file" accept=".bin" hidden><p id="firmwareStatus" class="hint" role="status" aria-live="polite"></p></section>
 <section class="panel"><h2>Admin Password</h2><p class="hint">Set a new password for the admin account. Use 8-64 printable characters. After saving, sign in again with the new password.</p><div class="fields"><div class="field"><label for="newPassword">New Password</label><input id="newPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"></div><div class="field"><label for="confirmPassword">Confirm Password</label><input id="confirmPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password"></div></div><button id="changePassword" class="primary" type="button" style="margin-top:12px">Change Admin Password</button></section></aside>
@@ -190,6 +198,7 @@ function setDeviceDisplay(status){
  }
  for(const key of ["cols","rows"])for(const option of $("#"+key).options)option.disabled=Number(option.value)>deviceDisplay[key==="cols"?"maxCols":"maxRows"];
  $("#preview").style.aspectRatio=`${deviceDisplay.width} / ${deviceDisplay.height-84}`;
+ syncChoices(document);
 }
 function msg(t,bad=false){const target=$("#faDialog").open?$("#faStatus"):$("#status");target.textContent=t;target.style.color=bad?"#fca5a5":"#34d399"}
 function macroCard(index){return document.querySelector(`.macro[data-index="${index}"]`)}
@@ -481,7 +490,7 @@ let choiceGroupId=0;
 function syncChoices(root){
  root.querySelectorAll("select[data-choice-enhanced]").forEach(select=>{
   const fieldset=select.nextElementSibling,grid=fieldset.querySelector(".choice-grid"),key=select.dataset.choiceEnhanced;
-  const options=Array.from(select.options).filter(option=>(!option.hidden&&!option.disabled)||option.value===select.value&&option.value!=="");
+  const options=Array.from(select.options).filter(option=>(!option.hidden&&(!option.disabled||option.value!==""))||option.value===select.value&&option.value!=="");
   const signature=JSON.stringify(options.map(option=>[option.value,option.textContent,option.disabled]));
   if(grid.dataset.signature!==signature){
    grid.replaceChildren();grid.dataset.signature=signature;
@@ -496,7 +505,7 @@ function syncChoices(root){
      if(!input.checked)return;
      const focused=document.activeElement===input;select.value=input.value;select.dispatchEvent(new Event("change",{bubbles:true}));syncChoices(root);
      if(focused&&!input.isConnected){
-      const current=document.querySelector(`#macros select[data-choice-enhanced="${key}"] + fieldset`);
+      const current=fieldset.isConnected?fieldset:document.querySelector(`#macros select[data-choice-enhanced="${key}"] + fieldset`);
       Array.from(current?.querySelectorAll("input")||[]).find(radio=>radio.value===input.value)?.focus()
      }
     })
@@ -505,6 +514,14 @@ function syncChoices(root){
   grid.querySelectorAll("input").forEach(input=>{input.checked=input.value===select.value;input.disabled=select.disabled||options.find(option=>option.value===input.value).disabled})
  })
 }
+function enhanceChoice(select,key,cards,root){
+ const label=select.previousElementSibling,fieldset=document.createElement("fieldset");
+ fieldset.className="choices"+(cards?" cards":"");fieldset.dataset.group="choice-"+(++choiceGroupId);
+ const legend=document.createElement("legend");legend.textContent=label.textContent;fieldset.append(legend);
+ const grid=document.createElement("div");grid.className="choice-grid";fieldset.append(grid);
+ label.hidden=true;select.hidden=true;select.dataset.choiceEnhanced=key;select.after(fieldset);
+ select.addEventListener("change",()=>syncChoices(root))
+}
 function enhanceChoices(card){
  for(const [selector,key,cards] of [
   ['[data-k="actionMode"]',"actionMode",true],['[data-smart-home-type]',"smartHome",false],
@@ -512,14 +529,15 @@ function enhanceChoices(card){
   ['[data-k="iconSource"]',"iconSource",true],['[data-k="visualFit"]',"visualFit",false],
   ['[data-k="shape"]',"shape",false],['[data-k="widgetLayout"]',"widgetLayout",false],
   ['[data-k="widgetGraphic"]',"widgetGraphic",false],['[data-k="textAlign"]',"textAlign",false],
-  ['[data-k="sound"]',"sound",false],['[data-k="action"]',"action",false],['[data-k="method"]',"method",false]
+  ['[data-k="sound"]',"sound",false],['[data-k="action"]',"action",false],['[data-k="method"]',"method",false],
+  ['[data-k="emojiRender"]',"emojiRender",false],['[data-k="visualScale"]',"visualScale",false],
+  ['[data-k="spanCols"]',"spanCols",false],['[data-k="spanRows"]',"spanRows",false],
+  ['[data-k="textDecoration"]',"textDecoration",false],['[data-k="textSpacing"]',"textSpacing",false],
+  ['[data-k="alarmSound"]',"alarmSound",false],['[data-k="newsCount"]',"newsCount",false],
+  ['[data-k="temperatureUnit"]',"temperatureUnit",false],['[data-k="stockProvider"]',"stockProvider",false],
+  ['[data-k="homeOperation"]',"homeOperation",false]
  ]){
-  const select=card.querySelector(selector),label=select.previousElementSibling;
-  const fieldset=document.createElement("fieldset");fieldset.className="choices"+(cards?" cards":"");fieldset.dataset.group="choice-"+(++choiceGroupId);
-  const legend=document.createElement("legend");legend.textContent=label.textContent;fieldset.append(legend);
-  const grid=document.createElement("div");grid.className="choice-grid";fieldset.append(grid);
-  label.hidden=true;select.hidden=true;select.dataset.choiceEnhanced=key;select.after(fieldset);
-  select.addEventListener("change",()=>syncChoices(card))
+  enhanceChoice(card.querySelector(selector),key,cards,card)
  }
  syncChoices(card)
 }
@@ -749,7 +767,7 @@ function render(){
   card.querySelector("[data-delete]").onclick=()=>{if(pendingUploads||faBusy)return msg("Wait for the upload to finish.",true);cfg.macros[i]=emptyMacro();render()};
  });
  if(selectedTile<0){const hint=document.createElement("p");hint.className="hint empty-state";hint.textContent="Select a tile in the preview to configure its visual, widget, or action. You can start anywhere; other tiles stay in place.";root.append(hint)}
- $("#count").textContent=`(${cfg.macros.filter(macroConfigured).length}/32 configured)`;preview()
+ $("#count").textContent=`(${cfg.macros.filter(macroConfigured).length}/32 configured)`;syncChoices(document);preview()
 }
 function updateModeFields(card,mode){
  const unselected=!mode;
@@ -1719,6 +1737,8 @@ $("#preview").addEventListener("scrollend",updatePreviewDots);
 }
 $("#faSearch").oninput=()=>{clearTimeout(faSearchTimer);faSearchVersion++;$("#faResults").replaceChildren();faSearchTimer=setTimeout(drawFaResults,180)};$("#faClose").onclick=()=>{if(!faBusy)$("#faDialog").close()};
 $("#hideUnconfigured").onchange=()=>{const issue=layoutIssue(cfg.macros,Number($("#cols").value),Number($("#rows").value),$("#hideUnconfigured").checked);if(issue){$("#hideUnconfigured").checked=false;msg(issue,true);return}preview()};$("#hideEmptyTiles").onchange=preview;$("#timeOffset").oninput=updateWidgetPreview;
+for(const id of ["cols","rows","screenLayout","siteTheme"])enhanceChoice($("#"+id),id,false,document);
+syncChoices(document);
 init();
 </script>
 </body></html>

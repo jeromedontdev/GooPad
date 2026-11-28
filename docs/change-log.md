@@ -1525,3 +1525,37 @@ not a complete historical changelog.
   configuration, and complete the device soak and release checks. Spidarium
   still has stale contributor listings despite all 127 default-branch commit
   authors resolving to the correct account.
+
+## 2026-11-28 - 0.7.15 device validation and attribution
+
+- **Deployment:** the ESP-IDF 6.1 production reconfigure/build from clean
+  source `ed48be2` passed with the 0.7.14 SDK configuration. App-only OTA
+  installed 0.7.15 on the verified COM9 board; the active image, 0.7.14 recovery
+  image and pinned HTTPS editor matched their builds. Primary NVS, protected
+  HomeKit records and configuration matched the 0.7.14 baseline under the
+  preservation guard. This cannot explain the earlier lost protected-record
+  difference. No NVS, HomeKit storage, SD or OTA metadata was erased.
+- **Behavior and soak:** an approved temporary GET fixture fetched the expected
+  response into the tile result, and the original configuration was restored
+  byte-for-byte. The three configured news feeds, including the formerly
+  oversized feed, were observed rotating in order. Physical display pixels
+  were not independently observed. A 300.014-second read-only device soak
+  collected 20 samples with zero errors and reboots; it recorded one startup
+  low-memory warning, nine network memory-admission deferrals and 38 PC
+  network-lock deferrals. Minimum internal free memory was 17,923 bytes and
+  PSRAM free was 3,335,188 bytes. Configuration remained unchanged during
+  the soak.
+- **Attribution:** the contributor APIs for GooPad, the hardware-test
+  repository and Spidarium now list `jeromedontdev` rather than the incorrect
+  accounts. Spidarium's earlier stale contributor listing has refreshed.
+  Existing clones still need to reconcile the rewritten histories; the
+  historical signature loss described above remains.
+- **Packaging/publication:** the first Companion package was built in the
+  global Python environment and included unexpected dependencies; it is not
+  being published. A replacement was built in the isolated environment;
+  packaged source hashes and ZIP CRC passed, and Defender (signature
+  1.463.510.0) found no threats in the directory, ZIP or installer. All 47
+  Companion tests passed in that environment. The frozen older-updater,
+  installer and restart test passed for 300.05 seconds and 61 samples with
+  zero errors and preserved fixture settings and identity. Release assets and
+  checksums were prepared; publication remains pending.

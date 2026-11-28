@@ -48,6 +48,17 @@ has the same size, headroom and matching editor pack. Its firmware SHA-256 is
 `8e0d5256d7481761a132fcda6ffd416c0442d7cc2111a5ed3d8288225594489a`;
 this is the image installed on the device, not the earlier worktree image.
 
+## 0.7.15 committed-source build (2026-11-28)
+
+The ESP-IDF 6.1 production build from `ed48be2` is **2,427,328 bytes**, leaving
+**1,766,976 bytes** in its 4 MiB app slot. Its SHA-256 is
+`9262f4c40e91abaabc193476a3ce724f4e5048c19c1a6ef8b9a21d1f08f44886`.
+The matching editor pack is `web-571557f77ce5.gwp` (350,505 bytes, SHA-256
+`571557f77ce52d8ceaec99af69c628e5c0f112d903ceb5ce5c994c93b87ae4d7`).
+The image was installed app-only on COM9 with 0.7.14 in the recovery slot.
+App-slot headroom is not runtime memory; see the [change log](change-log.md)
+for preservation, device soak and publication status.
+
 ## What the 31 KiB warning means
 
 The tested Guition has **16 MiB flash**, but each firmware image must fit in
